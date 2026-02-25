@@ -43,7 +43,7 @@ function App() {
           The Oswin Journal
         </a>
         <a
-          href="https://upwardfall.com"
+          href="https://demotape.alextaves.com"
           target="_blank"
           rel="noopener noreferrer"
           className="nav-link"
@@ -98,7 +98,7 @@ function App() {
               The Oswin Journal
             </a>
             <a
-              href="https://upwardfall.com"
+              href="https://demotape.alextaves.com"
               target="_blank"
               rel="noopener noreferrer"
               className="mobile-menu-link"
