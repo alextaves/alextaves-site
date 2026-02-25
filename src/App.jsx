@@ -43,6 +43,14 @@ function App() {
           The Oswin Journal
         </a>
         <a
+          href="https://upwardfall.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nav-link"
+        >
+          Demo Tape
+        </a>
+        <a
           href="https://alextaves.com/archive"
           target="_blank"
           rel="noopener noreferrer"
@@ -88,6 +96,15 @@ function App() {
               onClick={() => setMobileMenuOpen(false)}
             >
               The Oswin Journal
+            </a>
+            <a
+              href="https://upwardfall.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mobile-menu-link"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Demo Tape
             </a>
             <a
               href="https://alextaves.com/archive"
