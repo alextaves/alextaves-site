@@ -27,7 +27,7 @@ const services = [
   },
 ];
 
-export default function ServicesPage({ onBack }) {
+export default function ServicesPage({ onBack, onContact }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -166,6 +166,10 @@ export default function ServicesPage({ onBack }) {
           display: inline-flex;
           align-items: center;
           gap: 12px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 0;
         }
         .s-arrow {
           display: inline-block;
@@ -248,10 +252,10 @@ export default function ServicesPage({ onBack }) {
               </div>
               <div className="s-right">
                 <p className="s-desc">{service.description}</p>
-                <span className="s-cta">
+                <button className="s-cta" onClick={onContact}>
                   {service.cta}
                   <span className="s-arrow" />
-                </span>
+                </button>
               </div>
             </div>
           ))}

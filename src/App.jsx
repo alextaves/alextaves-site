@@ -20,7 +20,7 @@ function App() {
   };
 
   if (showServices) {
-    return <ServicesPage onBack={() => setShowServices(false)} />;
+    return <ServicesPage onBack={() => setShowServices(false)} onContact={() => { setShowServices(false); setShowContact(true); }} />;
   }
 
   return (
@@ -67,6 +67,7 @@ function App() {
       {/* Section 1: Demo Video */}
       <section className="section-demo">
         <video className="vid desktop" src="/videos/showreel2_3.mp4" autoPlay muted loop playsInline />
+        <video className="vid tablet" src="/videos/tablet_2.mp4" autoPlay muted loop playsInline />
         <video className="vid mobile" src="/videos/mobileshowreel.mp4" autoPlay muted loop playsInline />
       </section>
 
@@ -88,6 +89,7 @@ function App() {
       <section className="section-oswin">
         <div className="oswin-video-wrap">
           <video className="vid desktop" src="/videos/desktop_preRace2.mp4" autoPlay muted loop playsInline />
+          <video className="vid tablet" src="/videos/tablet_zoom.mp4" autoPlay muted loop playsInline />
           <video className="vid mobile" src="/videos/phone_PreRace.mp4" autoPlay muted loop playsInline />
         </div>
         <audio ref={audioRef} src="/audio/automobile.mp3" loop />
@@ -102,9 +104,28 @@ function App() {
 
       {/* Footer */}
       <footer className="footer">
-        <span>Alex Taves</span>
-        <span>© {new Date().getFullYear()}</span>
-        <span>Audio by Yoni Newman — featured in Oswin Journal</span>
+        <div className="footer-col footer-col--wide">
+          <span className="footer-heading">ABOUT</span>
+          <span className="footer-divider">—</span>
+          <p className="footer-body">Alex Taves is a designer, artist and a web developer.</p>
+        </div>
+        <div className="footer-col">
+          <span className="footer-heading">CONTACT</span>
+          <span className="footer-divider">—</span>
+          <button className="footer-link" onClick={() => setShowContact(true)}>Email me</button>
+          <div className="footer-bottom-row">
+            <span className="footer-copy">All copyright {new Date().getFullYear()}</span>
+          </div>
+        </div>
+        <div className="footer-col">
+          <span className="footer-heading">FOLLOW</span>
+          <span className="footer-divider">—</span>
+          <a href="https://www.instagram.com/more_flowers_please/" target="_blank" rel="noopener noreferrer" className="footer-link">Instagram</a>
+          <a href="https://alextaves.substack.com/" target="_blank" rel="noopener noreferrer" className="footer-link">Substack</a>
+          <div className="footer-bottom-row">
+            <button className="footer-link" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Back to top</button>
+          </div>
+        </div>
       </footer>
 
       {/* About Modal */}
