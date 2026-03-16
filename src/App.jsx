@@ -6,9 +6,22 @@ function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [showContact, setShowContact] = useState(false);
   const [showServices, setShowServices] = useState(false);
+  const [showDemoTape, setShowDemoTape] = useState(false);
+  const [showDemoDropdown, setShowDemoDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileDemoOpen, setMobileDemoOpen] = useState(false);
   const [audioOn, setAudioOn] = useState(false);
+  const [formSent, setFormSent] = useState(false);
   const audioRef = useRef(null);
+
+  const handleContactSubmit = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const data = new FormData(form);
+    await fetch('https://formspree.io/f/xldkljpe', { method: 'POST', body: data, headers: { Accept: 'application/json' } });
+    form.reset();
+    setFormSent(true);
+  };
 
   const toggleAudio = () => {
     if (audioOn) {
@@ -40,7 +53,22 @@ function App() {
         <span className="nav-link">Alex Taves</span>
         <button className="nav-link audio-btn" onClick={toggleAudio}>Audio {audioOn ? 'ON' : 'OFF'}</button>
         <nav className="nav">
-          <a href="https://demotape.alextaves.com" target="_blank" rel="noopener noreferrer" className="nav-link">Demo Tape</a>
+          <div
+            className="nav-dropdown-wrap"
+            onMouseEnter={() => setShowDemoDropdown(true)}
+            onMouseLeave={() => setShowDemoDropdown(false)}
+          >
+            <button className="nav-link nav-dropdown-trigger">
+              Demo Tape <span className={`dropdown-arrow${showDemoDropdown ? ' open' : ''}`}>›</span>
+            </button>
+            {showDemoDropdown && (
+              <div className="nav-dropdown-menu">
+                <button className="nav-dropdown-item" onClick={() => { setShowDemoDropdown(false); setShowDemoTape(true); }}>About Demotape</button>
+                <a href="https://demotape.alextaves.com" target="_blank" rel="noopener noreferrer" className="nav-dropdown-item">Demo Tape 1</a>
+                <a href="https://demotape2.alextaves.com" target="_blank" rel="noopener noreferrer" className="nav-dropdown-item">Demo Tape 2</a>
+              </div>
+            )}
+          </div>
           <a href="https://oswinjournal.com" target="_blank" rel="noopener noreferrer" className="nav-link">The Oswin Journal</a>
           <button onClick={() => setShowAbout(true)} className="nav-link">About</button>
           <button onClick={() => setShowServices(true)} className="nav-link">Work with ME</button>
@@ -54,7 +82,16 @@ function App() {
         <div className="mobile-menu">
           <button className="mobile-menu-close" onClick={() => setMobileMenuOpen(false)}>×</button>
           <nav className="mobile-menu-nav">
-            <a href="https://demotape.alextaves.com" target="_blank" rel="noopener noreferrer" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>Demo Tape</a>
+            <button className="mobile-menu-link mobile-menu-dropdown-trigger" onClick={() => setMobileDemoOpen(o => !o)}>
+              Demo Tape <span className={`dropdown-arrow${mobileDemoOpen ? ' open' : ''}`}>›</span>
+            </button>
+            {mobileDemoOpen && (
+              <div className="mobile-menu-sub">
+                <a href="https://demotape.alextaves.com" target="_blank" rel="noopener noreferrer" className="mobile-menu-sublink" onClick={() => setMobileMenuOpen(false)}>Demo Tape 1</a>
+                <a href="https://demotape2.alextaves.com" target="_blank" rel="noopener noreferrer" className="mobile-menu-sublink" onClick={() => setMobileMenuOpen(false)}>Demo Tape 2</a>
+                <button className="mobile-menu-sublink" onClick={() => { setMobileMenuOpen(false); setMobileDemoOpen(false); setShowDemoTape(true); }}>About Demotape</button>
+              </div>
+            )}
             <a href="https://oswinjournal.com" target="_blank" rel="noopener noreferrer" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>The Oswin Journal</a>
             <button onClick={() => { setShowAbout(true); setMobileMenuOpen(false); }} className="mobile-menu-link">About</button>
             <button onClick={() => { setShowServices(true); setMobileMenuOpen(false); }} className="mobile-menu-link">Work with ME</button>
@@ -107,7 +144,7 @@ function App() {
         <div className="footer-col footer-col--wide">
           <span className="footer-heading">ABOUT</span>
           <span className="footer-divider">—</span>
-          <p className="footer-body">Alex Taves is a designer, artist and a web developer.</p>
+          <p className="footer-body">Creative Director. Artist. Web Developer. Melbourne via Toronto and Sydney. Building things for people who make things.</p>
         </div>
         <div className="footer-col">
           <span className="footer-heading">CONTACT</span>
@@ -148,26 +185,52 @@ function App() {
         </div>
       )}
 
+      {/* DemoTape Modal */}
+      {showDemoTape && (
+        <div className="modal-overlay" onClick={() => setShowDemoTape(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowDemoTape(false)} className="modal-close">×</button>
+            <h2 className="about-heading">DemoTape</h2>
+            <div className="about-text">
+              <p>DemoTape gives independent musicians something that doesn't exist yet: a single web presence that works like an album, a gallery, a store, and a gig calendar all at once. Installable on your phone. Yours to run.</p>
+              <p>The backend runs on Sanity.io, which means you manage your own content. New tracks, new visuals, show dates. You update it. No waiting on anyone.</p>
+              <p>It's in prototype right now. Early builds are live. If you want in, <button className="about-link about-link--orange" style={{display:'inline', padding:0}} onClick={() => { setShowDemoTape(false); setShowContact(true); }}>reach out</button>.</p>
+            </div>
+            <div className="about-links">
+              <a href="https://demotape.alextaves.com" target="_blank" rel="noopener noreferrer" className="about-link about-link--orange" onClick={() => setShowDemoTape(false)}>Visit DemoTape</a>
+              <a href="https://demotape2.alextaves.com" target="_blank" rel="noopener noreferrer" className="about-link about-link--orange" onClick={() => setShowDemoTape(false)}>Visit DemoTape 2</a>
+              <button className="about-link about-link--orange" onClick={() => { setShowDemoTape(false); setShowContact(true); }}>Let's talk</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Contact Modal */}
       {showContact && (
-        <div className="modal-overlay" onClick={() => setShowContact(false)}>
+        <div className="modal-overlay" onClick={() => { setShowContact(false); setFormSent(false); }}>
           <div className="contact-content" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowContact(false)} className="modal-close">×</button>
-            <form className="contact-form" action="https://formspree.io/f/xldkljpe" method="POST">
-              <div className="form-field">
-                <label className="form-label">NAME:</label>
-                <input type="text" name="name" className="form-input" required />
+            <button onClick={() => { setShowContact(false); setFormSent(false); }} className="modal-close">×</button>
+            {formSent ? (
+              <div className="form-success">
+                <p>Sent successfully.</p>
               </div>
-              <div className="form-field">
-                <label className="form-label">EMAIL:</label>
-                <input type="email" name="email" className="form-input" required />
-              </div>
-              <div className="form-field">
-                <label className="form-label">MESSAGE:</label>
-                <textarea name="message" className="form-textarea" rows="5" required />
-              </div>
-              <button type="submit" className="form-submit">SEND</button>
-            </form>
+            ) : (
+              <form className="contact-form" onSubmit={handleContactSubmit}>
+                <div className="form-field">
+                  <label className="form-label">NAME:</label>
+                  <input type="text" name="name" className="form-input" required />
+                </div>
+                <div className="form-field">
+                  <label className="form-label">EMAIL:</label>
+                  <input type="email" name="email" className="form-input" required />
+                </div>
+                <div className="form-field">
+                  <label className="form-label">MESSAGE:</label>
+                  <textarea name="message" className="form-textarea" rows="5" required />
+                </div>
+                <button type="submit" className="form-submit">SEND</button>
+              </form>
+            )}
           </div>
         </div>
       )}

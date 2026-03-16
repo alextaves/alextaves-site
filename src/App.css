@@ -55,6 +55,87 @@ body {
   color: #ccc;
 }
 
+/* ── Demo Tape Dropdown ────────────────────────── */
+
+.nav-dropdown-wrap {
+  position: relative;
+}
+
+.nav-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dropdown-arrow {
+  display: inline-block;
+  font-style: normal;
+  transition: transform 0.2s ease;
+  font-size: 30px;
+  line-height: 1;
+  transform: rotate(90deg);
+  margin-left: 5px;
+}
+
+.dropdown-arrow.open {
+  transform: rotate(-90deg);
+}
+
+.nav-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 0;
+  white-space: nowrap;
+  border-top: 1px solid #f2f2f2;
+}
+
+.nav-dropdown-item {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 18px;
+  font-weight: normal;
+  color: #000;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.nav-dropdown-item:hover {
+  opacity: 0.5;
+}
+
+/* ── Mobile Demo Sub-menu ─────────────────────── */
+
+.mobile-menu-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: center;
+}
+
+.mobile-menu-sublink {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 20px;
+  font-weight: normal;
+  color: #888;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mobile-menu-sublink:hover {
+  opacity: 0.5;
+}
+
 /* ── Section 1: Demo Video ────────────────────── */
 
 .section-demo {
@@ -380,10 +461,18 @@ body {
   font-weight: normal;
   color: #000;
   text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
 }
 
 .about-link:hover {
   opacity: 0.5;
+}
+
+.about-link--orange {
+  color: #FF5500;
 }
 
 /* ── Contact Modal ────────────────────────────── */
@@ -447,6 +536,15 @@ body {
 
 .form-submit:hover {
   opacity: 0.5;
+}
+
+.form-success {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  font-size: 28px;
+  font-weight: bold;
 }
 
 /* ── Mobile ───────────────────────────────────── */
