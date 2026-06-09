@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>video carousel</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; touch-action: none; }
+  canvas { display: block; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+  .vid { position: fixed; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+</style>
+</head>
+<body>
+
+<video class="vid" id="v0" src="/videos/diver4.mp4"                   muted loop playsinline></video>
+<video class="vid" id="v1" src="/videos/diver2.mp4"                   muted loop playsinline></video>
+<video class="vid" id="v2" src="/videos/chris_desktop_bluedancer.mp4" muted loop playsinline></video>
+<video class="vid" id="v3" src="/videos/desktop_hurdles.mp4"          muted loop playsinline></video>
+<video class="vid" id="v4" src="/videos/wallstreetwalking_panel1.mp4" muted loop playsinline></video>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
+<script>
+const N           = 5;
+const RADIUS      = 7;
+const CAM_Z       = 11;
+const THICK       = 0.14;
+const SENS        = 0.005;
+const FRICTION    = 2.5;
+const MAX_VEL     = 6.0;
+const DRAG_THRESH = 6;
+const AUTO_SPEED  = 0.038;
+const REFL_FRAC   = 0.2;
+const FRONT_OP    = 0.96;
+const BACK_OP     = 0.55;
+const FOG_FLOOR   = 0.04;
+const FOG_MAX     = 0.18;
+const FOG_EASE    = 3;
+
+// --- Renderer ---
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0c0806');
+scene.fog = new THREE.Fog('#0e0b08', 8, 55);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 0, CAM_Z);
+camera.lookAt(0, 0, 0);
+
+// PMREM gradient environment (same warm/cool as detroit)
+const pmrem = new THREE.PMREMGenerator(renderer);
+const gradTex = (() => {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0,    '#ffffff');
+  g.addColorStop(0.35, '#c8d4e8');
+  g.addColorStop(0.65, '#2a1e10');
+  g.addColorStop(1,    '#0c0806');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 512);
+  return new THREE.CanvasTexture(c);
+})();
+gradTex.mapping = THREE.EquirectangularReflectionMapping;
+scene.environment = pmrem.fromEquirectangular(gradTex).texture;
+gradTex.dispose(); pmrem.dispose();
+
+// Lighting
+scene.add(new THREE.AmbientLight('#ffffff', 0.35));
+const key = new THREE.DirectionalLight('#ffffff', 1.1); key.position.set(4, 6, 5);
+const rim = new THREE.DirectionalLight('#ffcf90', 0.5); rim.position.set(-5, 2, -4);
+scene.add(key, rim);
+
+// Panel geometry — sized like detroit: 75% of near-face horizontal view
+const vFOV      = (camera.fov * Math.PI) / 180;
+const nearDist  = CAM_Z - RADIUS;  // = 4
+const isMobile  = camera.aspect < 1;
+let panelW, panelH;
+if (!isMobile) {
+  const hFOVhalf = Math.atan(Math.tan(vFOV / 2) * camera.aspect);
+  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.75;
+  panelH = panelW * (4 / 3);
+} else {
+  panelH = 0.85 * 2 * nearDist * Math.tan(vFOV / 2);
+  panelW = panelH * (3 / 4);
+}
+
+const panelGeo = new THREE.BoxGeometry(panelW, panelH, THICK);
+const reflH    = panelH * REFL_FRAC;
+const reflGeo  = new THREE.PlaneGeometry(panelW, reflH);
+
+// Shared side material
+const sideMat = new THREE.MeshStandardMaterial({
+  color: new THREE.Color('#d4d0cb').multiplyScalar(1.25),
+  transparent: true, opacity: 0.65,
+  roughness: 0.05, metalness: 0.3, envMapIntensity: 3.0,
+});
+
+// Per-panel arrays
+const panels    = [];
+const home      = [];
+const faceMats  = [];
+const glassMats = [];
+const reflMats  = [];
+
+// Pre-compute home positions (angle=0 orbit)
+for (let i = 0; i < N; i++) {
+  const a = (i / N) * Math.PI * 2;
+  home.push(new THREE.Vector3(Math.cos(a) * RADIUS, 0, Math.sin(a) * RADIUS));
+}
+
+// Video elements
+const vidEls = Array.from({ length: N }, (_, i) => document.getElementById(`v${i}`));
+
+function buildPanels() {
+  for (let i = 0; i < N; i++) {
+    const vidEl = vidEls[i];
+    vidEl.play().catch(() => {});
+
+    const vidTex = new THREE.VideoTexture(vidEl);
+    vidTex.encoding = THREE.sRGBEncoding;
+
+    const faceMat = new THREE.MeshPhysicalMaterial({
+      map: vidTex,
+      transparent: true, opacity: FRONT_OP, side: THREE.FrontSide,
+      roughness: 0.02, metalness: 0.05,
+      clearcoat: 1.0, clearcoatRoughness: 0.01,
+      envMapIntensity: 1.6,
+      emissive: new THREE.Color('#111111'), emissiveIntensity: 0.0,
+    });
+    faceMats.push(faceMat);
+
+    const glassMat = new THREE.MeshStandardMaterial({
+      transparent: true, opacity: BACK_OP,
+      roughness: 0.05, metalness: 0.2, envMapIntensity: 2.5,
+    });
+    glassMats.push(glassMat);
+
+    // right, left, top, bottom = sides; +z face = video; -z face = glass back
+    const panel = new THREE.Mesh(panelGeo, [sideMat, sideMat, glassMat, glassMat, faceMat, glassMat]);
+    panel.frustumCulled = false;
+    scene.add(panel);
+    panels.push(panel);
+
+    // Reflection strip (blurred bottom of video, below panel)
+    const reflTex = new THREE.VideoTexture(vidEl);
+    reflTex.encoding = THREE.sRGBEncoding;
+    reflTex.wrapT   = THREE.RepeatWrapping;
+    reflTex.repeat.set(1, -REFL_FRAC);
+    reflTex.offset.set(0, REFL_FRAC);
+
+    const reflMat = new THREE.MeshBasicMaterial({
+      map: reflTex, transparent: true, opacity: 0.2,
+      depthWrite: false, fog: false,
+    });
+    reflMats.push(reflMat);
+
+    const reflMesh = new THREE.Mesh(reflGeo, reflMat);
+    reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
+    reflMesh.frustumCulled = false;
+    panel.add(reflMesh);
+  }
+}
+
+buildPanels();
+
+// --- Interaction ---
+let angle = 0, angVel = 0, autoDir = 1, paused = false;
+let dragging = false, didDrag = false, downOnPanel = false;
+let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0, dragStartAngle = 0;
+
+const pointer  = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+  pointer.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(panels);
+  downOnPanel = hits.length > 0;
+  dragging = true; didDrag = false;
+  downX = lastX = e.clientX; downY = e.clientY;
+  lastMoveT = performance.now(); trackedVel = 0;
+  dragStartAngle = angle;
+});
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const now = performance.now();
+  const dx  = e.clientX - lastX;
+  const dtm = Math.max((now - lastMoveT) / 1000, 0.001);
+  lastX = e.clientX; lastMoveT = now;
+  if (Math.abs(e.clientX - downX) > DRAG_THRESH || Math.abs(e.clientY - downY) > DRAG_THRESH) {
+    didDrag = true;
+    if (paused) paused = false;
+  }
+  if (didDrag) {
+    angle    += dx * SENS;
+    trackedVel = trackedVel * 0.6 + (dx / dtm) * 0.4;
+  }
+});
+
+renderer.domElement.addEventListener('pointerup', () => {
+  if (!dragging) return;
+  dragging = false;
+  const net = angle - dragStartAngle;
+  if (!didDrag && downOnPanel && Math.abs(net) < 0.02) paused = !paused;
+  let av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS;
+  angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
+  if (didDrag && Math.abs(av) > 0.05) autoDir = av < 0 ? -1 : 1;
+});
+
+// Touch scroll
+let touchY0 = 0;
+window.addEventListener('touchstart', (e) => { touchY0 = e.touches[0].clientY; }, { passive: true });
+window.addEventListener('touchmove',  (e) => {
+  e.preventDefault();
+  const dy = e.touches[0].clientY - touchY0;
+  touchY0 = e.touches[0].clientY;
+  if (Math.abs(dy) > 8) window.parent.postMessage({ type: 'swipe', dy }, '*');
+}, { passive: false });
+
+// Keyboard arrows
+function handleKey(key) {
+  if (key === ' ')          { paused = !paused; }
+  if (key === 'ArrowLeft')  { angVel = Math.min(MAX_VEL, angVel + 1.8); if (paused) paused = false; }
+  if (key === 'ArrowRight') { angVel = Math.max(-MAX_VEL, angVel - 1.8); if (paused) paused = false; }
+  if (key === 'ArrowUp')   window.parent.postMessage({ type: 'nav', dir: 'up'   }, '*');
+  if (key === 'ArrowDown') window.parent.postMessage({ type: 'nav', dir: 'down' }, '*');
+}
+window.addEventListener('keydown', (e) => handleKey(e.key));
+window.addEventListener('message', (e) => { if (e.data?.type === 'key') handleKey(e.data.key); });
+
+// Resize
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// --- Render loop ---
+const orbitEuler = new THREE.Euler();
+const orbitQuat  = new THREE.Quaternion();
+const orbitPos   = new THREE.Vector3();
+let fog = 0, last = performance.now();
+
+function render(now) {
+  requestAnimationFrame(render);
+  let dt = (now - last) / 1000; last = now;
+  if (dt > 0.05) dt = 0.05;
+
+  // Rotation
+  if (!dragging && !paused) {
+    const target = AUTO_SPEED * autoDir;
+    angVel = target + (angVel - target) * Math.exp(-FRICTION * dt);
+    angle += angVel * dt;
+  } else if (!dragging) {
+    angVel *= Math.exp(-FRICTION * dt);
+    angle  += angVel * dt;
+  }
+
+  // Motion blur glow
+  const instSpeed = dragging ? Math.abs(trackedVel * SENS) : Math.abs(angVel);
+  const fogTarget = instSpeed > FOG_FLOOR ? Math.min(1, instSpeed / MAX_VEL) : 0;
+  fog += (fogTarget - fog) * Math.min(1, dt * FOG_EASE);
+  const emi = fog * FOG_MAX;
+  faceMats.forEach(m => { m.emissiveIntensity = emi; });
+
+  orbitEuler.set(0, angle, 0, 'XYZ');
+  orbitQuat.setFromEuler(orbitEuler);
+
+  for (let i = 0; i < N; i++) {
+    orbitPos.copy(home[i]).applyQuaternion(orbitQuat);
+    panels[i].position.set(orbitPos.x, orbitPos.y, orbitPos.z);
+    panels[i].rotation.set(0, Math.atan2(orbitPos.x, orbitPos.z), 0);
+    panels[i].renderOrder = Math.round(orbitPos.z * 1000);
+
+    // Distance-based opacity (front = bright, back = dim)
+    const norm = Math.min(1, Math.max(0, (orbitPos.z + RADIUS) / (2 * RADIUS)));
+    const targetOp = FRONT_OP * (0.35 + 0.65 * norm);
+    faceMats[i].opacity  += (targetOp - faceMats[i].opacity)  * Math.min(1, dt * 5);
+    glassMats[i].opacity  = BACK_OP * (0.3 + 0.7 * norm);
+    reflMats[i].opacity   = 0.2 * norm;
+  }
+
+  renderer.render(scene, camera);
+}
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

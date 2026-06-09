@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>detroit</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; touch-action: none; }
+  canvas { display: block; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+  #begin {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px;
+    background: #0c0806; z-index: 10;
+    font-family: ui-monospace, monospace; color: rgba(255,210,160,0.45); letter-spacing: 0.3em;
+    text-transform: uppercase; font-size: 13px;
+  }
+  #begin button {
+    padding: 14px 28px; border: 1px solid rgba(255,200,140,0.2); background: none; cursor: pointer;
+    font-family: ui-monospace, monospace; font-size: 13px; letter-spacing: 0.3em;
+    text-transform: uppercase; color: rgba(255,210,160,0.45); opacity: 0.7; transition: opacity 0.3s;
+  }
+  #begin button:hover { opacity: 1; }
+  #vid-el { position: fixed; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+</style>
+</head>
+<body>
+<video id="vid-el" muted playsinline preload="auto"></video>
+
+<div id="begin">
+  <button id="btn-audio-on">audio on</button>
+  <button id="btn-audio-off">audio off</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
+<script>
+
+const IMAGES = [
+  '/detroit/01.webp','/detroit/02.webp','/detroit/03.webp','/detroit/04.webp',
+  '/detroit/05.webp','/detroit/06.webp','/detroit/07.webp','/detroit/08.webp',
+  '/detroit/09.webp','/detroit/10.webp','/detroit/11.webp','/detroit/12.webp',
+  '/detroit/13.webp','/detroit/14.webp','/detroit/16.webp','/detroit/17.webp',
+  '/detroit/18.webp','/detroit/19.webp','/detroit/20.webp','/detroit/21.webp',
+  '/detroit/22.webp','/detroit/23.webp','/detroit/24.webp','/detroit/25.webp',
+  '/detroit/27.webp','/detroit/28.webp','/detroit/29.webp',
+  '/detroit/30.webp','/detroit/31.webp','/detroit/32.webp','/detroit/33.webp',
+  '/detroit/34.webp','/detroit/35.webp','/detroit/36.webp','/detroit/37.webp',
+  '/detroit/38.webp','__text__',
+  '/detroit/face1.jpg','/detroit/face2.jpg','/detroit/face3.jpg',
+  '/detroit/face5.jpg','/detroit/face6.jpg','/detroit/face16.jpg',
+];
+
+const COUNT = IMAGES.length;
+const RADIUS = 24, CAM_Z = 28;
+const SENS = 0.005, FRICTION = 2.5, MAX_VEL = 6.0, DRAG_THRESH = 6;
+let SPREAD = 1.0, AUTO_SPEED = 0.0375;
+
+let started = false, paused = false;
+let angle = 0, angVel = 0;
+let dragging = false, didDrag = false, downOnPanel = false, clickedPanelIdx = -1, autoDir = 1;
+let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0, dragStartAngle = 0;
+let fog = 0, duck = 1;
+
+const FOG_FLOOR = 0.4, FOG_MAX = 1.2, FOG_EASE = 4;
+
+// Scene
+const scene = new THREE.Scene();
+function sweepTexture() {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0, '#16110d'); g.addColorStop(1, '#0a0704');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 512);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+}
+scene.background = sweepTexture();
+scene.fog = new THREE.Fog('#0e0b08', 9, 70);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 0, CAM_Z);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+let blueAmt = 0, blueTarget = 0;
+let videoAmt = 0, videoTarget = 0;
+let mode = 0;           // 0 = portraits, 1 = video (sticky)
+let blueScrollAcc = 0;  // accumulates scroll-up energy → blue (decays naturally)
+let modeSwitchTime = 0; // prevents blue firing immediately after exiting video
+
+// PMREM environment
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color('#0e0b08');
+function softbox(x, y, z, w, h, b, col) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ color: col || new THREE.Color().setScalar(b) }));
+  m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m);
+}
+softbox(0, 8, 0, 8, 8, 1.6);                           // bright top key
+softbox(6, 2, 0, 4, 8, 0, new THREE.Color('#3d2010')); // warm amber side fill
+softbox(-6, 2, 0, 4, 8, 0.02);                         // near-black shadow side
+softbox(0, -6, 0, 12, 12, 0.0);                        // pure black floor
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+
+scene.add(new THREE.HemisphereLight('#2a1a0a', '#0e0806', 0.15));
+const key = new THREE.DirectionalLight('#ffffff', 1.1); key.position.set(4, 6, 5);
+const rim = new THREE.DirectionalLight('#ffcf90', 0.5); rim.position.set(-5, 2, -4);
+scene.add(key, rim);
+
+// Panel geometry
+const nearDist = CAM_Z - RADIUS;
+const vFOV = (camera.fov * Math.PI) / 180;
+const isMobile = camera.aspect < 1;
+if (isMobile) {
+  SPREAD = 0.7;
+  AUTO_SPEED = 0.01875;
+  camera.position.y = -0.1;
+  camera.lookAt(0, 0, 0);
+}
+let panelW, panelH;
+if (isMobile) {
+  const hFOVhalf = Math.atan(Math.tan(vFOV / 2) * camera.aspect);
+  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.88;  // 88vw
+  panelH = panelW * (4 / 3);
+} else {
+  panelH = 0.9 * 2 * nearDist * Math.tan(vFOV / 2);
+  panelW = panelH * (3 / 4);
+}
+const THICK = 0.16;
+const panelGeo = new THREE.BoxGeometry(panelW, panelH, THICK);
+
+const FRONT_OPACITY = 0.92, BACK_OPACITY = 0.42;
+const REFL_FRAC = 0.4;
+const reflH = panelH * REFL_FRAC;
+const reflGeo = new THREE.PlaneGeometry(panelW, reflH);
+
+const panels = [], home = [], tilt = [], faceMats = [], glassMats = [], backMats = [], sideMats = [], reflMats = [], blueMats = [], blueMeshes = [], blueBackMats = [], blueBackMeshes = [], videoMats = [], videoMeshes = [], videoBackMats = [], videoBackMeshes = [];
+
+const orbitQuat = new THREE.Quaternion();
+const orbitEuler = new THREE.Euler();
+const orbitPos = new THREE.Vector3();
+
+const pointer = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+const aniso = renderer.capabilities.getMaxAnisotropy();
+
+
+function makeEnhancedTex(img) {
+  const scale = 0.5;
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * scale);
+  c.height = Math.round(img.height * scale);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  const id = ctx.getImageData(0, 0, c.width, c.height);
+  const px = id.data;
+  for (let j = 0; j < px.length; j += 4) {
+    let r = px[j]/255, g = px[j+1]/255, b = px[j+2]/255;
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    let h = 0, s = 0, l = (max+min)/2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+      if (max===r) h = ((g-b)/d + (g<b?6:0))/6;
+      else if (max===g) h = ((b-r)/d + 2)/6;
+      else h = ((r-g)/d + 4)/6;
+    }
+    const hd = h * 360;
+    // crush blacks
+    if (l < 0.25) l *= 0.7;
+    // boost yellows
+    if (hd >= 38 && hd <= 72) s = Math.min(1, s * 1.7);
+    // boost reds
+    if (hd <= 22 || hd >= 338) s = Math.min(1, s * 1.6);
+    // boost blues
+    if (hd >= 195 && hd <= 265) s = Math.min(1, s * 1.55);
+    if (s === 0) { r = g = b = l; } else {
+      const q = l < 0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
+      const h2r = (p,q,t) => { if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<0.5)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p; };
+      r = h2r(p,q,h+1/3); g = h2r(p,q,h); b = h2r(p,q,h-1/3);
+    }
+    px[j]=Math.round(r*255); px[j+1]=Math.round(g*255); px[j+2]=Math.round(b*255);
+  }
+  ctx.putImageData(id, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+function sampleColor(img) {
+  const c = document.createElement('canvas'); c.width = 1; c.height = 1;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, 1, 1);
+  const d = ctx.getImageData(0, 0, 1, 1).data;
+  return new THREE.Color(d[0] / 255, d[1] / 255, d[2] / 255);
+}
+
+function makeBlurTex(img) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width / 4); c.height = Math.round(img.height / 4);
+  const ctx = c.getContext('2d');
+  ctx.filter = 'blur(8px)';
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  const tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+function makeReflTex(img, mobile) {
+  const srcH = Math.round(img.height * REFL_FRAC);
+  const tmp = document.createElement('canvas');
+  tmp.width = img.width; tmp.height = srcH;
+  const tc = tmp.getContext('2d');
+  tc.translate(0, srcH);
+  tc.scale(1, -1);
+  tc.drawImage(img, 0, img.height - srcH, img.width, srcH, 0, 0, img.width, srcH);
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = srcH;
+  const ctx = c.getContext('2d');
+  ctx.filter = 'blur(5px) brightness(0.85)';
+  ctx.drawImage(tmp, 0, 0);
+  ctx.filter = 'none';
+  const grad = ctx.createLinearGradient(0, 0, 0, srcH);
+  if (mobile) {
+    grad.addColorStop(0,    'rgba(14,11,8,0.0)');
+    grad.addColorStop(0.25, 'rgba(14,11,8,0.88)');
+    grad.addColorStop(1,    'rgba(14,11,8,1.0)');
+  } else {
+    grad.addColorStop(0,   'rgba(14,11,8,0.05)');
+    grad.addColorStop(0.5, 'rgba(14,11,8,0.55)');
+    grad.addColorStop(1,   'rgba(14,11,8,0.97)');
+  }
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, c.width, srcH);
+  const tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+const BLUE_LINES = ['1993 - 1997', 'Portraits from Detroit', 'Coming soon', 'Oswin Journal'];
+const BLUE_TOTAL = BLUE_LINES.reduce((s, l) => s + l.length, 0);
+let typeChars = 0;
+let blueCanvas, blueCtx;
+
+function makeBlueTex() {
+  blueCanvas = document.createElement('canvas');
+  blueCanvas.width = 600; blueCanvas.height = 800;
+  blueCtx = blueCanvas.getContext('2d');
+  blueCtx.fillStyle = '#0026cc';
+  blueCtx.fillRect(0, 0, blueCanvas.width, blueCanvas.height);
+  const tex = new THREE.CanvasTexture(blueCanvas);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+const blueTex = makeBlueTex();
+
+function makeBlueBackTex() {
+  const W = 600, H = 800;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#0026cc';
+  ctx.fillRect(0, 0, W, H);
+  ctx.font = '15px "Courier New", Courier, monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  const px = 32, py = 36, lh = 30;
+  BLUE_LINES.forEach((line, i) => {
+    ctx.save();
+    ctx.translate(W - px, py + i * lh);
+    ctx.scale(-1, 1);
+    ctx.textAlign = 'left';
+    ctx.fillText(line, 0, 0);
+    ctx.restore();
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+const blueBackTex = makeBlueBackTex();
+
+function drawBlueCanvas(chars, now) {
+  const W = blueCanvas.width, H = blueCanvas.height;
+  blueCtx.fillStyle = '#0026cc';
+  blueCtx.fillRect(0, 0, W, H);
+  blueCtx.font = '15px "Courier New", Courier, monospace';
+  blueCtx.textAlign = 'left';
+  blueCtx.textBaseline = 'top';
+
+  const px = 32, py = 36, lh = 30;
+  let rem = Math.floor(chars);
+  let cursorLine = 0, cursorStr = '';
+
+  for (let i = 0; i < BLUE_LINES.length; i++) {
+    const line = BLUE_LINES[i];
+    const show = line.substring(0, rem);
+    if (show) {
+      blueCtx.fillStyle = 'rgba(255,255,255,0.88)';
+      blueCtx.fillText(show, px, py + i * lh);
+    }
+    cursorLine = i;
+    cursorStr = show;
+    rem -= line.length;
+    if (rem <= 0) break;
+  }
+
+  if (Math.floor(now / 530) % 2 === 0) {
+    const cx = px + blueCtx.measureText(cursorStr).width + 2;
+    blueCtx.fillStyle = 'rgba(255,255,255,0.88)';
+    blueCtx.fillRect(cx, py + cursorLine * lh + 1, 8, 14);
+  }
+}
+
+function buildPanels(textures) {
+  for (let i = 0; i < COUNT; i++) {
+    const a = (i / COUNT) * Math.PI * 2;
+    const r = RADIUS;
+    const y = 0;
+
+    textures[i].encoding = THREE.sRGBEncoding;
+    textures[i].anisotropy = aniso;
+
+    const avgCol = sampleColor(textures[i].image);
+    const faceMat = new THREE.MeshPhysicalMaterial({
+      map: i === TEXT_IDX ? textures[i] : makeEnhancedTex(textures[i].image), transparent: true, opacity: FRONT_OPACITY,
+      side: THREE.FrontSide,
+      roughness: 0.02, metalness: 0.05, clearcoat: 1.0, clearcoatRoughness: 0.01,
+      envMapIntensity: 1.6, emissive: avgCol, emissiveIntensity: 0.0,
+    });
+    const sideMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#d4d0cb').multiplyScalar(1.25), transparent: true, opacity: 0.65,
+      roughness: 0.05, metalness: 0.3,
+      envMapIntensity: 3.0,
+    });
+    const glassMat = new THREE.MeshStandardMaterial({
+      transparent: true, opacity: BACK_OPACITY, roughness: 0.05, metalness: 0.2,
+      envMapIntensity: 2.5,
+    });
+    // Back face: blurred wash of colour, not a sharp image
+    const backMat = new THREE.MeshPhysicalMaterial({
+      map: makeBlurTex(textures[i].image), transparent: true, opacity: 0.72,
+      roughness: 0.3, metalness: 0.0,
+      envMapIntensity: 0.3, emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0.0,
+    });
+    // right, left, top, bottom = coloured glass sides; +z = face image; -z = blurred back
+    const panel = new THREE.Mesh(panelGeo, [sideMat, sideMat, glassMat, glassMat, faceMat, backMat]);
+    panel.frustumCulled = false;
+
+    // Blurred mirror strip below each panel (toned down 25%)
+    const reflMat = new THREE.MeshBasicMaterial({
+      map: makeReflTex(textures[i].image, isMobile), transparent: true, opacity: isMobile ? 0.2 : 0.66,
+    });
+    const reflMesh = new THREE.Mesh(reflGeo, reflMat);
+    reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
+    reflMesh.frustumCulled = false;
+    panel.add(reflMesh);
+
+    const videoMat = new THREE.MeshBasicMaterial({
+      map: vidTex, transparent: true, opacity: 0,
+      depthTest: true, depthWrite: false, fog: false,
+    });
+    const videoMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), videoMat);
+    videoMesh.position.set(0, 0, THICK / 2 + 0.015);
+    videoMesh.frustumCulled = false;
+    panel.add(videoMesh);
+    const videoBackMat = new THREE.MeshBasicMaterial({
+      map: vidBackTex, transparent: true, opacity: 0,
+      depthTest: true, depthWrite: false, fog: false,
+    });
+    const videoBackMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), videoBackMat);
+    videoBackMesh.position.set(0, 0, -(THICK / 2 + 0.015));
+    videoBackMesh.rotation.y = Math.PI;
+    videoBackMesh.frustumCulled = false;
+    panel.add(videoBackMesh);
+
+    const blueMat = new THREE.MeshBasicMaterial({
+      map: blueTex,
+      transparent: true, opacity: 0,
+      depthTest: true, depthWrite: false,
+      fog: false,
+    });
+    const blueMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), blueMat);
+    blueMesh.position.set(0, 0, THICK / 2 + 0.02);
+    blueMesh.frustumCulled = false;
+    panel.add(blueMesh);
+
+    const blueBackMat = new THREE.MeshBasicMaterial({
+      map: blueBackTex,
+      transparent: true, opacity: 0,
+      depthTest: true, depthWrite: false,
+      fog: false,
+    });
+    const blueBackMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), blueBackMat);
+    blueBackMesh.position.set(0, 0, -(THICK / 2 + 0.02));
+    blueBackMesh.rotation.y = Math.PI;
+    blueBackMesh.frustumCulled = false;
+    panel.add(blueBackMesh);
+
+    scene.add(panel);
+    panels.push(panel); faceMats.push(faceMat); glassMats.push(glassMat);
+    backMats.push(backMat); sideMats.push(sideMat); reflMats.push(reflMat);
+    blueMats.push(blueMat); blueMeshes.push(blueMesh); blueBackMats.push(blueBackMat); blueBackMeshes.push(blueBackMesh);
+    videoMats.push(videoMat); videoMeshes.push(videoMesh); videoBackMats.push(videoBackMat); videoBackMeshes.push(videoBackMesh);
+    home.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+    tilt.push(0);
+  }
+}
+
+// Load all textures then build and pre-compile shaders
+let loadedCount = 0;
+const textures = new Array(COUNT);
+const loader = new THREE.TextureLoader();
+const TEXT_IDX = IMAGES.indexOf('__text__');
+
+function makeTextPanelTex() {
+  const W = 600, H = 776;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#050302';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'middle';
+
+  // Line 1
+  ctx.font = '300 15px "Helvetica Neue", Helvetica, Arial, sans-serif';
+  ctx.letterSpacing = '0.14em';
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.textAlign = 'center';
+  ctx.fillText('Portraits from Detroit parties, 1993 to 1997.', W / 2, H / 2 - 18);
+
+  // Line 2: "Coming soon at " + styled "oswinjournal.com"
+  ctx.font = '300 11px "Helvetica Neue", Helvetica, Arial, sans-serif';
+  ctx.letterSpacing = '0.13em';
+  const prefix = 'Coming soon at ';
+  const url = 'oswinjournal.com';
+  const prefixW = ctx.measureText(prefix).width;
+  const urlW = ctx.measureText(url).width;
+  const lineY = H / 2 + 16;
+  const startX = (W - prefixW - urlW) / 2;
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.38)';
+  ctx.fillText(prefix, startX, lineY);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.62)';
+  ctx.fillText(url, startX + prefixW, lineY);
+  ctx.strokeStyle = 'rgba(255,255,255,0.38)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(startX + prefixW, lineY + 8);
+  ctx.lineTo(startX + prefixW + urlW, lineY + 8);
+  ctx.stroke();
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+IMAGES.forEach((url, i) => {
+  if (i === TEXT_IDX) {
+    textures[i] = makeTextPanelTex();
+    if (++loadedCount === COUNT) { buildPanels(textures); renderer.compile(scene, camera); }
+    return;
+  }
+  loader.load(url, (tex) => {
+    textures[i] = tex;
+    if (++loadedCount === COUNT) { buildPanels(textures); renderer.compile(scene, camera); }
+  });
+});
+
+// --- Audio ---
+const audio = new Audio('/lawerence_loop.mp3');
+audio.loop = true;
+audio.volume = 0.7;
+
+// --- Interaction ---
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(panels);
+  downOnPanel = hits.length > 0;
+  clickedPanelIdx = hits.length > 0 ? panels.indexOf(hits[0].object) : -1;
+  dragging = true; didDrag = false;
+  downX = lastX = e.clientX; downY = e.clientY;
+  lastMoveT = performance.now(); trackedVel = 0;
+  dragStartAngle = angle;
+});
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const now = performance.now();
+  const dx = e.clientX - lastX;
+  const dtm = Math.max((now - lastMoveT) / 1000, 0.001);
+  lastX = e.clientX; lastMoveT = now;
+  if (Math.abs(e.clientX - downX) > DRAG_THRESH || Math.abs(e.clientY - downY) > DRAG_THRESH) {
+    didDrag = true;
+    if (paused) paused = false;
+  }
+  if (didDrag) {
+    angle += dx * SENS;
+    trackedVel = trackedVel * 0.6 + (dx / dtm) * 0.4;
+  }
+});
+
+renderer.domElement.addEventListener('pointerup', () => {
+  if (!dragging) return;
+  dragging = false;
+  const net = angle - dragStartAngle;
+  if (!didDrag && downOnPanel && Math.abs(net) < 0.02) {
+    if (mode === 1) {
+      window.parent.postMessage('diverClick', '*');
+    } else if (clickedPanelIdx === TEXT_IDX) {
+      window.open('https://oswinjournal.com', '_blank');
+    } else {
+      paused = !paused;
+    }
+  }
+  let av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS;
+  angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
+  if (didDrag && Math.abs(av) > 0.05) autoDir = av < 0 ? -1 : 1;
+});
+
+// --- Video texture setup ---
+const vidEl = document.getElementById('vid-el');
+const DIVER_SRCS = ['/videos/diver4.mp4', '/videos/diver2.mp4'];
+let diverIdx = 0;
+vidEl.src = DIVER_SRCS[0];
+vidEl.addEventListener('ended', () => {
+  diverIdx = (diverIdx + 1) % DIVER_SRCS.length;
+  vidEl.src = DIVER_SRCS[diverIdx];
+  vidEl.play().catch(() => {});
+});
+const vidTex = new THREE.VideoTexture(vidEl);
+vidTex.encoding = THREE.sRGBEncoding;
+const vidBackTex = new THREE.VideoTexture(vidEl);
+vidBackTex.encoding = THREE.sRGBEncoding;
+vidBackTex.wrapS = THREE.RepeatWrapping;
+vidBackTex.repeat.set(-1, 1);
+vidBackTex.offset.set(1, 0);
+
+// --- Scroll gestures ---
+window.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (mode === 1) {
+    if (e.deltaY < 0) { mode = 0; modeSwitchTime = performance.now(); blueScrollAcc = 0; }
+  } else {
+    if (e.deltaY > 0) { mode = 1; blueScrollAcc = 0; }
+    else if (e.deltaY < 0 && performance.now() - modeSwitchTime > 400) {
+      blueScrollAcc = Math.min(1, blueScrollAcc + (-e.deltaY) * 0.015);
+    }
+  }
+}, { passive: false });
+
+let touchY0 = 0;
+window.addEventListener('touchstart', (e) => { touchY0 = e.touches[0].clientY; }, { passive: true });
+window.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const dy = e.touches[0].clientY - touchY0;
+  touchY0 = e.touches[0].clientY;
+  if (mode === 1) {
+    if (dy > 0) { mode = 0; modeSwitchTime = performance.now(); blueScrollAcc = 0; }
+  } else {
+    if (dy < -5) { mode = 1; blueScrollAcc = 0; }
+    else if (dy > 0 && performance.now() - modeSwitchTime > 400) {
+      blueScrollAcc = Math.min(1, blueScrollAcc + dy * 0.015);
+    }
+  }
+}, { passive: false });
+
+// --- Keyboard arrows ---
+function handleKey(key) {
+  if (key === 'ArrowDown') {
+    if (mode !== 1) { mode = 1; blueScrollAcc = 0; }
+  } else if (key === 'ArrowUp') {
+    if (mode === 1) {
+      mode = 0; modeSwitchTime = performance.now(); blueScrollAcc = 0;
+    } else if (performance.now() - modeSwitchTime > 400) {
+      blueScrollAcc = Math.min(1, blueScrollAcc + 0.45);
+    }
+  } else if (key === 'ArrowLeft') {
+    angVel = Math.min(MAX_VEL, angVel + 1.8);
+    if (paused) paused = false;
+  } else if (key === 'ArrowRight') {
+    angVel = Math.max(-MAX_VEL, angVel - 1.8);
+    if (paused) paused = false;
+  }
+}
+window.addEventListener('keydown', (e) => handleKey(e.key));
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'key') handleKey(e.data.key);
+});
+
+// --- Render loop ---
+const _blueCol = new THREE.Color('#0026cc');
+const _whiteCol = new THREE.Color(1, 1, 1);
+let last = performance.now();
+
+function render(now) {
+  requestAnimationFrame(render);
+  let dt = (now - last) / 1000; last = now;
+  if (dt > 0.05) dt = 0.05;
+
+  if (!dragging && !paused) {
+    const target = AUTO_SPEED * autoDir;
+    angVel = target + (angVel - target) * Math.exp(-FRICTION * dt);
+    angle += angVel * dt;
+  } else if (!dragging && paused) {
+    angVel *= Math.exp(-FRICTION * dt);
+    angle += angVel * dt;
+  }
+
+  const instSpeed = dragging ? Math.abs(trackedVel * SENS) : Math.abs(angVel);
+  const targetFog = instSpeed > FOG_FLOOR ? Math.min(1, instSpeed / MAX_VEL) : 0;
+  fog += (targetFog - fog) * Math.min(1, dt * FOG_EASE);
+  const emi = fog * FOG_MAX;
+  faceMats.forEach(m => { m.emissiveIntensity = emi; });
+  backMats.forEach(m => { m.emissiveIntensity = emi * 0.3; });
+
+  const speed = (dragging || paused) ? 0 : Math.abs(angVel);
+  duck += ((paused ? 0.5 : 1.0) - duck) * Math.min(1, dt * 4);
+  if (started) audio.volume = Math.max(0, Math.min(1, 0.7 * duck));
+
+  orbitEuler.set(0, angle, 0, 'XYZ');
+  orbitQuat.setFromEuler(orbitEuler);
+  blueScrollAcc *= Math.exp(-3 * dt);
+  blueTarget  = blueScrollAcc;
+  videoTarget = mode === 1 ? 1 : 0;
+  blueAmt  += (blueTarget  - blueAmt)  * Math.min(1, dt * 2);
+  videoAmt += (videoTarget - videoAmt) * Math.min(1, dt * 4);
+  if (videoAmt > 0.05 && vidEl.paused) vidEl.play().catch(() => {});
+  else if (videoAmt < 0.01 && !vidEl.paused) { vidEl.pause(); vidEl.currentTime = 0; }
+
+  for (let i = 0; i < panels.length; i++) {
+    orbitPos.copy(home[i]).applyQuaternion(orbitQuat);
+    panels[i].position.set(orbitPos.x * SPREAD, orbitPos.y, orbitPos.z);
+    panels[i].rotation.set(tilt[i], Math.atan2(orbitPos.x, orbitPos.z), 0);
+    const norm = Math.min(1, Math.max(0, (orbitPos.z + RADIUS) / (2 * RADIUS)));
+    const targetFaceOp = paused ? (0.5 + 0.5 * norm) : FRONT_OPACITY * (0.5 + 0.5 * norm);
+    faceMats[i].opacity += (targetFaceOp - faceMats[i].opacity) * Math.min(1, dt * 5);
+    glassMats[i].opacity = BACK_OPACITY * (0.3 + 0.7 * norm);
+    panels[i].renderOrder = Math.round(orbitPos.z * 1000);
+    blueMats[i].opacity = blueAmt * (0.5 + 0.5 * norm);
+    blueBackMats[i].opacity = blueAmt * (0.5 + 0.5 * norm);
+    blueMeshes[i].renderOrder = panels[i].renderOrder + 50000;
+    blueBackMeshes[i].renderOrder = panels[i].renderOrder + 50000;
+    videoMats[i].opacity = videoAmt * (0.5 + 0.5 * norm);
+    videoBackMats[i].opacity = videoAmt * (0.5 + 0.5 * norm);
+    videoMeshes[i].renderOrder = panels[i].renderOrder + 40000;
+    videoBackMeshes[i].renderOrder = panels[i].renderOrder + 40000;
+    reflMats[i].color.lerpColors(_whiteCol, _blueCol, blueAmt);
+  }
+  if (blueAmt > 0.05) {
+    typeChars = Math.min(BLUE_TOTAL, typeChars + dt * 38);
+    drawBlueCanvas(typeChars, now);
+    blueTex.needsUpdate = true;
+  } else if (typeChars > 0) {
+    typeChars = 0;
+  }
+
+  renderer.render(scene, camera);
+}
+
+requestAnimationFrame(render);
+
+function enter(withAudio) {
+  started = true;
+  document.getElementById('begin').style.display = 'none';
+  if (withAudio) audio.play();
+}
+
+document.getElementById('btn-audio-on').addEventListener('click', () => enter(true));
+document.getElementById('btn-audio-off').addEventListener('click', () => enter(false));
+
+// Auto-start without audio when loaded as homepage iframe
+enter(false);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+
+</script>
+</body>
+</html>
