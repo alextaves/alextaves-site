@@ -562,14 +562,15 @@ vidReflTex.repeat.set(1, -REFL_FRAC);
 vidReflTex.offset.set(0, REFL_FRAC);
 
 // --- Scroll gestures ---
+// deltaY > 0 = fingers UP on Mac trackpad (natural scroll); deltaY < 0 = fingers DOWN
 window.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (mode === 1) {
-    if (e.deltaY < 0) { mode = 0; modeSwitchTime = performance.now(); blueScrollAcc = 0; }
+    if (e.deltaY > 0) { mode = 0; modeSwitchTime = performance.now(); blueScrollAcc = 0; }
   } else {
-    if (e.deltaY > 0) { mode = 1; blueScrollAcc = 0; }
-    else if (e.deltaY < 0 && performance.now() - modeSwitchTime > 400) {
-      blueScrollAcc = Math.min(1, blueScrollAcc + (-e.deltaY) * 0.015);
+    if (e.deltaY < 0) { mode = 1; blueScrollAcc = 0; }
+    else if (e.deltaY > 0 && performance.now() - modeSwitchTime > 400) {
+      blueScrollAcc = Math.min(1, blueScrollAcc + e.deltaY * 0.015);
     }
   }
 }, { passive: false });
