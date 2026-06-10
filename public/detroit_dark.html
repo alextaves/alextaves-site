@@ -141,7 +141,7 @@ const REFL_FRAC = 0.4;
 const reflH = panelH * REFL_FRAC;
 const reflGeo = new THREE.PlaneGeometry(panelW, reflH);
 
-const panels = [], home = [], tilt = [], faceMats = [], glassMats = [], backMats = [], sideMats = [], reflMats = [], blueMats = [], blueMeshes = [], blueBackMats = [], blueBackMeshes = [], videoMats = [], videoMeshes = [], videoBackMats = [], videoBackMeshes = [];
+const panels = [], home = [], tilt = [], faceMats = [], glassMats = [], backMats = [], sideMats = [], reflMats = [], blueMats = [], blueMeshes = [], blueBackMats = [], blueBackMeshes = [], videoMats = [], videoMeshes = [], videoBackMats = [], videoBackMeshes = [], videoReflMats = [];
 
 const orbitQuat = new THREE.Quaternion();
 const orbitEuler = new THREE.Euler();
@@ -360,6 +360,16 @@ function buildPanels(textures) {
     reflMesh.frustumCulled = false;
     panel.add(reflMesh);
 
+    const videoReflMat = new THREE.MeshBasicMaterial({
+      map: vidReflTex, transparent: true, opacity: 0,
+      depthWrite: false, fog: false,
+    });
+    const videoReflMesh = new THREE.Mesh(reflGeo, videoReflMat);
+    videoReflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.003);
+    videoReflMesh.frustumCulled = false;
+    panel.add(videoReflMesh);
+    videoReflMats.push(videoReflMat);
+
     const videoMat = new THREE.MeshBasicMaterial({
       map: vidTex, transparent: true, opacity: 0,
       depthTest: true, depthWrite: false, fog: false,
@@ -544,6 +554,12 @@ vidBackTex.encoding = THREE.sRGBEncoding;
 vidBackTex.wrapS = THREE.RepeatWrapping;
 vidBackTex.repeat.set(-1, 1);
 vidBackTex.offset.set(1, 0);
+// Reflection variant: bottom portion of video, flipped vertically
+const vidReflTex = new THREE.VideoTexture(vidEl);
+vidReflTex.encoding = THREE.sRGBEncoding;
+vidReflTex.wrapT = THREE.RepeatWrapping;
+vidReflTex.repeat.set(1, -REFL_FRAC);
+vidReflTex.offset.set(0, REFL_FRAC);
 
 // --- Scroll gestures ---
 window.addEventListener('wheel', (e) => {
@@ -655,6 +671,8 @@ function render(now) {
     videoMeshes[i].renderOrder = panels[i].renderOrder + 40000;
     videoBackMeshes[i].renderOrder = panels[i].renderOrder + 40000;
     reflMats[i].color.lerpColors(_whiteCol, _blueCol, blueAmt);
+    reflMats[i].opacity = (1 - videoAmt) * (isMobile ? 0.2 : 0.66);
+    videoReflMats[i].opacity = videoAmt * (0.5 + 0.5 * norm) * (isMobile ? 0.2 : 0.66);
   }
   if (blueAmt > 0.05) {
     typeChars = Math.min(BLUE_TOTAL, typeChars + dt * 38);
