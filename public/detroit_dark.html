@@ -269,13 +269,16 @@ function goToFloor(idx) {
 }
 
 // ── Video — one element + texture set per diver panel ────────────────────────
-// 5 panels — one preview per scene in alextaves-site (panelIdx + 1 = sceneNum)
 const DIVER_SRCS = [
-  '/videos/diver4.mp4',                   // scene 1 — diver
-  '/videos/wallstreetwalking_panel1.mp4', // scene 2 — wall street
-  '/videos/desktop_preRace2.mp4',         // scene 3 — pre-race
-  '/videos/desktop_hurdles.mp4',          // scene 4 — hurdles
-  '/videos/showreel2_3.mp4',              // scene 5 — showreel
+  '/videos/diver4.mp4',
+  '/videos/diver4_rev.mp4',
+  '/videos/newyork_panel1.mp4',
+  '/videos/newyork_panel2.mp4',
+  '/videos/newyork_panel3.mp4',
+  '/videos/wallstreetwalking_panel1.mp4',
+  '/videos/desktop_preRace2.mp4',
+  '/videos/desktop_hurdles.mp4',
+  '/videos/showreel2_3.mp4',
 ];
 const DIVER_COUNT = DIVER_SRCS.length; // 11
 
@@ -292,6 +295,11 @@ const vidEls = DIVER_SRCS.map(() => {
 const vidTexs = vidEls.map(el => {
   const t = new THREE.VideoTexture(el); t.encoding = THREE.sRGBEncoding; return t;
 });
+
+// diver4.mp4 loads immediately — visible in Detroit ring text panels from the start
+vidEls[0].src = DIVER_SRCS[0];
+vidEls[0].load();
+let detroitDiverMats = [];
 const vidReflTexs = vidEls.map(el => {
   const t = new THREE.VideoTexture(el);
   t.encoding = THREE.sRGBEncoding;
@@ -1005,6 +1013,18 @@ function buildDetroitFloor(textures) {
     reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
     reflMesh.frustumCulled = false;
     panel.add(reflMesh);
+    // Text panels: overlay diver4.mp4 — clicking enters the immersive site
+    if (isDetroitText(i)) {
+      const dm = new THREE.MeshBasicMaterial({
+        map: vidTexs[0], transparent: true, opacity: 0,
+        depthTest: true, depthWrite: false, fog: false,
+      });
+      const dv = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), dm);
+      dv.position.set(0, 0, THICK / 2 + 0.015);
+      dv.frustumCulled = false;
+      panel.add(dv);
+      detroitDiverMats.push(dm);
+    }
     scene.add(panel);
     f.panels.push(panel); f.home.push(new THREE.Vector3(Math.cos(a) * RADIUS, 0, Math.sin(a) * RADIUS));
     f.tilt.push(0); f.faceMats.push(faceMat); f.glassMats.push(glassMat);
@@ -1203,7 +1223,7 @@ renderer.domElement.addEventListener('pointerup', () => {
     if (clickedFloor === FLOOR_DIVER) {
       diverClick();
     } else if (clickedFloor === FLOOR_DETROIT && isDetroitText(clickedPanelIdx)) {
-      window.open('https://oswinjournal.com', '_blank');
+      diverClick();
     } else if (clickedFloor === FLOOR_UPPER && clickedPanelIdx === 1) {
       openWriteMe();
     } else if (clickedFloor === FLOOR_UPPER && SLIDE_CFG[clickedPanelIdx]) {
@@ -1332,8 +1352,11 @@ if (isMobile) {
               paused = !paused;
             }
           } else {
-            // FLOOR_DETROIT — zoom into panel
-            if (ud.panelIdx !== undefined) enterMobileViewing(ud.panelIdx);
+            // FLOOR_DETROIT — text panels enter the site, photos zoom in
+            if (ud.panelIdx !== undefined) {
+              if (isDetroitText(ud.panelIdx)) diverClick();
+              else enterMobileViewing(ud.panelIdx);
+            }
           }
         }
       }
@@ -1407,16 +1430,22 @@ function render(now) {
   else if (upperAmt < 0.01 && !archiveVideoEl.paused) { archiveVideoEl.pause(); archiveVideoEl.currentTime = 0; }
 
   // Diver video: play/pause all elements, update blur canvases
+  const detroitAmt = floors[FLOOR_DETROIT] ? floors[FLOOR_DETROIT].floorAmt : 1;
   const diverFloor = floors[FLOOR_DIVER];
   const diverAmt = diverFloor ? diverFloor.floorAmt : 0;
   if (diverAmt > 0 && !diverVideosLoaded) {
     diverVideosLoaded = true;
-    DIVER_SRCS.forEach((src, i) => { vidEls[i].src = src; vidEls[i].load(); });
+    DIVER_SRCS.forEach((src, i) => { if (i === 0) return; vidEls[i].src = src; vidEls[i].load(); });
   }
+  // Update Detroit text-panel diver overlay opacity
+  for (const dm of detroitDiverMats) dm.opacity = detroitAmt * 0.9;
   for (let vi = 0; vi < DIVER_COUNT; vi++) {
     const el = vidEls[vi];
-    if (diverAmt > 0.05 && el.paused && el.src) el.play().catch(() => {});
-    else if (diverAmt < 0.01 && !el.paused) { el.pause(); el.currentTime = 0; }
+    // vidEls[0] serves both Detroit text panels and Diver floor panel 0
+    const needsPlay = vi === 0 ? (detroitAmt > 0.05 || diverAmt > 0.05) : diverAmt > 0.05;
+    const shouldStop = vi === 0 ? (detroitAmt < 0.01 && diverAmt < 0.01) : diverAmt < 0.01;
+    if (needsPlay && el.paused && el.src) el.play().catch(() => {});
+    else if (shouldStop && !el.paused) { el.pause(); el.currentTime = 0; }
     if (diverAmt > 0.01 && el.readyState >= 2) {
       const cp = vidCropParams[vi];
       const bw = 320, bh = 180;
