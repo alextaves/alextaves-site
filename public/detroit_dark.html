@@ -1219,7 +1219,9 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 renderer.domElement.addEventListener('pointerup', () => {
   if (isMobile || !dragging) return;
   dragging = false;
-  if (!didDrag && downOnPanel) {
+  if (!didDrag && currentFloor === FLOOR_DIVER) {
+    diverClick();
+  } else if (!didDrag && downOnPanel) {
     if (clickedFloor === FLOOR_DIVER) {
       diverClick();
     } else if (clickedFloor === FLOOR_DETROIT && isDetroitText(clickedPanelIdx)) {
@@ -1323,6 +1325,9 @@ if (isMobile) {
     } else if (isDblTap && mobileState === 'viewing') {
       exitMobileViewing();
     } else if (isTap && mobileState === 'roaming') {
+      if (currentFloor === FLOOR_DIVER) {
+        diverClick();
+      } else {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((mobT0x - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((mobT0y - rect.top) / rect.height) * 2 + 1;
@@ -1332,9 +1337,7 @@ if (isMobile) {
         const hits = raycaster.intersectObjects(f.panels);
         if (hits.length > 0) {
           const ud = hits[0].object.userData;
-          if (currentFloor === FLOOR_DIVER) {
-            diverClick();
-          } else if (currentFloor === FLOOR_UPPER) {
+          if (currentFloor === FLOOR_UPPER) {
             if (ud.panelIdx === 1) {
               openWriteMe();
             } else if (ud.panelIdx === 4) {
@@ -1360,6 +1363,7 @@ if (isMobile) {
           }
         }
       }
+      } // end else (not FLOOR_DIVER)
     }
 
     mobHSwiping = false; mobVSwiping = false; mobTouchId = null;
