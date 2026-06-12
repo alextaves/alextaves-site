@@ -1081,8 +1081,8 @@ function toggleSchoenberg() {
 }
 
 // ── Interaction ───────────────────────────────────────────────────────────────
-function diverClick(scene) {
-  if (window !== window.top) window.parent.postMessage({ type: 'sceneClick', scene: scene || 1 }, '*');
+function diverClick() {
+  if (window !== window.top) window.parent.postMessage('diverClick', '*');
   else window.open('https://alextaves.com', '_blank');
 }
 
@@ -1201,7 +1201,7 @@ renderer.domElement.addEventListener('pointerup', () => {
   dragging = false;
   if (!didDrag && downOnPanel) {
     if (clickedFloor === FLOOR_DIVER) {
-      diverClick(clickedPanelIdx + 1);
+      diverClick();
     } else if (clickedFloor === FLOOR_DETROIT && isDetroitText(clickedPanelIdx)) {
       window.open('https://oswinjournal.com', '_blank');
     } else if (clickedFloor === FLOOR_UPPER && clickedPanelIdx === 1) {
@@ -1313,7 +1313,7 @@ if (isMobile) {
         if (hits.length > 0) {
           const ud = hits[0].object.userData;
           if (currentFloor === FLOOR_DIVER) {
-            diverClick(ud.panelIdx + 1);
+            diverClick();
           } else if (currentFloor === FLOOR_UPPER) {
             if (ud.panelIdx === 1) {
               openWriteMe();
