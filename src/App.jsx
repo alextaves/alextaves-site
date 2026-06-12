@@ -283,7 +283,12 @@ export default function App() {
 
   useEffect(() => {
     const onMsg = (e) => {
-      if (e.data === 'diverClick' && phase === 'carousel') {
+      if (phase !== 'carousel') return
+      let targetScene = null
+      if (e.data === 'diverClick') targetScene = 1
+      else if (e.data && e.data.type === 'sceneClick') targetScene = e.data.scene
+      if (targetScene !== null) {
+        setScene(targetScene)
         setPhase('fading')
         setTimeout(() => setPhase('site'), 700)
       }
