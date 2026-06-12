@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>detroit</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; touch-action: none; }
-  canvas { display: block; cursor: grab; }
+  html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; }
+  canvas { display: block; cursor: grab; touch-action: none; }
   canvas:active { cursor: grabbing; }
   #begin {
     position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -21,49 +21,120 @@
     text-transform: uppercase; color: rgba(255,210,160,0.45); opacity: 0.7; transition: opacity 0.3s;
   }
   #begin button:hover { opacity: 1; }
-  #vid-el { position: fixed; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  #loader {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 1px;
+    z-index: 20; pointer-events: none;
+    transition: opacity 0.8s ease;
+  }
+  #loader-bar {
+    height: 100%; width: 0%;
+    background: rgba(255,210,160,0.4);
+    transition: width 0.3s ease;
+  }
+
+  /* ── Write Me overlay ── */
+  #write-overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(12,8,6,0.65);
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  #write-overlay.open { display: flex; }
+  #write-card {
+    background: #ffffff; position: relative;
+    width: min(420px, 88vw); padding: 48px 52px 52px;
+  }
+  #write-close {
+    position: absolute; top: 20px; right: 24px;
+    background: none; border: none; cursor: pointer; padding: 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 18px; color: rgba(0,0,0,0.25); line-height: 1;
+    transition: color 0.2s;
+  }
+  #write-close:hover { color: rgba(0,0,0,0.7); }
+  #write-card-label {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11px; font-weight: 300; letter-spacing: 0.26em; color: #000;
+    margin-bottom: 14px;
+  }
+  #write-card-rule { height: 0.5px; background: #000; margin-bottom: 42px; }
+  .write-field { margin-bottom: 34px; }
+  .write-field textarea, .write-field input {
+    width: 100%; box-sizing: border-box; display: block;
+    border: none; border-bottom: 0.5px solid rgba(0,0,0,0.18);
+    background: rgba(0,0,0,0.04); outline: none; resize: none;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 13px; font-weight: 300; letter-spacing: 0.06em;
+    color: #000; padding: 10px 12px;
+  }
+  .write-field textarea { min-height: 96px; line-height: 1.7; }
+  .write-field textarea::placeholder, .write-field input::placeholder {
+    color: rgba(0,0,0,0.25); letter-spacing: 0.14em;
+  }
+  #write-send {
+    background: none; border: none; cursor: pointer; padding: 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11px; font-weight: 300; letter-spacing: 0.26em;
+    color: #000; display: flex; align-items: center; gap: 8px;
+    transition: opacity 0.2s;
+  }
+  #write-send:hover { opacity: 0.45; }
+  #write-sent {
+    display: none; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11px; font-weight: 300; letter-spacing: 0.22em; color: rgba(0,0,0,0.45);
+  }
+
 </style>
 </head>
 <body>
-<video id="vid-el" muted playsinline preload="auto"></video>
-
+<div id="loader"><div id="loader-bar"></div></div>
 <div id="begin">
   <button id="btn-audio-on">audio on</button>
   <button id="btn-audio-off">audio off</button>
 </div>
 
+<div id="write-overlay">
+  <div id="write-card">
+    <button id="write-close" onclick="closeWriteMe()">&#x2715;</button>
+    <div id="write-card-label">WRITE ME</div>
+    <div id="write-card-rule"></div>
+    <form id="write-form" onsubmit="submitWriteMe(event)">
+      <div class="write-field">
+        <textarea id="write-msg" placeholder="message"></textarea>
+      </div>
+      <div class="write-field">
+        <input id="write-email" type="email" placeholder="email" required>
+      </div>
+      <button type="submit" id="write-send">SEND &rsaquo;</button>
+      <div id="write-sent">sent &mdash; thank you</div>
+    </form>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/loaders/FontLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/geometries/TextGeometry.js"></script>
 <script>
 
-const IMAGES = [
+// ── Detroit images ────────────────────────────────────────────────────────────
+const DETROIT_IMAGES = [
   '/detroit/01.webp','/detroit/02.webp','/detroit/03.webp','/detroit/04.webp',
-  '/detroit/05.webp','/detroit/06.webp','/detroit/07.webp','/detroit/08.webp',
+  '__text__','/detroit/06.webp','/detroit/07.webp','/detroit/08.webp',
   '/detroit/09.webp','/detroit/10.webp','/detroit/11.webp','/detroit/12.webp',
   '/detroit/13.webp','/detroit/14.webp','/detroit/16.webp','/detroit/17.webp',
   '/detroit/18.webp','/detroit/19.webp','/detroit/20.webp','/detroit/21.webp',
   '/detroit/22.webp','/detroit/23.webp','/detroit/24.webp','/detroit/25.webp',
   '/detroit/27.webp','/detroit/28.webp','/detroit/29.webp',
-  '/detroit/30.webp','/detroit/31.webp','/detroit/32.webp','/detroit/33.webp',
+  '/detroit/30.webp','__text__','/detroit/32.webp','/detroit/33.webp',
   '/detroit/34.webp','/detroit/35.webp','/detroit/36.webp','/detroit/37.webp',
   '/detroit/38.webp','__text__',
-  '/detroit/face1.jpg','/detroit/face2.jpg','/detroit/face3.jpg',
+  '/detroit/face1.jpg','/detroit/face2.jpg','__text__',
   '/detroit/face5.jpg','/detroit/face6.jpg','/detroit/face16.jpg',
 ];
+const DETROIT_COUNT = DETROIT_IMAGES.length;
+const isDetroitText = (i) => DETROIT_IMAGES[i] === '__text__';
 
-const COUNT = IMAGES.length;
-const RADIUS = 24, CAM_Z = 28;
-const SENS = 0.005, FRICTION = 2.5, MAX_VEL = 6.0, DRAG_THRESH = 6;
-let SPREAD = 1.0, AUTO_SPEED = 0.0375;
-
-let started = false, paused = false;
-let angle = 0, angVel = 0;
-let dragging = false, didDrag = false, downOnPanel = false, clickedPanelIdx = -1, autoDir = 1;
-let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0, dragStartAngle = 0;
-let fog = 0, duck = 1;
-
-const FOG_FLOOR = 0.4, FOG_MAX = 1.2, FOG_EASE = 4;
-
-// Scene
+// ── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
 function sweepTexture() {
   const c = document.createElement('canvas'); c.width = 4; c.height = 512;
@@ -74,10 +145,10 @@ function sweepTexture() {
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
 }
 scene.background = sweepTexture();
-scene.fog = new THREE.Fog('#0e0b08', 9, 70);
+scene.fog = new THREE.Fog('#0e0b08', 9, 110);
 
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(0, 0, CAM_Z);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 0, 28);
 camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -88,13 +159,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 document.body.appendChild(renderer.domElement);
 
-let blueAmt = 0, blueTarget = 0;
-let videoAmt = 0, videoTarget = 0;
-let mode = 0;           // 0 = portraits, 1 = video (sticky)
-let blueScrollAcc = 0;  // accumulates scroll-up energy → blue (decays naturally)
-let modeSwitchTime = 0; // prevents blue firing immediately after exiting video
-
-// PMREM environment
+// ── PMREM environment ────────────────────────────────────────────────────────
 const envScene = new THREE.Scene();
 envScene.background = new THREE.Color('#0e0b08');
 function softbox(x, y, z, w, h, b, col) {
@@ -102,32 +167,37 @@ function softbox(x, y, z, w, h, b, col) {
     new THREE.MeshBasicMaterial({ color: col || new THREE.Color().setScalar(b) }));
   m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m);
 }
-softbox(0, 8, 0, 8, 8, 1.6);                           // bright top key
-softbox(6, 2, 0, 4, 8, 0, new THREE.Color('#3d2010')); // warm amber side fill
-softbox(-6, 2, 0, 4, 8, 0.02);                         // near-black shadow side
-softbox(0, -6, 0, 12, 12, 0.0);                        // pure black floor
+softbox(0, 8, 0, 8, 8, 1.6);
+softbox(6, 2, 0, 4, 8, 0, new THREE.Color('#3d2010'));
+softbox(-6, 2, 0, 4, 8, 0.02);
+softbox(0, -6, 0, 12, 12, 0.0);
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+scene.environment = pmrem.fromScene(envScene, 0, 0.1, 200).texture;
 
 scene.add(new THREE.HemisphereLight('#2a1a0a', '#0e0806', 0.15));
 const key = new THREE.DirectionalLight('#ffffff', 1.1); key.position.set(4, 6, 5);
 const rim = new THREE.DirectionalLight('#ffcf90', 0.5); rim.position.set(-5, 2, -4);
 scene.add(key, rim);
 
-// Panel geometry
+// ── Panel geometry ────────────────────────────────────────────────────────────
+const RADIUS = 24, CAM_Z = 28;
+const SENS = 0.005, FRICTION = 2.5, MAX_VEL = 6.0, DRAG_THRESH = 6;
+const FRONT_OPACITY = 0.92, BACK_OPACITY = 0.42;
+const REFL_FRAC = 0.4;
+const FOG_FLOOR = 0.4, FOG_MAX = 1.2, FOG_EASE = 4;
+let SPREAD = 1.0, AUTO_SPEED = 0.0375;
+
+const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth < 1024;
+if (isMobile) { SPREAD = 0.7; AUTO_SPEED = 0.01875; }
+const MOB_CAM_Z = RADIUS - 6; // 18 — inside ring, comfortable viewing distance
+if (isMobile) camera.position.set(0, 0, MOB_CAM_Z);
+
 const nearDist = CAM_Z - RADIUS;
 const vFOV = (camera.fov * Math.PI) / 180;
-const isMobile = camera.aspect < 1;
-if (isMobile) {
-  SPREAD = 0.7;
-  AUTO_SPEED = 0.01875;
-  camera.position.y = -0.1;
-  camera.lookAt(0, 0, 0);
-}
 let panelW, panelH;
 if (isMobile) {
   const hFOVhalf = Math.atan(Math.tan(vFOV / 2) * camera.aspect);
-  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.88;  // 88vw
+  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.88;
   panelH = panelW * (4 / 3);
 } else {
   panelH = 0.9 * 2 * nearDist * Math.tan(vFOV / 2);
@@ -136,27 +206,140 @@ if (isMobile) {
 const THICK = 0.16;
 const panelGeo = new THREE.BoxGeometry(panelW, panelH, THICK);
 
-const FRONT_OPACITY = 0.92, BACK_OPACITY = 0.42;
-const REFL_FRAC = 0.4;
+// Shared reflection alpha map: overhead centred light — pools below panel centre, dims at edges
+const reflAlphaMap = (() => {
+  const W = 128, H = Math.round(W * REFL_FRAC * panelH / panelW);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const vGrad = ctx.createLinearGradient(0, 0, 0, H);
+  vGrad.addColorStop(0, 'rgba(255,255,255,0.82)');
+  vGrad.addColorStop(0.5, 'rgba(255,255,255,0.32)');
+  vGrad.addColorStop(1, 'rgba(255,255,255,0.0)');
+  ctx.fillStyle = vGrad; ctx.fillRect(0, 0, W, H);
+  const rGrad = ctx.createRadialGradient(W/2, 0, 0, W/2, 0, W * 0.72);
+  rGrad.addColorStop(0, 'rgba(0,0,0,0.0)');
+  rGrad.addColorStop(1, 'rgba(0,0,0,0.62)');
+  ctx.fillStyle = rGrad; ctx.fillRect(0, 0, W, H);
+  const tex = new THREE.CanvasTexture(c); return tex;
+})();
+
+// Shared alpha map: very slightly rounded, softly feathered corners
+const roundedAlphaMap = (() => {
+  const W = 128, H = Math.round(W * panelH / panelW);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const r = 5;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  ctx.filter = 'blur(2.5px)';
+  ctx.beginPath();
+  ctx.moveTo(r, 0); ctx.lineTo(W - r, 0);
+  ctx.arcTo(W, 0, W, r, r); ctx.lineTo(W, H - r);
+  ctx.arcTo(W, H, W - r, H, r); ctx.lineTo(r, H);
+  ctx.arcTo(0, H, 0, H - r, r); ctx.lineTo(0, r);
+  ctx.arcTo(0, 0, r, 0, r); ctx.closePath();
+  ctx.fillStyle = '#fff'; ctx.fill();
+  const tex = new THREE.CanvasTexture(c); return tex;
+})();
 const reflH = panelH * REFL_FRAC;
 const reflGeo = new THREE.PlaneGeometry(panelW, reflH);
 
-const panels = [], home = [], tilt = [], faceMats = [], glassMats = [], backMats = [], sideMats = [], reflMats = [], blueMats = [], blueMeshes = [], blueBackMats = [], blueBackMeshes = [], videoMats = [], videoMeshes = [], videoBackMats = [], videoBackMeshes = [], videoReflMats = [];
+// ── Floor system ─────────────────────────────────────────────────────────────
+const LEVEL_GAP = panelH * 2.5;
+const FLOOR_UPPER = 0, FLOOR_DETROIT = 1, FLOOR_DIVER = 2;
+const FLOOR_Y = [LEVEL_GAP, 0, -LEVEL_GAP];
 
-const orbitQuat = new THREE.Quaternion();
-const orbitEuler = new THREE.Euler();
-const orbitPos = new THREE.Vector3();
+// Camera Z per floor: each floor's radius + nearDist(4) keeps panels at same apparent scale
+const FLOOR_CAM_Z = [4.0 + nearDist, isMobile ? MOB_CAM_Z : CAM_Z, 6.0 + nearDist];
 
-const pointer = new THREE.Vector2();
-const raycaster = new THREE.Raycaster();
-const aniso = renderer.capabilities.getMaxAnisotropy();
+let currentFloor = FLOOR_DETROIT;
+let camY = 0, camYTarget = 0;
+let camZ = isMobile ? MOB_CAM_Z : CAM_Z;
+let floorCooldown = 0;
+const FLOOR_COOLDOWN_MS = 1200;
+const floors = [null, null, null];
 
+function goToFloor(idx) {
+  if (idx < 0 || idx > 2) return;
+  if (performance.now() - floorCooldown < FLOOR_COOLDOWN_MS) return;
+  currentFloor = idx;
+  camYTarget = FLOOR_Y[idx];
+  floorCooldown = performance.now();
+  if (isMobile && mobileState !== 'roaming') { mobileState = 'roaming'; paused = false; }
+}
 
+// ── Video — one element + texture set per diver panel ────────────────────────
+const DIVER_SRCS = [
+  '/videos/diver4.mp4',
+  '/videos/diver2.mp4',
+  '/videos/diver4_rev.mp4',
+  '/videos/chris_desktop_bluedancer.mp4',
+  '/videos/desktop_hurdles.mp4',
+  '/videos/desktop_preRace2.mp4',
+  '/videos/mobileshowreel.mp4',
+  '/videos/showreel2_3.mp4',
+  '/videos/tablet_2.mp4',
+  '/videos/tablet_zoom.mp4',
+  '/videos/wallstreetwalking_panel1.mp4',
+];
+const DIVER_COUNT = DIVER_SRCS.length; // 11
+
+let diverVideosLoaded = false;
+const vidEls = DIVER_SRCS.map(() => {
+  const el = document.createElement('video');
+  // src set lazily when diver floor first becomes active
+  el.muted = true; el.loop = true; el.playsInline = true; el.preload = 'none';
+  el.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0';
+  document.body.appendChild(el);
+  return el;
+});
+
+const vidTexs = vidEls.map(el => {
+  const t = new THREE.VideoTexture(el); t.encoding = THREE.sRGBEncoding; return t;
+});
+const vidReflTexs = vidEls.map(el => {
+  const t = new THREE.VideoTexture(el);
+  t.encoding = THREE.sRGBEncoding;
+  t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(1, -REFL_FRAC); t.offset.set(0, REFL_FRAC);
+  return t;
+});
+
+// Per-panel blurred back canvases
+const blurCanvases = DIVER_SRCS.map(() => {
+  const c = document.createElement('canvas'); c.width = 320; c.height = 180; return c;
+});
+const blurCtxs  = blurCanvases.map(c => c.getContext('2d'));
+const blurTexs  = blurCanvases.map(c => {
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding;
+  t.wrapS = THREE.RepeatWrapping;
+  t.repeat.set(-1, 1); t.offset.set(1, 0);
+  return t;
+});
+
+// Per-video cover UV crop params (computed on loadedmetadata)
+const vidCropParams = new Array(DIVER_COUNT).fill(null);
+function applyVideoUVs(i) {
+  const el = vidEls[i];
+  const VA = el.videoWidth / el.videoHeight;
+  const PA = panelW / panelH;
+  let rx, ry, ox, oy;
+  if (VA >= PA) { ry = 1; rx = PA / VA; ox = (1 - rx) / 2; oy = 0; }
+  else           { rx = 1; ry = VA / PA; ox = 0; oy = (1 - ry) / 2; }
+  vidTexs[i].repeat.set(rx, ry); vidTexs[i].offset.set(ox, oy);
+  const rRy = -(REFL_FRAC * ry);
+  const rOy = oy + ry;
+  vidReflTexs[i].repeat.set(rx, rRy); vidReflTexs[i].offset.set(ox, rOy);
+  vidCropParams[i] = { VA, PA, rx, ry, ox, oy };
+}
+vidEls.forEach((el, i) => el.addEventListener('loadedmetadata', () => applyVideoUVs(i)));
+
+// ── Image helpers ─────────────────────────────────────────────────────────────
 function makeEnhancedTex(img) {
   const scale = 0.5;
   const c = document.createElement('canvas');
-  c.width = Math.round(img.width * scale);
-  c.height = Math.round(img.height * scale);
+  c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
   const ctx = c.getContext('2d');
   ctx.drawImage(img, 0, 0, c.width, c.height);
   const id = ctx.getImageData(0, 0, c.width, c.height);
@@ -173,13 +356,9 @@ function makeEnhancedTex(img) {
       else h = ((r-g)/d + 4)/6;
     }
     const hd = h * 360;
-    // crush blacks
     if (l < 0.25) l *= 0.7;
-    // boost yellows
     if (hd >= 38 && hd <= 72) s = Math.min(1, s * 1.7);
-    // boost reds
     if (hd <= 22 || hd >= 338) s = Math.min(1, s * 1.6);
-    // boost blues
     if (hd >= 195 && hd <= 265) s = Math.min(1, s * 1.55);
     if (s === 0) { r = g = b = l; } else {
       const q = l < 0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
@@ -189,322 +368,825 @@ function makeEnhancedTex(img) {
     px[j]=Math.round(r*255); px[j+1]=Math.round(g*255); px[j+2]=Math.round(b*255);
   }
   ctx.putImageData(id, 0, 0);
-  const tex = new THREE.CanvasTexture(c);
-  tex.encoding = THREE.sRGBEncoding;
-  return tex;
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
 }
 
 function sampleColor(img) {
   const c = document.createElement('canvas'); c.width = 1; c.height = 1;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(img, 0, 0, 1, 1);
+  const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, 1, 1);
   const d = ctx.getImageData(0, 0, 1, 1).data;
-  return new THREE.Color(d[0] / 255, d[1] / 255, d[2] / 255);
+  return new THREE.Color(d[0]/255, d[1]/255, d[2]/255);
 }
 
 function makeBlurTex(img) {
   const c = document.createElement('canvas');
-  c.width = Math.round(img.width / 4); c.height = Math.round(img.height / 4);
-  const ctx = c.getContext('2d');
-  ctx.filter = 'blur(8px)';
+  c.width = Math.round(img.width/4); c.height = Math.round(img.height/4);
+  const ctx = c.getContext('2d'); ctx.filter = 'blur(8px)';
   ctx.drawImage(img, 0, 0, c.width, c.height);
-  const tex = new THREE.CanvasTexture(c);
-  tex.encoding = THREE.sRGBEncoding; return tex;
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
 }
 
 function makeReflTex(img, mobile) {
   const srcH = Math.round(img.height * REFL_FRAC);
-  const tmp = document.createElement('canvas');
-  tmp.width = img.width; tmp.height = srcH;
-  const tc = tmp.getContext('2d');
-  tc.translate(0, srcH);
-  tc.scale(1, -1);
+  const tmp = document.createElement('canvas'); tmp.width = img.width; tmp.height = srcH;
+  const tc = tmp.getContext('2d'); tc.translate(0, srcH); tc.scale(1, -1);
   tc.drawImage(img, 0, img.height - srcH, img.width, srcH, 0, 0, img.width, srcH);
-  const c = document.createElement('canvas');
-  c.width = img.width; c.height = srcH;
-  const ctx = c.getContext('2d');
-  ctx.filter = 'blur(5px) brightness(0.85)';
-  ctx.drawImage(tmp, 0, 0);
-  ctx.filter = 'none';
-  const grad = ctx.createLinearGradient(0, 0, 0, srcH);
+  const c = document.createElement('canvas'); c.width = img.width; c.height = srcH;
+  const ctx = c.getContext('2d'); ctx.filter = 'blur(5px) brightness(0.85)';
+  ctx.drawImage(tmp, 0, 0); ctx.filter = 'none';
+  // Vertical fade — bright at panel base, disappears below
+  const vGrad = ctx.createLinearGradient(0, 0, 0, srcH);
   if (mobile) {
-    grad.addColorStop(0,    'rgba(14,11,8,0.0)');
-    grad.addColorStop(0.25, 'rgba(14,11,8,0.88)');
-    grad.addColorStop(1,    'rgba(14,11,8,1.0)');
+    vGrad.addColorStop(0, 'rgba(14,11,8,0.0)'); vGrad.addColorStop(0.25, 'rgba(14,11,8,0.88)'); vGrad.addColorStop(1, 'rgba(14,11,8,1.0)');
   } else {
-    grad.addColorStop(0,   'rgba(14,11,8,0.05)');
-    grad.addColorStop(0.5, 'rgba(14,11,8,0.55)');
-    grad.addColorStop(1,   'rgba(14,11,8,0.97)');
+    vGrad.addColorStop(0, 'rgba(14,11,8,0.0)'); vGrad.addColorStop(0.55, 'rgba(14,11,8,0.60)'); vGrad.addColorStop(1, 'rgba(14,11,8,0.97)');
   }
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, c.width, srcH);
-  const tex = new THREE.CanvasTexture(c);
-  tex.encoding = THREE.sRGBEncoding;
-  return tex;
+  ctx.fillStyle = vGrad; ctx.fillRect(0, 0, c.width, srcH);
+  // Radial vignette — overhead centred light pools below the panel centre, dims at edges
+  const cx = c.width / 2;
+  const rGrad = ctx.createRadialGradient(cx, 0, 0, cx, 0, c.width * 0.72);
+  rGrad.addColorStop(0, 'rgba(14,11,8,0.0)');
+  rGrad.addColorStop(1, 'rgba(14,11,8,0.62)');
+  ctx.fillStyle = rGrad; ctx.fillRect(0, 0, c.width, srcH);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
 }
 
-const BLUE_LINES = ['1993 - 1997', 'Portraits from Detroit', 'Coming soon', 'Oswin Journal'];
-const BLUE_TOTAL = BLUE_LINES.reduce((s, l) => s + l.length, 0);
-let typeChars = 0;
-let blueCanvas, blueCtx;
-
-function makeBlueTex() {
-  blueCanvas = document.createElement('canvas');
-  blueCanvas.width = 600; blueCanvas.height = 800;
-  blueCtx = blueCanvas.getContext('2d');
-  blueCtx.fillStyle = '#0026cc';
-  blueCtx.fillRect(0, 0, blueCanvas.width, blueCanvas.height);
-  const tex = new THREE.CanvasTexture(blueCanvas);
-  tex.encoding = THREE.sRGBEncoding;
-  return tex;
-}
-const blueTex = makeBlueTex();
-
-function makeBlueBackTex() {
-  const W = 600, H = 800;
+function makeFlippedTex(canvas) {
   const c = document.createElement('canvas');
-  c.width = W; c.height = H;
+  c.width = canvas.width; c.height = canvas.height;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#0026cc';
-  ctx.fillRect(0, 0, W, H);
-  ctx.font = '15px "Courier New", Courier, monospace';
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = 'rgba(255,255,255,0.88)';
-  const px = 32, py = 36, lh = 30;
-  BLUE_LINES.forEach((line, i) => {
-    ctx.save();
-    ctx.translate(W - px, py + i * lh);
-    ctx.scale(-1, 1);
-    ctx.textAlign = 'left';
-    ctx.fillText(line, 0, 0);
-    ctx.restore();
+  ctx.translate(c.width, 0); ctx.scale(-1, 1);
+  ctx.drawImage(canvas, 0, 0);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+// ── Text panel (detroit) ──────────────────────────────────────────────────────
+function makeDetroitTextTex() {
+  const W = 600, H = 776;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  const lm = 54;
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  // Primary title — bold, anchored high
+  ctx.font = "700 74px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '-0.01em';
+  ctx.fillText('DETROIT', lm, 132);
+  // Hairline rule
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 152); ctx.lineTo(W - lm, 152); ctx.stroke();
+  // Date — light, tracked
+  ctx.font = "300 12px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.28em';
+  ctx.fillText('1993 — 1997', lm, 186);
+  // Caption — lighter, smaller tracking
+  ctx.font = "300 10px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.18em';
+  ctx.fillText('COMING SOON TO OSWIN JOURNAL', lm, 224);
+  // Remainder of canvas is intentional white space
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+// ── Upper floor helpers ───────────────────────────────────────────────────────
+const UPPER_LABELS = ['SHORT STORIES', 'WRITE ME', 'LISTENS', 'ABOUT', 'OSWIN JOURNAL', 'ARCHIVE'];
+// ── Upper floor slideshow panels ──────────────────────────────────────────────
+const SLIDE_CFG = {
+  0: { label: 'SHORT STORIES', srcs: ['/images/casual.png','/images/slam.png','/images/sotherby.png','/images/elon.png'] },
+  2: { label: 'LISTENS',       srcs: ['/images/thinking_ambient.png','/images/sit_down_house.png','/images/thinking_upbeat.png','/images/oddities.png'] },
+};
+Object.values(SLIDE_CFG).forEach(sp => {
+  sp.imgIdx = 0; sp.imgs = new Array(sp.srcs.length).fill(null);
+  sp.canvas = document.createElement('canvas'); sp.canvas.width = 600; sp.canvas.height = 800;
+  sp.tex = null;
+});
+
+function drawSlidePanel(sp) {
+  const W = 600, H = 800, lm = 54;
+  const iW = W - lm * 2, iH = iW; // square, same width as rule
+  const iX = lm, iY = 152;
+  const ctx = sp.canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  // Header
+  ctx.fillStyle = '#000000'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText(sp.label, lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(W - lm, 130); ctx.stroke();
+  // Image — square cover-fit
+  const img = sp.imgs[sp.imgIdx];
+  if (img) {
+    const iA = img.naturalWidth / img.naturalHeight;
+    let sx, sy, sw, sh;
+    if (iA > 1) { sh = img.naturalHeight; sw = sh; sx = (img.naturalWidth - sw) / 2; sy = 0; }
+    else         { sw = img.naturalWidth; sh = sw; sx = 0; sy = (img.naturalHeight - sh) / 2; }
+    ctx.drawImage(img, sx, sy, sw, sh, iX, iY, iW, iH);
+  }
+  // Apple chevron
+  const arrowY = iY + iH + 46, sz = 7;
+  ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = 1.1; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(W/2 - sz * 0.5, arrowY - sz);
+  ctx.lineTo(W/2 + sz * 0.5, arrowY);
+  ctx.lineTo(W/2 - sz * 0.5, arrowY + sz);
+  ctx.stroke(); ctx.restore();
+  // Pagination dots
+  const dotY = arrowY + 26, dotR = 2.2, dotGap = 11;
+  const dotsX = W/2 - ((sp.srcs.length - 1) * dotGap) / 2;
+  for (let d = 0; d < sp.srcs.length; d++) {
+    ctx.beginPath(); ctx.arc(dotsX + d * dotGap, dotY, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = d === sp.imgIdx ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.18)'; ctx.fill();
+  }
+  if (sp.tex) sp.tex.needsUpdate = true;
+  if (sp.backTex) sp.backTex.needsUpdate = true;
+}
+
+// Load images for all slide panels
+Object.values(SLIDE_CFG).forEach(sp => {
+  sp.srcs.forEach((src, i) => {
+    const img = new Image();
+    img.onload = () => { sp.imgs[i] = img; if (i === sp.imgIdx) drawSlidePanel(sp); };
+    img.src = src;
   });
-  const tex = new THREE.CanvasTexture(c);
-  tex.encoding = THREE.sRGBEncoding;
-  return tex;
-}
-const blueBackTex = makeBlueBackTex();
+});
 
-function drawBlueCanvas(chars, now) {
-  const W = blueCanvas.width, H = blueCanvas.height;
-  blueCtx.fillStyle = '#0026cc';
-  blueCtx.fillRect(0, 0, W, H);
-  blueCtx.font = '15px "Courier New", Courier, monospace';
-  blueCtx.textAlign = 'left';
-  blueCtx.textBaseline = 'top';
+// ── About panel ───────────────────────────────────────────────────────────────
+const ABOUT_PANEL_IDX = 3;
+const ARCHIVE_PANEL_IDX = 5;
+const ABOUT_SLIDES = [
+  'Alex Taves is a creative director and web artist based in Melbourne. He spent a decade as Art Director at Joe Fresh in Toronto, helping build the brand from an 11-person startup into a national retailer, then founded Oswald Gallery in Hamilton, which earned New York Times coverage within six months of opening.',
+  'These days he builds websites the way he used to hang shows. His independent publication, Oswin Journal, pairs ambient music, video art and short fiction in immersive browser environments, each issue made in collaboration with a single artist.',
+  'He came to code late and fell hard for React. What changed everything was Claude Code: it collapsed the distance between imagining something and standing inside it. Ideas that once needed a dev team, a budget and a six-week sprint now get built in a morning. The browser stopped being a place to put a portfolio and became the gallery itself, and for the first time, one person with taste and a terminal can build the whole room.',
+  'He works with musicians, labels and artists who want a web presence that feels like their work, not a template wearing their name.',
+];
+const aboutCanvas = document.createElement('canvas');
+aboutCanvas.width = 600; aboutCanvas.height = 800;
+let aboutTex = null, aboutBackTex = null;
 
-  const px = 32, py = 36, lh = 30;
-  let rem = Math.floor(chars);
-  let cursorLine = 0, cursorStr = '';
-
-  for (let i = 0; i < BLUE_LINES.length; i++) {
-    const line = BLUE_LINES[i];
-    const show = line.substring(0, rem);
-    if (show) {
-      blueCtx.fillStyle = 'rgba(255,255,255,0.88)';
-      blueCtx.fillText(show, px, py + i * lh);
-    }
-    cursorLine = i;
-    cursorStr = show;
-    rem -= line.length;
-    if (rem <= 0) break;
+function wrapText(ctx, text, x, y, maxW, lh) {
+  const words = text.split(' ');
+  let line = '', cy = y;
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line, x, cy); line = w; cy += lh;
+    } else { line = test; }
   }
-
-  if (Math.floor(now / 530) % 2 === 0) {
-    const cx = px + blueCtx.measureText(cursorStr).width + 2;
-    blueCtx.fillStyle = 'rgba(255,255,255,0.88)';
-    blueCtx.fillRect(cx, py + cursorLine * lh + 1, 8, 14);
-  }
+  if (line) ctx.fillText(line, x, cy);
+  return cy + lh;
 }
 
-function buildPanels(textures) {
+function drawAboutPanel() {
+  const W = 600, H = 800, lm = 54;
+  const ctx = aboutCanvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  // Header
+  ctx.fillStyle = '#000000'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('ABOUT', lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(W - lm, 130); ctx.stroke();
+  // All paragraphs
+  ctx.letterSpacing = '0.02em';
+  ctx.font = "300 12px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.fillStyle = 'rgba(0,0,0,0.82)';
+  let cy = 166;
+  for (const para of ABOUT_SLIDES) {
+    cy = wrapText(ctx, para, lm, cy, W - lm * 2, 20);
+    cy += 16;
+  }
+  if (aboutTex) aboutTex.needsUpdate = true;
+  if (aboutBackTex) aboutBackTex.needsUpdate = true;
+}
+
+function makeWriteMeTex() {
+  const W = 600, H = 800, lm = 54, fw = W - lm * 2;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#000000'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('WRITE ME', lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(W - lm, 130); ctx.stroke();
+
+  const fieldFont = "300 12px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+
+  // Message field
+  const msgY = 168, msgH = 148;
+  ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(lm, msgY, fw, msgH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(lm, msgY, fw, msgH);
+  ctx.font = fieldFont; ctx.letterSpacing = '0.14em';
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillText('message', lm + 14, msgY + 28);
+
+  // Email field
+  const emailY = msgY + msgH + 18, emailH = 46;
+  ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(lm, emailY, fw, emailH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(lm, emailY, fw, emailH);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillText('email', lm + 14, emailY + 28);
+
+  // Send
+  const sendY = emailY + emailH + 36;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.font = "300 11px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('SEND', lm, sendY);
+  const sw = ctx.measureText('SEND  ').width;
+  ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 0.9;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const sz = 4.5, ax = lm + sw + 2;
+  ctx.beginPath(); ctx.moveTo(ax, sendY - sz * 0.75); ctx.lineTo(ax + sz, sendY); ctx.lineTo(ax, sendY + sz * 0.75); ctx.stroke();
+  ctx.restore();
+
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+// ── Write Me overlay ──────────────────────────────────────────────────────────
+function openWriteMe() {
+  document.getElementById('write-overlay').classList.add('open');
+  document.getElementById('write-sent').style.display = 'none';
+  document.getElementById('write-send').style.display = 'flex';
+}
+function closeWriteMe() {
+  document.getElementById('write-overlay').classList.remove('open');
+}
+function submitWriteMe(e) {
+  e.preventDefault();
+  const msg   = document.getElementById('write-msg').value;
+  const email = document.getElementById('write-email').value;
+  window.open(`mailto:alextaves@gmail.com?subject=Message from ${encodeURIComponent(email)}&body=${encodeURIComponent(msg)}`);
+  document.getElementById('write-send').style.display = 'none';
+  document.getElementById('write-sent').style.display = 'block';
+  setTimeout(closeWriteMe, 1800);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeWriteMe(); });
+document.getElementById('write-overlay').addEventListener('click', e => { if (e.target.id === 'write-overlay') closeWriteMe(); });
+
+function makeTextPanelTex(label) {
+  const c = document.createElement('canvas'); c.width = 600; c.height = 800;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 800);
+  const lm = 54;
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText(label, lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(600 - lm, 130); ctx.stroke();
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+function makeOswinJournalTex() {
+  const c = document.createElement('canvas'); c.width = 600; c.height = 800;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 800);
+  const lm = 54;
+  ctx.fillStyle = '#000000'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('OSWIN JOURNAL', lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(600 - lm, 130); ctx.stroke();
+  ctx.fillStyle = '#000000';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('issue', lm, 162);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+function makeWhiteReflTex() {
+  const W = 128, H = 64;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  // Vertical fade
+  const vGrad = ctx.createLinearGradient(0, 0, 0, H);
+  vGrad.addColorStop(0, 'rgba(200,200,200,0.42)');
+  vGrad.addColorStop(1, 'rgba(200,200,200,0.0)');
+  ctx.fillStyle = vGrad; ctx.fillRect(0, 0, W, H);
+  // Radial — overhead centred pool
+  const rGrad = ctx.createRadialGradient(W/2, 0, 0, W/2, 0, W * 0.72);
+  rGrad.addColorStop(0, 'rgba(200,200,200,0.0)');
+  rGrad.addColorStop(1, 'rgba(200,200,200,0.38)');
+  ctx.fillStyle = rGrad; ctx.fillRect(0, 0, W, H);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+// ── Build upper floor ─────────────────────────────────────────────────────────
+function buildUpperFloor() {
+  const COUNT = 6;
+  const R = 4.0; // arc-length match: 4.19 * 6 / (2π)
+  const white = new THREE.Color(0xf0f0f0);
+  const f = {
+    floorIdx: FLOOR_UPPER, baseY: FLOOR_Y[FLOOR_UPPER], count: COUNT, radius: R,
+    angle: 0, angVel: 0, floorAmt: 0,
+    panels: [], home: [], tilt: [],
+    faceMats: [], glassMats: [], backMats: [], sideMats: [], reflMats: [],
+  };
   for (let i = 0; i < COUNT; i++) {
     const a = (i / COUNT) * Math.PI * 2;
-    const r = RADIUS;
-    const y = 0;
-
-    textures[i].encoding = THREE.sRGBEncoding;
-    textures[i].anisotropy = aniso;
-
-    const avgCol = sampleColor(textures[i].image);
+    const sp = SLIDE_CFG[i];
+    let faceTex;
+    if (sp) {
+      drawSlidePanel(sp);
+      sp.tex = new THREE.CanvasTexture(sp.canvas);
+      sp.tex.encoding = THREE.sRGBEncoding;
+      faceTex = sp.tex;
+    } else if (i === ABOUT_PANEL_IDX) {
+      drawAboutPanel();
+      aboutTex = new THREE.CanvasTexture(aboutCanvas);
+      aboutTex.encoding = THREE.sRGBEncoding;
+      faceTex = aboutTex;
+    } else if (i === 1) {
+      faceTex = makeWriteMeTex();
+    } else if (i === 4) {
+      oswinCanvas = document.createElement('canvas');
+      oswinCanvas.width = 600; oswinCanvas.height = 800;
+      drawOswinPanel(performance.now());
+      oswinTex = new THREE.CanvasTexture(oswinCanvas);
+      oswinTex.encoding = THREE.sRGBEncoding;
+      faceTex = oswinTex;
+    } else if (i === ARCHIVE_PANEL_IDX) {
+      faceTex = makeTextPanelTex('ARCHIVE');
+    } else {
+      faceTex = makeTextPanelTex(UPPER_LABELS[i]);
+    }
+    // Mirrored back texture — same canvas, flipped horizontally
+    const backTex = new THREE.CanvasTexture(faceTex.image);
+    backTex.encoding = THREE.sRGBEncoding;
+    backTex.wrapS = THREE.RepeatWrapping;
+    backTex.repeat.set(-1, 1); backTex.offset.set(1, 0);
+    if (sp) sp.backTex = backTex;
+    else if (i === ABOUT_PANEL_IDX) aboutBackTex = backTex;
+    else if (i === 4) oswinBackTex = backTex;
     const faceMat = new THREE.MeshPhysicalMaterial({
-      map: i === TEXT_IDX ? textures[i] : makeEnhancedTex(textures[i].image), transparent: true, opacity: FRONT_OPACITY,
-      side: THREE.FrontSide,
-      roughness: 0.02, metalness: 0.05, clearcoat: 1.0, clearcoatRoughness: 0.01,
-      envMapIntensity: 1.6, emissive: avgCol, emissiveIntensity: 0.0,
+      map: faceTex, transparent: true, opacity: FRONT_OPACITY, side: THREE.FrontSide,
+      roughness: 0.55, metalness: 0.0, clearcoat: 0.0,
+      envMapIntensity: 0.12, color: white,
+    });
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: white, transparent: true, opacity: BACK_OPACITY,
+      roughness: 0.6, metalness: 0.0, envMapIntensity: 0.1,
+    });
+    const backMat = new THREE.MeshPhysicalMaterial({
+      map: backTex, transparent: true, opacity: 0.72,
+      roughness: 0.6, metalness: 0.0,
+    });
+    const sideMat = new THREE.MeshStandardMaterial({
+      color: white, transparent: true, opacity: 0.65,
+      roughness: 0.6, metalness: 0.0, envMapIntensity: 0.1,
+    });
+    const reflMat = new THREE.MeshBasicMaterial({
+      map: makeWhiteReflTex(), transparent: true, opacity: isMobile ? 0.15 : 0.45,
+    });
+    const panel = new THREE.Mesh(panelGeo, [sideMat, sideMat, glassMat, glassMat, faceMat, backMat]);
+    panel.frustumCulled = false;
+    panel.userData = { floorIdx: FLOOR_UPPER, panelIdx: i };
+    const reflMesh = new THREE.Mesh(reflGeo, reflMat);
+    reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
+    reflMesh.frustumCulled = false;
+    panel.add(reflMesh);
+    // Archive panel: video overlay — rule at canvas y=130, gap=22px, video y=152→778 (626px tall)
+    if (i === ARCHIVE_PANEL_IDX) {
+      const vW = (492 / 600) * panelW;
+      const vH = (626 / 800) * panelH;
+      // Canvas centre of video area: y = 152 + 626/2 = 465 → world y offset
+      const vY = (0.5 - 465 / 800) * panelH;
+      // UV center-crop so 1920×980 fills the plane without stretching
+      const videoAspect = 1920 / 980;
+      const planeAspect = vW / vH;
+      archiveVideoTex.wrapS = THREE.RepeatWrapping;
+      archiveVideoTex.wrapT = THREE.RepeatWrapping;
+      if (videoAspect > planeAspect) {
+        const rx = planeAspect / videoAspect;
+        archiveVideoTex.repeat.set(rx, 1);
+        archiveVideoTex.offset.set((1 - rx) / 2, 0);
+      } else {
+        const ry = videoAspect / planeAspect;
+        archiveVideoTex.repeat.set(1, ry);
+        archiveVideoTex.offset.set(0, (1 - ry) / 2);
+      }
+      archiveVideoMat = new THREE.MeshBasicMaterial({
+        map: archiveVideoTex, transparent: true, opacity: 1.0,
+        depthTest: false, depthWrite: false, fog: false,
+      });
+      archiveVideoMesh = new THREE.Mesh(new THREE.PlaneGeometry(vW, vH), archiveVideoMat);
+      archiveVideoMesh.position.set(0, vY, THICK / 2 + 0.02);
+      archiveVideoMesh.frustumCulled = false;
+      panel.add(archiveVideoMesh);
+    }
+    scene.add(panel);
+    f.panels.push(panel); f.home.push(new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R));
+    f.tilt.push(0); f.faceMats.push(faceMat); f.glassMats.push(glassMat);
+    f.backMats.push(backMat); f.sideMats.push(sideMat); f.reflMats.push(reflMat);
+  }
+  floors[FLOOR_UPPER] = f;
+}
+
+// ── Build diver floor ─────────────────────────────────────────────────────────
+function buildDiverFloor() {
+  const COUNT = DIVER_COUNT; // 11 — one panel per video
+  const R = 6.0;
+  const f = {
+    floorIdx: FLOOR_DIVER, baseY: FLOOR_Y[FLOOR_DIVER], count: COUNT, radius: R,
+    angle: 0, angVel: 0, floorAmt: 0,
+    panels: [], home: [], tilt: [],
+    faceMats: [], glassMats: [], backMats: [], sideMats: [], reflMats: [],
+    videoMats: [], videoBackMats: [], videoReflMats: [], videoMeshes: [], videoBackMeshes: [],
+  };
+  for (let i = 0; i < COUNT; i++) {
+    const a = (i / COUNT) * Math.PI * 2;
+    const faceMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#050302'), transparent: true, opacity: FRONT_OPACITY, side: THREE.FrontSide,
+      roughness: 0.02, metalness: 0.05, clearcoat: 1.0, clearcoatRoughness: 0.01, envMapIntensity: 1.6,
+    });
+    const glassMat = new THREE.MeshStandardMaterial({
+      transparent: true, opacity: BACK_OPACITY, roughness: 0.05, metalness: 0.2, envMapIntensity: 2.5,
+    });
+    const backMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#050302'), transparent: true, opacity: 0.72, roughness: 0.3, metalness: 0.0,
     });
     const sideMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color('#d4d0cb').multiplyScalar(1.25), transparent: true, opacity: 0.65,
-      roughness: 0.05, metalness: 0.3,
-      envMapIntensity: 3.0,
+      roughness: 0.05, metalness: 0.3, envMapIntensity: 3.0,
     });
-    const glassMat = new THREE.MeshStandardMaterial({
-      transparent: true, opacity: BACK_OPACITY, roughness: 0.05, metalness: 0.2,
-      envMapIntensity: 2.5,
+    const reflMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#050302'), transparent: true, opacity: 0,
     });
-    // Back face: blurred wash of colour, not a sharp image
-    const backMat = new THREE.MeshPhysicalMaterial({
-      map: makeBlurTex(textures[i].image), transparent: true, opacity: 0.72,
-      roughness: 0.3, metalness: 0.0,
-      envMapIntensity: 0.3, emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0.0,
-    });
-    // right, left, top, bottom = coloured glass sides; +z = face image; -z = blurred back
     const panel = new THREE.Mesh(panelGeo, [sideMat, sideMat, glassMat, glassMat, faceMat, backMat]);
     panel.frustumCulled = false;
-
-    // Blurred mirror strip below each panel (toned down 25%)
-    const reflMat = new THREE.MeshBasicMaterial({
-      map: makeReflTex(textures[i].image, isMobile), transparent: true, opacity: isMobile ? 0.2 : 0.66,
-    });
+    panel.userData = { floorIdx: FLOOR_DIVER, panelIdx: i };
     const reflMesh = new THREE.Mesh(reflGeo, reflMat);
     reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
     reflMesh.frustumCulled = false;
     panel.add(reflMesh);
 
+    const videoMat = new THREE.MeshBasicMaterial({
+      map: vidTexs[i], alphaMap: roundedAlphaMap, transparent: true, opacity: 0, depthTest: true, depthWrite: false, fog: false,
+    });
+    const videoMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), videoMat);
+    videoMesh.position.set(0, 0, THICK / 2 + 0.015); videoMesh.frustumCulled = false;
+    panel.add(videoMesh);
+
+    const videoBackMat = new THREE.MeshBasicMaterial({
+      map: blurTexs[i], alphaMap: roundedAlphaMap, transparent: true, opacity: 0, depthTest: true, depthWrite: false, fog: false,
+    });
+    const videoBackMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), videoBackMat);
+    videoBackMesh.position.set(0, 0, -(THICK / 2 + 0.015));
+    videoBackMesh.rotation.y = Math.PI; videoBackMesh.frustumCulled = false;
+    panel.add(videoBackMesh);
+
     const videoReflMat = new THREE.MeshBasicMaterial({
-      map: vidReflTex, transparent: true, opacity: 0,
-      depthWrite: false, fog: false,
+      map: vidReflTexs[i], alphaMap: reflAlphaMap, transparent: true, opacity: 0, depthWrite: false, fog: false,
     });
     const videoReflMesh = new THREE.Mesh(reflGeo, videoReflMat);
     videoReflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.003);
     videoReflMesh.frustumCulled = false;
     panel.add(videoReflMesh);
-    videoReflMats.push(videoReflMat);
-
-    const videoMat = new THREE.MeshBasicMaterial({
-      map: vidTex, transparent: true, opacity: 0,
-      depthTest: true, depthWrite: false, fog: false,
-    });
-    const videoMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), videoMat);
-    videoMesh.position.set(0, 0, THICK / 2 + 0.015);
-    videoMesh.frustumCulled = false;
-    panel.add(videoMesh);
-    const videoBackMat = new THREE.MeshBasicMaterial({
-      map: vidBackTex, transparent: true, opacity: 0,
-      depthTest: true, depthWrite: false, fog: false,
-    });
-    const videoBackMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), videoBackMat);
-    videoBackMesh.position.set(0, 0, -(THICK / 2 + 0.015));
-    videoBackMesh.rotation.y = Math.PI;
-    videoBackMesh.frustumCulled = false;
-    panel.add(videoBackMesh);
-
-    const blueMat = new THREE.MeshBasicMaterial({
-      map: blueTex,
-      transparent: true, opacity: 0,
-      depthTest: true, depthWrite: false,
-      fog: false,
-    });
-    const blueMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), blueMat);
-    blueMesh.position.set(0, 0, THICK / 2 + 0.02);
-    blueMesh.frustumCulled = false;
-    panel.add(blueMesh);
-
-    const blueBackMat = new THREE.MeshBasicMaterial({
-      map: blueBackTex,
-      transparent: true, opacity: 0,
-      depthTest: true, depthWrite: false,
-      fog: false,
-    });
-    const blueBackMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), blueBackMat);
-    blueBackMesh.position.set(0, 0, -(THICK / 2 + 0.02));
-    blueBackMesh.rotation.y = Math.PI;
-    blueBackMesh.frustumCulled = false;
-    panel.add(blueBackMesh);
 
     scene.add(panel);
-    panels.push(panel); faceMats.push(faceMat); glassMats.push(glassMat);
-    backMats.push(backMat); sideMats.push(sideMat); reflMats.push(reflMat);
-    blueMats.push(blueMat); blueMeshes.push(blueMesh); blueBackMats.push(blueBackMat); blueBackMeshes.push(blueBackMesh);
-    videoMats.push(videoMat); videoMeshes.push(videoMesh); videoBackMats.push(videoBackMat); videoBackMeshes.push(videoBackMesh);
-    home.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
-    tilt.push(0);
+    f.panels.push(panel); f.home.push(new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R));
+    f.tilt.push(0); f.faceMats.push(faceMat); f.glassMats.push(glassMat);
+    f.backMats.push(backMat); f.sideMats.push(sideMat); f.reflMats.push(reflMat);
+    f.videoMats.push(videoMat); f.videoBackMats.push(videoBackMat); f.videoReflMats.push(videoReflMat);
+    f.videoMeshes.push(videoMesh); f.videoBackMeshes.push(videoBackMesh);
+  }
+  floors[FLOOR_DIVER] = f;
+}
+
+// ── Archive showreel video ────────────────────────────────────────────────────
+let archiveVideoLoaded = false;
+const archiveVideoEl = document.createElement('video');
+// src set lazily when upper floor first becomes active
+archiveVideoEl.loop = true; archiveVideoEl.muted = true; archiveVideoEl.playsInline = true; archiveVideoEl.preload = 'none';
+const archiveVideoTex = new THREE.VideoTexture(archiveVideoEl);
+archiveVideoTex.encoding = THREE.sRGBEncoding;
+let archiveVideoMat = null;
+let archiveVideoMesh = null;
+
+// ── Oswin Journal panel — animated piano bars over flexing guy ────────────────
+let oswinCanvas = null, oswinTex = null, oswinBackTex = null;
+const oswinGlows = [];
+let oswinNextGlow = 0;
+const oswinImg = new Image();
+oswinImg.src = '/images/giftshop-red.jpg';
+
+const PIANO_BAR_COLORS = [
+  'rgba(4,4,3,0.06)',       'rgba(18,18,16,0.05)',
+  'rgba(42,42,40,0.04)',    'rgba(75,75,72,0.04)',
+  'rgba(115,115,110,0.03)', 'rgba(155,155,150,0.03)',
+  'rgba(195,195,190,0.02)', 'rgba(232,232,228,0.02)',
+];
+const PIANO_BLOOM = 'rgba(255,255,240,0.72)';
+
+function drawOswinPanel(now) {
+  if (!oswinCanvas || !oswinImg.complete) return;
+  const W = 600, H = 800, lm = 54;
+  const iX = lm, iY = 152, iW = W - lm * 2, iH = 626;
+  const ctx = oswinCanvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+
+  // Header
+  ctx.fillStyle = '#000000'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.textAlign = 'left';
+  ctx.fillText('OSWIN JOURNAL', lm, 110);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = oswinListenActive ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.35)';
+  ctx.font = "300 11px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.22em';
+  ctx.fillText(oswinListenActive ? 'LISTENING' : 'LISTEN', W - lm, 110);
+  ctx.textAlign = 'left';
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(W - lm, 130); ctx.stroke();
+
+  // Flexing guy — cover-fit into content area
+  const imgA = oswinImg.naturalWidth / oswinImg.naturalHeight;
+  const areaA = iW / iH;
+  let sx, sy, sw, sh;
+  if (imgA > areaA) { sh = oswinImg.naturalHeight; sw = sh * areaA; sx = (oswinImg.naturalWidth - sw) / 2; sy = 0; }
+  else              { sw = oswinImg.naturalWidth; sh = sw / areaA; sx = 0; sy = (oswinImg.naturalHeight - sh) / 2; }
+  ctx.drawImage(oswinImg, sx, sy, sw, sh, iX, iY, iW, iH);
+
+  // Piano bars — horizontal rows
+  const nBars = 8, barH = iH / nBars;
+  for (let b = 0; b < nBars; b++) {
+    const by = iY + b * barH;
+    ctx.fillStyle = PIANO_BAR_COLORS[b];
+    ctx.fillRect(iX, by, iW, barH);
+    let glowAmt = 0;
+    for (const g of oswinGlows) {
+      if (g.barIdx !== b) continue;
+      const e = now - g.startTime;
+      glowAmt = Math.max(glowAmt, e < 380 ? 1.0 : Math.max(0, 1.0 - (e - 380) / 2800));
+    }
+    if (glowAmt > 0) {
+      ctx.globalAlpha = glowAmt;
+      ctx.fillStyle = PIANO_BLOOM;
+      ctx.fillRect(iX, by, iW, barH);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Cull expired glows and schedule next
+  for (let i = oswinGlows.length - 1; i >= 0; i--) {
+    if (now - oswinGlows[i].startTime > 3180) oswinGlows.splice(i, 1);
+  }
+  if (now >= oswinNextGlow) {
+    oswinGlows.push({ barIdx: Math.floor(Math.random() * nBars), startTime: now });
+    oswinNextGlow = now + 150 + Math.random() * 400;
+  }
+
+  if (oswinTex) oswinTex.needsUpdate = true;
+  if (oswinBackTex) oswinBackTex.needsUpdate = true;
+}
+
+// ── Build detroit floor ───────────────────────────────────────────────────────
+const aniso = renderer.capabilities.getMaxAnisotropy();
+
+function buildDetroitFloor(textures) {
+  const f = {
+    floorIdx: FLOOR_DETROIT, baseY: FLOOR_Y[FLOOR_DETROIT], count: DETROIT_COUNT, radius: RADIUS,
+    angle: 0, angVel: 0, floorAmt: 1,
+    panels: [], home: [], tilt: [],
+    faceMats: [], glassMats: [], backMats: [], sideMats: [], reflMats: [],
+  };
+  for (let i = 0; i < DETROIT_COUNT; i++) {
+    const a = (i / DETROIT_COUNT) * Math.PI * 2;
+    textures[i].encoding = THREE.sRGBEncoding;
+    if (!isDetroitText(i)) textures[i].anisotropy = aniso;
+    const isText = isDetroitText(i);
+    const avgCol = isText ? new THREE.Color(0xffffff) : sampleColor(textures[i].image);
+    const faceMat = new THREE.MeshPhysicalMaterial({
+      map: isText ? textures[i] : makeEnhancedTex(textures[i].image),
+      transparent: true, opacity: FRONT_OPACITY, side: THREE.FrontSide,
+      roughness: isText ? 0.55 : 0.02, metalness: isText ? 0.0 : 0.05,
+      clearcoat: isText ? 0.0 : 1.0, clearcoatRoughness: 0.01,
+      envMapIntensity: isText ? 0.15 : 1.6,
+      emissive: isText ? new THREE.Color(0x000000) : avgCol, emissiveIntensity: 0.0,
+      alphaMap: roundedAlphaMap,
+    });
+    const white = new THREE.Color(0xffffff);
+    const sideMat = new THREE.MeshStandardMaterial({
+      color: isText ? white : new THREE.Color('#d4d0cb').multiplyScalar(1.25),
+      transparent: true, opacity: 0.65,
+      roughness: isText ? 0.6 : 0.05, metalness: isText ? 0.0 : 0.3,
+      envMapIntensity: isText ? 0.1 : 3.0,
+    });
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: isText ? white : new THREE.Color(0xffffff),
+      transparent: true, opacity: BACK_OPACITY,
+      roughness: isText ? 0.6 : 0.05, metalness: isText ? 0.0 : 0.2,
+      envMapIntensity: isText ? 0.1 : 2.5,
+    });
+    const backMat = new THREE.MeshPhysicalMaterial({
+      map: isDetroitText(i) ? makeFlippedTex(textures[i].image) : makeBlurTex(textures[i].image), transparent: true, opacity: 0.72,
+      roughness: 0.3, metalness: 0.0, envMapIntensity: 0.3,
+      emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0.0,
+      alphaMap: roundedAlphaMap,
+    });
+    const reflMat = new THREE.MeshBasicMaterial({
+      map: isDetroitText(i) ? makeWhiteReflTex() : makeReflTex(textures[i].image, isMobile),
+      transparent: true, opacity: isMobile ? 0.2 : 0.66,
+    });
+    const panel = new THREE.Mesh(panelGeo,
+      isMobile
+        ? [sideMat, sideMat, glassMat, glassMat, backMat, faceMat]
+        : [sideMat, sideMat, glassMat, glassMat, faceMat, backMat]
+    );
+    panel.frustumCulled = false;
+    panel.userData = { floorIdx: FLOOR_DETROIT, panelIdx: i };
+    const reflMesh = new THREE.Mesh(reflGeo, reflMat);
+    reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
+    reflMesh.frustumCulled = false;
+    panel.add(reflMesh);
+    scene.add(panel);
+    f.panels.push(panel); f.home.push(new THREE.Vector3(Math.cos(a) * RADIUS, 0, Math.sin(a) * RADIUS));
+    f.tilt.push(0); f.faceMats.push(faceMat); f.glassMats.push(glassMat);
+    f.backMats.push(backMat); f.sideMats.push(sideMat); f.reflMats.push(reflMat);
+  }
+  floors[FLOOR_DETROIT] = f;
+}
+
+// ── Load assets ───────────────────────────────────────────────────────────────
+buildUpperFloor();
+buildDiverFloor();
+
+
+let loadedCount = 0;
+const textures = new Array(DETROIT_COUNT);
+const loader = new THREE.TextureLoader();
+const loaderBar = document.getElementById('loader-bar');
+const loaderEl  = document.getElementById('loader');
+
+function onTextureLoaded() {
+  ++loadedCount;
+  loaderBar.style.width = (loadedCount / DETROIT_COUNT * 100) + '%';
+  if (loadedCount === DETROIT_COUNT) {
+    buildDetroitFloor(textures);
+    renderer.compile(scene, camera);
+    loaderEl.style.opacity = '0';
   }
 }
 
-// Load all textures then build and pre-compile shaders
-let loadedCount = 0;
-const textures = new Array(COUNT);
-const loader = new THREE.TextureLoader();
-const TEXT_IDX = IMAGES.indexOf('__text__');
-
-function makeTextPanelTex() {
-  const W = 600, H = 776;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#050302';
-  ctx.fillRect(0, 0, W, H);
-  ctx.textBaseline = 'middle';
-
-  // Line 1
-  ctx.font = '300 15px "Helvetica Neue", Helvetica, Arial, sans-serif';
-  ctx.letterSpacing = '0.14em';
-  ctx.fillStyle = 'rgba(255,255,255,0.82)';
-  ctx.textAlign = 'center';
-  ctx.fillText('Portraits from Detroit parties, 1993 to 1997.', W / 2, H / 2 - 18);
-
-  // Line 2: "Coming soon at " + styled "oswinjournal.com"
-  ctx.font = '300 11px "Helvetica Neue", Helvetica, Arial, sans-serif';
-  ctx.letterSpacing = '0.13em';
-  const prefix = 'Coming soon at ';
-  const url = 'oswinjournal.com';
-  const prefixW = ctx.measureText(prefix).width;
-  const urlW = ctx.measureText(url).width;
-  const lineY = H / 2 + 16;
-  const startX = (W - prefixW - urlW) / 2;
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(255,255,255,0.38)';
-  ctx.fillText(prefix, startX, lineY);
-
-  ctx.fillStyle = 'rgba(255,255,255,0.62)';
-  ctx.fillText(url, startX + prefixW, lineY);
-  ctx.strokeStyle = 'rgba(255,255,255,0.38)';
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(startX + prefixW, lineY + 8);
-  ctx.lineTo(startX + prefixW + urlW, lineY + 8);
-  ctx.stroke();
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.encoding = THREE.sRGBEncoding;
-  return tex;
-}
-
-IMAGES.forEach((url, i) => {
-  if (i === TEXT_IDX) {
-    textures[i] = makeTextPanelTex();
-    if (++loadedCount === COUNT) { buildPanels(textures); renderer.compile(scene, camera); }
+DETROIT_IMAGES.forEach((url, i) => {
+  if (isDetroitText(i)) {
+    textures[i] = makeDetroitTextTex();
+    onTextureLoaded();
     return;
   }
-  loader.load(url, (tex) => {
-    textures[i] = tex;
-    if (++loadedCount === COUNT) { buildPanels(textures); renderer.compile(scene, camera); }
-  });
+  loader.load(url, (tex) => { textures[i] = tex; onTextureLoaded(); });
 });
 
-// --- Audio ---
+// ── Audio ─────────────────────────────────────────────────────────────────────
 const audio = new Audio('/lawerence_loop.mp3');
-audio.loop = true;
-audio.volume = 0.7;
+audio.loop = true; audio.volume = 0.7;
 
-// --- Interaction ---
+const schoenbergAudio = new Audio();
+schoenbergAudio.loop = false;
+let oswinListenActive = false;
+let audioFadeTimer = null;
+
+function fadeAudioTo(target, duration) {
+  if (audioFadeTimer) clearInterval(audioFadeTimer);
+  const start = audio.volume;
+  const steps = 30;
+  const stepTime = duration / steps;
+  let i = 0;
+  audioFadeTimer = setInterval(() => {
+    i++;
+    audio.volume = Math.max(0, Math.min(1, start + (target - start) * (i / steps)));
+    if (i >= steps) { clearInterval(audioFadeTimer); audioFadeTimer = null; }
+  }, stepTime);
+}
+
+function toggleSchoenberg() {
+  if (oswinListenActive) {
+    schoenbergAudio.pause();
+    schoenbergAudio.currentTime = 0;
+    oswinListenActive = false;
+    fadeAudioTo(0.7, 1200);
+  } else {
+    if (!schoenbergAudio.src) schoenbergAudio.src = '/schoenberg_red.mp3';
+    oswinListenActive = true;
+    fadeAudioTo(0.35, 800);
+    if (audio.paused) audio.play().catch(() => {});
+    schoenbergAudio.play().catch(() => {});
+  }
+}
+
+// ── Interaction ───────────────────────────────────────────────────────────────
+function diverClick() {
+  if (window !== window.top) window.parent.postMessage('diverClick', '*');
+  else diverClick();
+}
+
+let started = false, paused = false;
+let dragging = false, didDrag = false, downOnPanel = false;
+let clickedFloor = -1, clickedPanelIdx = -1, autoDir = 1;
+let clickedUV = null;
+let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0, dragStartAngle = 0;
+let fog = 0, duck = 1;
+
+// ── Mobile state ──────────────────────────────────────────────────────────────
+let mobileState = 'roaming'; // 'roaming' | 'viewing' | 'returning'
+let mobViewIdx = -1;
+// (orbit angle removed — viewing mode uses fixed camera + ring rotation)
+let mobTouchId = null;
+let mobT0x = 0, mobT0y = 0, mobLastX = 0, mobLastY = 0, mobLastT = 0;
+let mobVel = 0, mobHSwiping = false, mobVSwiping = false;
+let lastTapT = 0;
+const MOB_SWIPE_THRESH = 10;
+const DBL_TAP_MS = 320;
+const MOB_VIEW_Z = RADIUS - 3; // 21 — close-up camera Z in viewing mode
+
+// Gyroscope look-around — use gamma (left/right tilt) which is reliable on all iOS
+let gyroYaw = 0;
+let gyroYawTarget = 0;
+let lastGamma = null;
+
+function initGyro() {
+  window.addEventListener('deviceorientation', (e) => {
+    if (!isMobile) return;
+    // gamma: left/right tilt, -90..+90, always non-null in portrait
+    // alpha: compass yaw, works when calibrated — use as primary if available
+    const gamma = e.gamma;
+    const alpha = e.alpha;
+    if (gamma == null) return;
+
+    if (alpha != null) {
+      // Compass-based turning: use alpha delta for yaw
+      if (lastGamma === null) { lastGamma = alpha; return; }
+      let d = alpha - lastGamma;
+      if (d > 180) d -= 360;
+      if (d < -180) d += 360;
+      gyroYawTarget -= d * Math.PI / 180;
+      lastGamma = alpha;
+    } else {
+      // Fallback: map gamma (-90..90 deg) directly to yaw (-π..π)
+      gyroYawTarget = -(gamma / 90) * Math.PI;
+    }
+  }, { passive: true });
+}
+
+function enterMobileViewing(idx) {
+  const f = floors[currentFloor]; if (!f) return;
+  mobViewIdx = idx;
+  mobileState = 'viewing';
+  paused = true;
+  f.angVel = 0;
+}
+
+function exitMobileViewing() {
+  mobileState = 'returning';
+  paused = false;
+}
+
+const pointer = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+const orbitQuat = new THREE.Quaternion();
+const orbitEuler = new THREE.Euler();
+const orbitPos = new THREE.Vector3();
+
+function getAllPanels() {
+  const out = [];
+  for (const f of floors) { if (f) out.push(...f.panels); }
+  return out;
+}
+
 renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (isMobile) return;
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(panels);
-  downOnPanel = hits.length > 0;
-  clickedPanelIdx = hits.length > 0 ? panels.indexOf(hits[0].object) : -1;
+  const hits = raycaster.intersectObjects(getAllPanels());
+  if (hits.length > 0) {
+    downOnPanel = true;
+    clickedFloor = hits[0].object.userData.floorIdx;
+    clickedPanelIdx = hits[0].object.userData.panelIdx;
+    clickedUV = hits[0].uv ? { x: hits[0].uv.x, y: hits[0].uv.y } : null;
+  } else {
+    downOnPanel = false; clickedFloor = -1; clickedPanelIdx = -1; clickedUV = null;
+  }
   dragging = true; didDrag = false;
   downX = lastX = e.clientX; downY = e.clientY;
   lastMoveT = performance.now(); trackedVel = 0;
-  dragStartAngle = angle;
+  dragStartAngle = floors[currentFloor] ? floors[currentFloor].angle : 0;
 });
 
 renderer.domElement.addEventListener('pointermove', (e) => {
-  if (!dragging) return;
+  if (isMobile || !dragging) return;
   const now = performance.now();
   const dx = e.clientX - lastX;
   const dtm = Math.max((now - lastMoveT) / 1000, 0.001);
@@ -513,110 +1195,160 @@ renderer.domElement.addEventListener('pointermove', (e) => {
     didDrag = true;
     if (paused) paused = false;
   }
-  if (didDrag) {
-    angle += dx * SENS;
+  if (didDrag && floors[currentFloor]) {
+    floors[currentFloor].angle += dx * SENS;
     trackedVel = trackedVel * 0.6 + (dx / dtm) * 0.4;
   }
 });
 
 renderer.domElement.addEventListener('pointerup', () => {
-  if (!dragging) return;
+  if (isMobile || !dragging) return;
   dragging = false;
-  const net = angle - dragStartAngle;
-  if (!didDrag && downOnPanel && Math.abs(net) < 0.02) {
-    if (mode === 1) {
-      window.parent.postMessage('diverClick', '*');
-    } else if (clickedPanelIdx === TEXT_IDX) {
+  if (!didDrag && downOnPanel) {
+    if (clickedFloor === FLOOR_DIVER) {
+      diverClick();
+    } else if (clickedFloor === FLOOR_DETROIT && isDetroitText(clickedPanelIdx)) {
       window.open('https://oswinjournal.com', '_blank');
+    } else if (clickedFloor === FLOOR_UPPER && clickedPanelIdx === 1) {
+      openWriteMe();
+    } else if (clickedFloor === FLOOR_UPPER && SLIDE_CFG[clickedPanelIdx]) {
+      const sp = SLIDE_CFG[clickedPanelIdx];
+      sp.imgIdx = (sp.imgIdx + 1) % sp.srcs.length;
+      drawSlidePanel(sp);
+      paused = true;
+    } else if (clickedFloor === FLOOR_UPPER && clickedPanelIdx === 4) {
+      // LISTEN button: u ∈ [0.70, 0.95], v ∈ [0.83, 0.90]
+      if (clickedUV && clickedUV.x > 0.70 && clickedUV.x < 0.95 && clickedUV.y > 0.83 && clickedUV.y < 0.90) {
+        toggleSchoenberg();
+      } else {
+        paused = !paused;
+      }
     } else {
       paused = !paused;
     }
   }
-  let av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS;
-  angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
+  const av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS;
+  const f = floors[currentFloor];
+  if (f) f.angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
   if (didDrag && Math.abs(av) > 0.05) autoDir = av < 0 ? -1 : 1;
 });
 
-// --- Video texture setup ---
-const vidEl = document.getElementById('vid-el');
-const DIVER_SRCS = ['/videos/diver4.mp4', '/videos/diver2.mp4'];
-let diverIdx = 0;
-vidEl.src = DIVER_SRCS[0];
-vidEl.addEventListener('ended', () => {
-  diverIdx = (diverIdx + 1) % DIVER_SRCS.length;
-  vidEl.src = DIVER_SRCS[diverIdx];
-  vidEl.play().catch(() => {});
-});
-const vidTex = new THREE.VideoTexture(vidEl);
-vidTex.encoding = THREE.sRGBEncoding;
-const vidBackTex = new THREE.VideoTexture(vidEl);
-vidBackTex.encoding = THREE.sRGBEncoding;
-vidBackTex.wrapS = THREE.RepeatWrapping;
-vidBackTex.repeat.set(-1, 1);
-vidBackTex.offset.set(1, 0);
-// Reflection variant: bottom portion of video, flipped vertically
-const vidReflTex = new THREE.VideoTexture(vidEl);
-vidReflTex.encoding = THREE.sRGBEncoding;
-vidReflTex.wrapT = THREE.RepeatWrapping;
-vidReflTex.repeat.set(1, -REFL_FRAC);
-vidReflTex.offset.set(0, REFL_FRAC);
-
-// --- Scroll gestures ---
-// deltaY > 0 = fingers UP on Mac trackpad (natural scroll); deltaY < 0 = fingers DOWN
+// ── Scroll / touch ────────────────────────────────────────────────────────────
+// deltaY > 0 = fingers UP on Mac (natural scroll) = go to upper floor
 window.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  if (mode === 1) {
-    if (e.deltaY > 0) { mode = 0; modeSwitchTime = performance.now(); blueScrollAcc = 0; }
-  } else {
-    if (e.deltaY < 0) { mode = 1; blueScrollAcc = 0; }
-    else if (e.deltaY > 0 && performance.now() - modeSwitchTime > 400) {
-      blueScrollAcc = Math.min(1, blueScrollAcc + e.deltaY * 0.015);
-    }
-  }
-}, { passive: false });
+  if (e.deltaY > 0) goToFloor(currentFloor - 1);
+  else if (e.deltaY < 0) goToFloor(currentFloor + 1);
+}, { passive: true });
 
 let touchY0 = 0;
-window.addEventListener('touchstart', (e) => { touchY0 = e.touches[0].clientY; }, { passive: true });
+window.addEventListener('touchstart', (e) => { if (isMobile) return; touchY0 = e.touches[0].clientY; }, { passive: true });
 window.addEventListener('touchmove', (e) => {
-  e.preventDefault();
+  if (isMobile) return;
   const dy = e.touches[0].clientY - touchY0;
   touchY0 = e.touches[0].clientY;
-  if (mode === 1) {
-    if (dy > 0) { mode = 0; modeSwitchTime = performance.now(); blueScrollAcc = 0; }
-  } else {
-    if (dy < -5) { mode = 1; blueScrollAcc = 0; }
-    else if (dy > 0 && performance.now() - modeSwitchTime > 400) {
-      blueScrollAcc = Math.min(1, blueScrollAcc + dy * 0.015);
-    }
-  }
-}, { passive: false });
+  if (dy < -8) goToFloor(currentFloor + 1);
+  else if (dy > 8) goToFloor(currentFloor - 1);
+}, { passive: true });
 
-// --- Keyboard arrows ---
-function handleKey(key) {
-  if (key === 'ArrowDown') {
-    if (mode !== 1) { mode = 1; blueScrollAcc = 0; }
-  } else if (key === 'ArrowUp') {
-    if (mode === 1) {
-      mode = 0; modeSwitchTime = performance.now(); blueScrollAcc = 0;
-    } else if (performance.now() - modeSwitchTime > 400) {
-      blueScrollAcc = Math.min(1, blueScrollAcc + 0.45);
+// ── Mobile touch handlers ─────────────────────────────────────────────────────
+if (isMobile) {
+  renderer.domElement.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    mobTouchId = t.identifier;
+    mobT0x = mobLastX = t.clientX;
+    mobT0y = mobLastY = t.clientY;
+    mobLastT = performance.now();
+    mobVel = 0; mobHSwiping = false; mobVSwiping = false;
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const t = Array.from(e.touches).find(x => x.identifier === mobTouchId);
+    if (!t) return;
+    const now = performance.now();
+    const dx = t.clientX - mobLastX;
+    const dtm = Math.max((now - mobLastT) / 1000, 0.016); // floor at one 60fps frame
+    const totalDx = t.clientX - mobT0x;
+    const totalDy = t.clientY - mobT0y;
+    mobLastX = t.clientX; mobLastY = t.clientY; mobLastT = now;
+
+    if (!mobHSwiping && !mobVSwiping) {
+      if (Math.abs(totalDx) > MOB_SWIPE_THRESH) mobHSwiping = true;
+      else if (Math.abs(totalDy) > MOB_SWIPE_THRESH) mobVSwiping = true;
     }
-  } else if (key === 'ArrowLeft') {
-    angVel = Math.min(MAX_VEL, angVel + 1.8);
-    if (paused) paused = false;
-  } else if (key === 'ArrowRight') {
-    angVel = Math.max(-MAX_VEL, angVel - 1.8);
-    if (paused) paused = false;
-  }
+
+    if (mobHSwiping) {
+      // Both viewing and roaming: swipe spins the active ring
+      const f = floors[currentFloor];
+      if (f) { f.angle += dx * 0.004; mobVel = mobVel * 0.6 + (dx / dtm) * 0.4; }
+    }
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    const totalDx = mobLastX - mobT0x;
+    const totalDy = mobLastY - mobT0y;
+    const now = performance.now();
+    const isTap = Math.abs(totalDx) < 10 && Math.abs(totalDy) < 10;
+    const isDblTap = isTap && (now - lastTapT) < DBL_TAP_MS;
+    if (isTap) lastTapT = now;
+
+    if (mobVSwiping) {
+      if (totalDy < -MOB_SWIPE_THRESH) goToFloor(currentFloor + 1);
+      else if (totalDy > MOB_SWIPE_THRESH) goToFloor(currentFloor - 1);
+    } else if (mobHSwiping) {
+      // Fling the active ring
+      const f = floors[currentFloor];
+      if (f) {
+        const av = mobVel * 0.004;
+        f.angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
+        if (mobileState === 'roaming' && Math.abs(av) > 0.05) autoDir = av < 0 ? -1 : 1;
+      }
+    } else if (isDblTap && mobileState === 'viewing') {
+      exitMobileViewing();
+    } else if (isTap && mobileState === 'roaming') {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((mobT0x - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((mobT0y - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const f = floors[currentFloor];
+      if (f) {
+        const hits = raycaster.intersectObjects(f.panels);
+        if (hits.length > 0) {
+          const ud = hits[0].object.userData;
+          if (currentFloor === FLOOR_DIVER) {
+            diverClick();
+          } else if (currentFloor === FLOOR_UPPER) {
+            if (ud.panelIdx === 1) {
+              openWriteMe();
+            } else if (ud.panelIdx === 4) {
+              const uv = hits[0].uv;
+              if (uv && uv.x > 0.70 && uv.x < 0.95 && uv.y > 0.83 && uv.y < 0.90) {
+                toggleSchoenberg();
+              } else {
+                paused = !paused;
+              }
+            } else if (SLIDE_CFG[ud.panelIdx]) {
+              const sp = SLIDE_CFG[ud.panelIdx];
+              sp.imgIdx = (sp.imgIdx + 1) % sp.srcs.length;
+              drawSlidePanel(sp);
+            } else {
+              paused = !paused;
+            }
+          } else {
+            // FLOOR_DETROIT — zoom into panel
+            if (ud.panelIdx !== undefined) enterMobileViewing(ud.panelIdx);
+          }
+        }
+      }
+    }
+
+    mobHSwiping = false; mobVSwiping = false; mobTouchId = null;
+  }, { passive: false });
 }
-window.addEventListener('keydown', (e) => handleKey(e.key));
-window.addEventListener('message', (e) => {
-  if (e.data && e.data.type === 'key') handleKey(e.data.key);
-});
 
-// --- Render loop ---
-const _blueCol = new THREE.Color('#0026cc');
-const _whiteCol = new THREE.Color(1, 1, 1);
+// ── Render loop ───────────────────────────────────────────────────────────────
 let last = performance.now();
 
 function render(now) {
@@ -624,88 +1356,223 @@ function render(now) {
   let dt = (now - last) / 1000; last = now;
   if (dt > 0.05) dt = 0.05;
 
-  if (!dragging && !paused) {
-    const target = AUTO_SPEED * autoDir;
-    angVel = target + (angVel - target) * Math.exp(-FRICTION * dt);
-    angle += angVel * dt;
-  } else if (!dragging && paused) {
-    angVel *= Math.exp(-FRICTION * dt);
-    angle += angVel * dt;
+  // Camera
+  camY += (camYTarget - camY) * Math.min(1, dt * 3.5);
+  if (isMobile) {
+    // Smooth gyro yaw
+    gyroYaw += (gyroYawTarget - gyroYaw) * Math.min(1, dt * 8);
+
+    if (mobileState === 'viewing') {
+      // FLOOR_DETROIT zoom: camera stays centered, ring rotates past it
+      camera.position.x += (0 - camera.position.x) * Math.min(1, dt * 4);
+      camera.position.y = camY;
+      camera.position.z += (MOB_VIEW_Z - camera.position.z) * Math.min(1, dt * 4);
+      camera.lookAt(0, camY, RADIUS);
+    } else {
+      // Per-floor roaming Z: DETROIT is inside ring, UPPER/DIVER are outside their small rings
+      const targetZ = currentFloor === FLOOR_DETROIT ? MOB_CAM_Z : FLOOR_CAM_Z[currentFloor];
+      camera.position.x += (0 - camera.position.x) * Math.min(1, dt * 3.5);
+      camera.position.y = camY;
+      camera.position.z += (targetZ - camera.position.z) * Math.min(1, dt * 3.5);
+      if (currentFloor === FLOOR_DETROIT) {
+        // Inside DETROIT ring — look outward with gyro pan
+        const lx = camera.position.x + Math.sin(gyroYaw) * 30;
+        const lz = camera.position.z + Math.cos(gyroYaw) * 30;
+        camera.lookAt(lx, camY, lz);
+      } else {
+        // Outside small ring (UPPER/DIVER) — look inward toward center
+        camera.lookAt(0, camY, 0);
+      }
+      if (mobileState === 'returning' &&
+          Math.abs(camera.position.x) < 0.1 &&
+          Math.abs(camera.position.z - targetZ) < 0.1) {
+        mobileState = 'roaming';
+      }
+    }
+  } else {
+    camZ += (FLOOR_CAM_Z[currentFloor] - camZ) * Math.min(1, dt * 3.5);
+    camera.position.set(0, camY, camZ);
+    camera.lookAt(0, camY, 0);
   }
 
-  const instSpeed = dragging ? Math.abs(trackedVel * SENS) : Math.abs(angVel);
-  const targetFog = instSpeed > FOG_FLOOR ? Math.min(1, instSpeed / MAX_VEL) : 0;
-  fog += (targetFog - fog) * Math.min(1, dt * FOG_EASE);
-  const emi = fog * FOG_MAX;
-  faceMats.forEach(m => { m.emissiveIntensity = emi; });
-  backMats.forEach(m => { m.emissiveIntensity = emi * 0.3; });
+  // Archive showreel: transparent pass, render after canvas face via renderOrder
+  const upperAmt = floors[FLOOR_UPPER] ? floors[FLOOR_UPPER].floorAmt : 0;
+  if (upperAmt > 0 && !archiveVideoLoaded) {
+    archiveVideoLoaded = true;
+    archiveVideoEl.src = '/videos/showreel2_3.mp4';
+    archiveVideoEl.load();
+  }
+  if (archiveVideoMesh && floors[FLOOR_UPPER]) {
+    archiveVideoMesh.visible = upperAmt > 0.01;
+    const archPanel = floors[FLOOR_UPPER].panels[ARCHIVE_PANEL_IDX];
+    if (archPanel) archiveVideoMesh.renderOrder = archPanel.renderOrder + 40000;
+    archiveVideoTex.needsUpdate = true;
+  }
+  if (upperAmt > 0.05 && archiveVideoEl.paused) archiveVideoEl.play().catch(() => {});
+  else if (upperAmt < 0.01 && !archiveVideoEl.paused) { archiveVideoEl.pause(); archiveVideoEl.currentTime = 0; }
 
-  const speed = (dragging || paused) ? 0 : Math.abs(angVel);
+  // Diver video: play/pause all elements, update blur canvases
+  const diverFloor = floors[FLOOR_DIVER];
+  const diverAmt = diverFloor ? diverFloor.floorAmt : 0;
+  if (diverAmt > 0 && !diverVideosLoaded) {
+    diverVideosLoaded = true;
+    DIVER_SRCS.forEach((src, i) => { vidEls[i].src = src; vidEls[i].load(); });
+  }
+  for (let vi = 0; vi < DIVER_COUNT; vi++) {
+    const el = vidEls[vi];
+    if (diverAmt > 0.05 && el.paused && el.src) el.play().catch(() => {});
+    else if (diverAmt < 0.01 && !el.paused) { el.pause(); el.currentTime = 0; }
+    if (diverAmt > 0.01 && el.readyState >= 2) {
+      const cp = vidCropParams[vi];
+      const bw = 320, bh = 180;
+      blurCtxs[vi].filter = 'blur(10px) brightness(0.65)';
+      if (cp) {
+        const sw = Math.round(cp.rx * el.videoWidth);
+        const sh = Math.round(cp.ry * el.videoHeight);
+        const sx = Math.round(cp.ox * el.videoWidth);
+        const sy = Math.round(cp.oy * el.videoHeight);
+        blurCtxs[vi].drawImage(el, sx, sy, sw, sh, 0, 0, bw, bh);
+      } else {
+        blurCtxs[vi].drawImage(el, 0, 0, bw, bh);
+      }
+      blurTexs[vi].needsUpdate = true;
+    }
+  }
+
+  // Audio
   duck += ((paused ? 0.5 : 1.0) - duck) * Math.min(1, dt * 4);
   if (started) audio.volume = Math.max(0, Math.min(1, 0.7 * duck));
 
-  orbitEuler.set(0, angle, 0, 'XYZ');
-  orbitQuat.setFromEuler(orbitEuler);
-  blueScrollAcc *= Math.exp(-3 * dt);
-  blueTarget  = blueScrollAcc;
-  videoTarget = mode === 1 ? 1 : 0;
-  blueAmt  += (blueTarget  - blueAmt)  * Math.min(1, dt * 2);
-  videoAmt += (videoTarget - videoAmt) * Math.min(1, dt * 4);
-  if (videoAmt > 0.05 && vidEl.paused) vidEl.play().catch(() => {});
-  else if (videoAmt < 0.01 && !vidEl.paused) { vidEl.pause(); vidEl.currentTime = 0; }
+  // Speed-based fog/emissive (driven by current floor)
+  const cf = floors[currentFloor];
+  if (cf) {
+    const instSpeed = dragging ? Math.abs(trackedVel * SENS) : Math.abs(cf.angVel);
+    const targetFog = instSpeed > FOG_FLOOR ? Math.min(1, instSpeed / MAX_VEL) : 0;
+    fog += (targetFog - fog) * Math.min(1, dt * FOG_EASE);
+  }
+  const emi = fog * FOG_MAX;
 
-  for (let i = 0; i < panels.length; i++) {
-    orbitPos.copy(home[i]).applyQuaternion(orbitQuat);
-    panels[i].position.set(orbitPos.x * SPREAD, orbitPos.y, orbitPos.z);
-    panels[i].rotation.set(tilt[i], Math.atan2(orbitPos.x, orbitPos.z), 0);
-    const norm = Math.min(1, Math.max(0, (orbitPos.z + RADIUS) / (2 * RADIUS)));
-    const targetFaceOp = paused ? (0.5 + 0.5 * norm) : FRONT_OPACITY * (0.5 + 0.5 * norm);
-    faceMats[i].opacity += (targetFaceOp - faceMats[i].opacity) * Math.min(1, dt * 5);
-    glassMats[i].opacity = BACK_OPACITY * (0.3 + 0.7 * norm);
-    panels[i].renderOrder = Math.round(orbitPos.z * 1000);
-    blueMats[i].opacity = blueAmt * (0.5 + 0.5 * norm);
-    blueBackMats[i].opacity = blueAmt * (0.5 + 0.5 * norm);
-    blueMeshes[i].renderOrder = panels[i].renderOrder + 50000;
-    blueBackMeshes[i].renderOrder = panels[i].renderOrder + 50000;
-    videoMats[i].opacity = videoAmt * (0.5 + 0.5 * norm);
-    videoBackMats[i].opacity = videoAmt * (0.5 + 0.5 * norm);
-    videoMeshes[i].renderOrder = panels[i].renderOrder + 40000;
-    videoBackMeshes[i].renderOrder = panels[i].renderOrder + 40000;
-    reflMats[i].color.lerpColors(_whiteCol, _blueCol, blueAmt);
-    reflMats[i].opacity = (1 - videoAmt) * (isMobile ? 0.2 : 0.66);
-    videoReflMats[i].opacity = videoAmt * (0.5 + 0.5 * norm) * (isMobile ? 0.2 : 0.66);
+  // Update all floors
+  for (let fi = 0; fi < 3; fi++) {
+    const f = floors[fi];
+    if (!f) continue;
+    const isActive = fi === currentFloor;
+    const isDraggingThis = dragging && isActive;
+
+    // Animate floor visibility (fast crossfade)
+    const floorTarget = isActive ? 1 : 0;
+    f.floorAmt += (floorTarget - f.floorAmt) * Math.min(1, dt * 5);
+
+    // Keep rotating even when invisible so it's in motion when it reappears
+    if (!isDraggingThis) {
+      if (!paused || !isActive) {
+        const target = AUTO_SPEED * autoDir;
+        f.angVel = target + (f.angVel - target) * Math.exp(-FRICTION * dt);
+      } else {
+        f.angVel *= Math.exp(-FRICTION * dt);
+      }
+      f.angle += f.angVel * dt;
+    }
+
+    // Skip per-panel updates when fully invisible
+    if (f.floorAmt < 0.001) {
+      for (let i = 0; i < f.count; i++) f.panels[i].visible = false;
+      continue;
+    }
+
+    orbitEuler.set(0, f.angle, 0, 'XYZ');
+    orbitQuat.setFromEuler(orbitEuler);
+
+    for (let i = 0; i < f.count; i++) {
+      f.panels[i].visible = true;
+      orbitPos.copy(f.home[i]).applyQuaternion(orbitQuat);
+      f.panels[i].position.set(orbitPos.x * SPREAD, f.baseY, orbitPos.z);
+      f.panels[i].rotation.set(f.tilt[i], Math.atan2(orbitPos.x, orbitPos.z), 0);
+
+      const norm = Math.min(1, Math.max(0, (orbitPos.z + f.radius) / (2 * f.radius)));
+      const fa = f.floorAmt;
+
+      f.faceMats[i].opacity  = (paused ? 0.5 + 0.5*norm : FRONT_OPACITY * (0.5 + 0.5*norm)) * fa;
+      f.glassMats[i].opacity = BACK_OPACITY * (0.3 + 0.7 * norm) * fa;
+      f.sideMats[i].opacity  = 0.65 * fa * (0.22 + 0.45 * norm);
+      f.backMats[i].opacity  = 0.72 * fa;
+      if (fi !== FLOOR_DIVER) f.reflMats[i].opacity = (isMobile ? 0.2 : 0.66) * fa;
+      f.panels[i].renderOrder = Math.round(orbitPos.z * 1000);
+
+      // Detroit: emissive glow at speed
+      if (fi === FLOOR_DETROIT) {
+        f.faceMats[i].emissiveIntensity = emi;
+        f.backMats[i].emissiveIntensity = emi * 0.3;
+      }
+
+      // Diver: video overlay driven by floorAmt
+      if (fi === FLOOR_DIVER) {
+        const vOp = fa * (0.5 + 0.5 * norm);
+        f.videoMats[i].opacity     = vOp;
+        f.videoBackMats[i].opacity = vOp;
+        f.videoReflMats[i].opacity = vOp * (isMobile ? 0.2 : 0.66);
+        f.videoMeshes[i].renderOrder     = f.panels[i].renderOrder + 40000;
+        f.videoBackMeshes[i].renderOrder = f.panels[i].renderOrder + 40000;
+      }
+    }
   }
-  if (blueAmt > 0.05) {
-    typeChars = Math.min(BLUE_TOTAL, typeChars + dt * 38);
-    drawBlueCanvas(typeChars, now);
-    blueTex.needsUpdate = true;
-  } else if (typeChars > 0) {
-    typeChars = 0;
-  }
+
+  if (upperAmt > 0.01) drawOswinPanel(now);
 
   renderer.render(scene, camera);
 }
 
 requestAnimationFrame(render);
 
+// ── Enter ─────────────────────────────────────────────────────────────────────
 function enter(withAudio) {
   started = true;
   document.getElementById('begin').style.display = 'none';
   if (withAudio) audio.play();
+  // Gyro: call outside the click gesture context — requestPermission inside a
+  // click handler can cause iOS Safari to suspend/reload the page on HTTP.
+  if (isMobile) setTimeout(tryGyro, 500);
 }
 
-document.getElementById('btn-audio-on').addEventListener('click', () => enter(true));
-document.getElementById('btn-audio-off').addEventListener('click', () => enter(false));
+function tryGyro() {
+  if (typeof DeviceOrientationEvent === 'undefined') return;
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+ — no longer in gesture context, so permission dialog won't show,
+    // but it won't crash the page either. Events may still fire if already granted.
+    DeviceOrientationEvent.requestPermission()
+      .then(p => { if (p === 'granted') initGyro(); })
+      .catch(() => {});
+  } else {
+    initGyro();
+  }
+}
 
-// Auto-start without audio when loaded as homepage iframe
-enter(false);
+document.getElementById('btn-audio-on').addEventListener('click', function() { enter(true); });
+document.getElementById('btn-audio-off').addEventListener('click', function() { enter(false); });
 
+// Auto-start when embedded in iframe — parent (alextaves-site) handles intro and audio
+if (window !== window.top) {
+  document.getElementById('begin').style.display = 'none';
+  started = true;
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+function handleKey(key) {
+  if (key === 'ArrowDown') goToFloor(currentFloor + 1);
+  else if (key === 'ArrowUp') goToFloor(currentFloor - 1);
+  else if (key === 'ArrowLeft') { const f = floors[currentFloor]; if (f) { f.angVel = Math.min(MAX_VEL, f.angVel + 1.8); paused = false; } }
+  else if (key === 'ArrowRight') { const f = floors[currentFloor]; if (f) { f.angVel = Math.max(-MAX_VEL, f.angVel - 1.8); paused = false; } }
+  else if (key === ' ') paused = !paused;
+}
+window.addEventListener('keydown', (e) => handleKey(e.key));
+window.addEventListener('message', (e) => { if (e.data && e.data.type === 'key') handleKey(e.data.key); });
+
+// ── Resize ────────────────────────────────────────────────────────────────────
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
-
 
 </script>
 </body>

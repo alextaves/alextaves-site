@@ -183,6 +183,15 @@ function IntroOverlay({ audioOn, onToggleAudio, onDismiss }) {
           transition: 'opacity 0.5s',
           display: 'flex', flexDirection: 'column', gap: 20,
         }}>
+          {/* Disclaimer */}
+          <div style={{
+            fontFamily: FONT, fontSize: 9, fontWeight: 300,
+            letterSpacing: '0.13em', textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.28)', maxWidth: 320, lineHeight: 1.7,
+          }}>
+            Site under construction — please enjoy and come back often as this is a continuing project
+          </div>
+
           {/* Pill toggle */}
           <div
             onClick={handleToggle}
@@ -246,11 +255,30 @@ export default function App() {
   }, [])
 
   const toggleAudio = () => {
-    const audio = audioRef.current
-    if (!audio) return
-    if (audioOn) audio.pause()
-    else audio.play()
-    setAudioOn(a => !a)
+    let audio = audioRef.current
+    // iOS Safari requires Audio to be created inside a user gesture if it was
+    // never successfully unlocked — recreate it here as a fallback
+    if (!audio) {
+      audio = new Audio('/lawerence_loop.mp3')
+      audio.loop = true
+      audio.volume = 0.7
+      audioRef.current = audio
+    }
+    if (audioOn) {
+      audio.pause()
+      setAudioOn(false)
+    } else {
+      audio.play().then(() => {
+        setAudioOn(true)
+      }).catch(() => {
+        // Recreate and retry once — covers iOS context suspension
+        const fresh = new Audio('/lawerence_loop.mp3')
+        fresh.loop = true
+        fresh.volume = 0.7
+        audioRef.current = fresh
+        fresh.play().then(() => setAudioOn(true)).catch(() => {})
+      })
+    }
   }
 
   useEffect(() => {

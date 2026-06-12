@@ -262,9 +262,6 @@ export default function ServicesPage({ onBack, onContact }) {
         </section>
 
         <footer className="s-footer">
-          <a href="mailto:hello@alextaves.com" className="s-footer-email">
-            hello@alextaves.com
-          </a>
           <span className="s-footer-mark">© 2026</span>
         </footer>
       </div>
