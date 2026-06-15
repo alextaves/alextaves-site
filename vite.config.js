@@ -9,6 +9,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        navigateFallbackDenylist: [/^\/inventium/],
+      },
       manifest: {
         name: 'Alex Taves',
         short_name: 'Alex Taves',
