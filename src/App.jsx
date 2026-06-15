@@ -163,7 +163,7 @@ function IntroOverlay({ audioOn, onToggleAudio, onDismiss }) {
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 30,
-        backgroundColor: 'rgba(0,26,190,0.80)',
+        backgroundColor: 'rgba(0,26,190,1)',
         opacity: fading ? 0 : 1,
         transition: 'opacity 0.7s cubic-bezier(0.4,0,0.2,1)',
         pointerEvents: fading ? 'none' : 'auto',
