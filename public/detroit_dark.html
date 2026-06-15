@@ -114,6 +114,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/loaders/FontLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/geometries/TextGeometry.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 <script>
 
 // ── Detroit images ────────────────────────────────────────────────────────────
@@ -188,6 +189,33 @@ const FOG_FLOOR = 0.4, FOG_MAX = 1.2, FOG_EASE = 4;
 let SPREAD = 1.0, AUTO_SPEED = 0.0375;
 
 const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth < 1024;
+
+// ── Tone.js swipe synth ───────────────────────────────────────────────────────
+let toneReady = false;
+const swipeSynth = new Tone.MetalSynth({
+  frequency: 100,
+  envelope: { attack: 0.001, decay: 0.09, release: 0.4 },
+  harmonicity: 5.1,
+  modulationIndex: 28,
+  resonance: 3000,
+  octaves: 0.5,
+});
+const swipeGain = new Tone.Gain(0.18).toDestination();
+swipeSynth.connect(swipeGain);
+
+async function ensureTone() {
+  if (toneReady) return;
+  await Tone.start();
+  toneReady = true;
+}
+
+function fireSwipe(vel) {
+  if (!toneReady) return;
+  const norm = Math.min(Math.abs(vel) / MAX_VEL, 1);
+  if (norm < 0.1) return;
+  swipeSynth.frequency.value = 60 + norm * 220;
+  swipeSynth.triggerAttackRelease('32n', Tone.now());
+}
 if (isMobile) { SPREAD = 0.7; AUTO_SPEED = 0.01875; }
 const MOB_CAM_Z = RADIUS - 6; // 18 — inside ring, comfortable viewing distance
 if (isMobile) camera.position.set(0, 0, MOB_CAM_Z);
@@ -1247,7 +1275,7 @@ renderer.domElement.addEventListener('pointerup', () => {
   const av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS;
   const f = floors[currentFloor];
   if (f) f.angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
-  if (didDrag && Math.abs(av) > 0.05) autoDir = av < 0 ? -1 : 1;
+  if (didDrag && Math.abs(av) > 0.05) { autoDir = av < 0 ? -1 : 1; fireSwipe(av); }
 });
 
 // ── Scroll / touch ────────────────────────────────────────────────────────────
@@ -1320,7 +1348,7 @@ if (isMobile) {
       if (f) {
         const av = mobVel * 0.004;
         f.angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
-        if (mobileState === 'roaming' && Math.abs(av) > 0.05) autoDir = av < 0 ? -1 : 1;
+        if (mobileState === 'roaming' && Math.abs(av) > 0.05) { autoDir = av < 0 ? -1 : 1; fireSwipe(av); }
       }
     } else if (isDblTap && mobileState === 'viewing') {
       exitMobileViewing();
@@ -1575,13 +1603,16 @@ function tryGyro() {
   }
 }
 
-document.getElementById('btn-audio-on').addEventListener('click', function() { enter(true); });
-document.getElementById('btn-audio-off').addEventListener('click', function() { enter(false); });
+document.getElementById('btn-audio-on').addEventListener('click', function() { enter(true); ensureTone(); });
+document.getElementById('btn-audio-off').addEventListener('click', function() { enter(false); ensureTone(); });
 
 // Auto-start when embedded in iframe — parent (alextaves-site) handles intro and audio
 if (window !== window.top) {
   document.getElementById('begin').style.display = 'none';
   started = true;
+  // Unlock Tone.js on first user interaction with the canvas
+  renderer.domElement.addEventListener('pointerdown', ensureTone, { once: true });
+  renderer.domElement.addEventListener('touchstart', ensureTone, { once: true, passive: true });
 }
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────

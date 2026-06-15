@@ -220,6 +220,15 @@ function IntroOverlay({ audioOn, onToggleAudio, onDismiss }) {
             </span>
           </div>
 
+          {/* Controls hint */}
+          <div style={{
+            fontFamily: FONT, fontSize: 9, fontWeight: 300,
+            letterSpacing: '0.13em', textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.18)', lineHeight: 1.7,
+          }}>
+            ← → arrow keys · space · scroll · touch
+          </div>
+
           {/* Enter */}
           <button
             onClick={dismiss}
