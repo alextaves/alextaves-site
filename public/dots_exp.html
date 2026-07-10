@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dots exp</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #0c0806;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .stage {
+    --h: 78vh;
+    --w: calc(var(--h) * 3 / 4);
+    height: var(--h);
+    width: var(--w);
+    position: relative;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .controls {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 10;
+    font-family: 'Helvetica Neue', sans-serif;
+    font-size: 12px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.65);
+    padding: 10px 12px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 190px;
+  }
+  .controls h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .controls h3:first-child { margin-top: 0; }
+  .controls hr {
+    border: none;
+    border-top: 1px solid #333;
+    width: 100%;
+    margin: 2px 0;
+  }
+  .controls .row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .controls .row output { align-self: flex-end; opacity: 0.7; }
+  .controls input[type="range"] {
+    width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <h3>Background</h3>
+  <div class="row">
+    <label for="bgHue">Hue <output id="bgHueOut">222&deg;</output></label>
+    <input type="range" id="bgHue" min="0" max="360" value="222" step="1">
+  </div>
+  <div class="row">
+    <label for="bgSat">Saturation <output id="bgSatOut">85%</output></label>
+    <input type="range" id="bgSat" min="0" max="100" value="85" step="1">
+  </div>
+  <div class="row">
+    <label for="bgLight">Dark &harr; Light <output id="bgLightOut">48%</output></label>
+    <input type="range" id="bgLight" min="0" max="100" value="48" step="1">
+  </div>
+
+  <hr>
+  <h3>Funnel</h3>
+  <div class="row">
+    <label for="fnHue">Hue <output id="fnHueOut">243&deg;</output></label>
+    <input type="range" id="fnHue" min="0" max="360" value="243" step="1">
+  </div>
+  <div class="row">
+    <label for="fnSat">Saturation <output id="fnSatOut">90%</output></label>
+    <input type="range" id="fnSat" min="0" max="100" value="90" step="1">
+  </div>
+  <div class="row">
+    <label for="fnLight">Dark &harr; Light <output id="fnLightOut">45%</output></label>
+    <input type="range" id="fnLight" min="0" max="100" value="45" step="1">
+  </div>
+
+  <hr>
+  <h3>Dots</h3>
+  <div class="row">
+    <label for="dotHue">Hue <output id="dotHueOut">0&deg;</output></label>
+    <input type="range" id="dotHue" min="0" max="360" value="0" step="1">
+  </div>
+  <div class="row">
+    <label for="dotSat">Saturation <output id="dotSatOut">0%</output></label>
+    <input type="range" id="dotSat" min="0" max="100" value="0" step="1">
+  </div>
+  <div class="row">
+    <label for="dotLight">Dark &harr; Light <output id="dotLightOut">100%</output></label>
+    <input type="range" id="dotLight" min="0" max="100" value="100" step="1">
+  </div>
+</div>
+
+<div class="stage">
+  <canvas id="cv"></canvas>
+</div>
+
+<script>
+(function () {
+  var stage = document.querySelector('.stage')
+  var canvas = document.getElementById('cv')
+  var ctx = canvas.getContext('2d')
+
+  var colors = {
+    bg: { h: 222, s: 85, l: 48 },
+    fn: { h: 243, s: 90, l: 45 },
+    dot: { h: 0, s: 0, l: 100 },
+  }
+
+  function wireColor(prefix, key) {
+    var hue = document.getElementById(prefix + 'Hue')
+    var sat = document.getElementById(prefix + 'Sat')
+    var light = document.getElementById(prefix + 'Light')
+    var hueOut = document.getElementById(prefix + 'HueOut')
+    var satOut = document.getElementById(prefix + 'SatOut')
+    var lightOut = document.getElementById(prefix + 'LightOut')
+    function update() {
+      colors[key].h = +hue.value
+      colors[key].s = +sat.value
+      colors[key].l = +light.value
+      hueOut.textContent = hue.value + '°'
+      satOut.textContent = sat.value + '%'
+      lightOut.textContent = light.value + '%'
+    }
+    hue.addEventListener('input', update)
+    sat.addEventListener('input', update)
+    light.addEventListener('input', update)
+  }
+  wireColor('bg', 'bg')
+  wireColor('fn', 'fn')
+  wireColor('dot', 'dot')
+
+  function hsl(c) { return 'hsl(' + c.h + ',' + c.s + '%,' + c.l + '%)' }
+
+  // ── Geometry ──────────────────────────────────────────────────────────────
+  var W, H, apexY, stemHalfW
+
+  var RADIUS, FALL_SPEED, FAST_SPEED, colSpacing, rowSpacing
+
+  function resize() {
+    var rect = stage.getBoundingClientRect()
+    var dpr = Math.min(devicePixelRatio || 1, 2)
+    W = rect.width; H = rect.height
+    canvas.width = W * dpr; canvas.height = H * dpr
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    apexY = H * 0.58
+    stemHalfW = W * 0.045
+    RADIUS = Math.max(3, W * 0.018) / 5
+    FALL_SPEED = H * 0.16
+    FAST_SPEED = H * 1.35
+    colSpacing = RADIUS * 3.1
+    rowSpacing = colSpacing * 0.88
+  }
+  window.addEventListener('resize', resize)
+  resize()
+
+  function halfWidthAt(y) {
+    if (y >= apexY) return stemHalfW
+    var t = y / apexY
+    return (W / 2) * (1 - t) + stemHalfW * t
+  }
+
+  // ── Particles ─────────────────────────────────────────────────────────────
+  // Each dot keeps its original grid column forever, falling straight down.
+  // It disappears the instant its column is caught by the shrinking boundary.
+  var particles = []
+
+  // seed the full visible area at start so it reads as "patterned" immediately
+  var cols = Math.ceil(W / colSpacing) + 2
+  var rows = Math.ceil(H / rowSpacing) + 2
+  for (var r = 0; r < rows; r++) {
+    var offset = (r % 2) ? colSpacing / 2 : 0
+    for (var c = 0; c < cols; c++) {
+      var x = c * colSpacing + offset - colSpacing
+      var y = r * rowSpacing
+      if (x < -RADIUS || x > W + RADIUS) continue
+      if (Math.abs(x - W / 2) > halfWidthAt(Math.max(0, y))) continue // already past the boundary — skip
+      particles.push({ baseX: x, y: y })
+    }
+  }
+
+  function respawn(p) {
+    p.y = -RADIUS * 2
+  }
+
+  function step(dt) {
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i]
+      var inStem = p.y >= apexY
+      var speed = FALL_SPEED
+      if (inStem) {
+        var rampDist = H * 0.05
+        var into = p.y - apexY
+        speed = into < rampDist ? FALL_SPEED + (FAST_SPEED - FALL_SPEED) * (into / rampDist) : FAST_SPEED
+      }
+      p.y += speed * dt
+      if (!inStem && Math.abs(p.baseX - W / 2) > halfWidthAt(p.y)) {
+        respawn(p) // hit the side — gone
+      } else if (p.y - RADIUS > H) {
+        respawn(p)
+      }
+    }
+  }
+
+  function drawFunnelShape() {
+    ctx.fillStyle = hsl(colors.fn)
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.lineTo(W, 0)
+    ctx.lineTo(W / 2 + stemHalfW, apexY)
+    ctx.lineTo(W / 2 + stemHalfW, H)
+    ctx.lineTo(W / 2 - stemHalfW, H)
+    ctx.lineTo(W / 2 - stemHalfW, apexY)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  function draw() {
+    ctx.fillStyle = hsl(colors.bg)
+    ctx.fillRect(0, 0, W, H)
+    drawFunnelShape()
+
+    ctx.fillStyle = hsl(colors.dot)
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i]
+      ctx.beginPath()
+      ctx.arc(p.baseX, p.y, RADIUS, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
+  var last = performance.now()
+  function frame(now) {
+    requestAnimationFrame(frame)
+    var dt = Math.min(0.05, (now - last) / 1000)
+    last = now
+    step(dt)
+    draw()
+  }
+  requestAnimationFrame(frame)
+})()
+</script>
+
+</body>
+</html>

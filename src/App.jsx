@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import VideoDiver6 from './components/VideoDiver6'
 import VideoStripWallStreet2 from './components/VideoStripWallStreet2'
 import VideoStripPreRaceCrossBlueGlass from './components/VideoStripPreRaceCrossBlueGlass'
 import VideoStripHurdlesReverse from './components/VideoStripHurdlesReverse'
 import VideoPlayback from './components/VideoPlayback'
 import TypewriterText from './components/TypewriterText'
+import UnfilteredIdeasPage from './UnfilteredIdeasPage'
 
 const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 
@@ -135,6 +136,19 @@ function FullscreenButton() {
   )
 }
 
+function BackButton({ onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      position: 'fixed', top: 24, left: 24, zIndex: 30,
+      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+      fontFamily: FONT, fontSize: 11, letterSpacing: '0.22em',
+      color: 'rgba(255,255,255,0.4)',
+    }}>
+      ← BACK
+    </button>
+  )
+}
+
 const INTRO_TEXT = 'This site is meant to be heard'
 
 function IntroOverlay({ audioOn, onToggleAudio, onDismiss }) {
@@ -247,13 +261,56 @@ function IntroOverlay({ audioOn, onToggleAudio, onDismiss }) {
   )
 }
 
+// ── Portal transition overlay — cross-fade through yellow ─────────────────────
+function TransitionOverlay({ phase }) {
+  const [active, setActive] = useState(false)
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setActive(true)))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  useEffect(() => {
+    if (phase === 'revealing') setActive(false)
+  }, [phase])
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 25,
+      background: '#D9D02F', pointerEvents: 'none',
+      opacity: active ? 1 : 0,
+      transition: phase === 'covering' ? 'opacity 380ms ease' : 'opacity 320ms ease',
+    }} />
+  )
+}
+
 export default function App() {
+  const COVER_MS  = 400
+  const REVEAL_MS = 360
+
   const [scene, setScene] = useState(1)
-  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site'
+  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum'
+  const [tPhase, setTPhase] = useState('idle')   // 'idle' | 'covering' | 'revealing'
   const [carouselKey, setCarouselKey] = useState(0)
   const [showIntro, setShowIntro] = useState(true)
   const [audioOn, setAudioOn] = useState(false)
   const audioRef = useRef(null)
+  const transitioning = useRef(false)
+
+  const doTransition = useCallback((to) => {
+    if (transitioning.current) return
+    transitioning.current = true
+    setTPhase('covering')
+    setTimeout(() => {
+      if (to === 'carousel') setCarouselKey(k => k + 1)
+      setPhase(to)
+      setTPhase('revealing')
+      setTimeout(() => {
+        setTPhase('idle')
+        transitioning.current = false
+      }, REVEAL_MS)
+    }, COVER_MS)
+  }, [])
 
   useEffect(() => {
     const audio = new Audio('/lawerence_loop.mp3')
@@ -296,13 +353,20 @@ export default function App() {
         setPhase('fading')
         setTimeout(() => setPhase('site'), 700)
       }
+      if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'carousel') {
+        if (e.data.idx === 7) doTransition('journal')
+        if (e.data.idx === 3) doTransition('fiction')
+      }
+      if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'fiction') {
+        if (e.data.idx === 0) doTransition('hum')
+      }
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-  }, [phase])
+  }, [phase, doTransition])
 
   useEffect(() => {
-    if (phase !== 'carousel') return
+    if (phase !== 'carousel' && phase !== 'fiction') return
     const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '])
     const onKey = (e) => {
       if (!ARROWS.has(e.key)) return
@@ -321,10 +385,10 @@ export default function App() {
 
   return (
     <>
-      {phase !== 'site' && (
+      {(phase === 'carousel' || phase === 'fading') && (
         <iframe
           key={carouselKey}
-          src="/detroit_dark.html"
+          src="/portals.html"
           style={{
             position: 'fixed', inset: 0, width: '100%', height: '100%',
             border: 'none', zIndex: 10,
@@ -333,6 +397,33 @@ export default function App() {
             pointerEvents: phase === 'fading' ? 'none' : 'auto',
           }}
         />
+      )}
+      {phase === 'journal' && (
+        <UnfilteredIdeasPage onBack={() => doTransition('carousel')} />
+      )}
+      {phase === 'fiction' && (
+        <>
+          <iframe
+            src="/portals_fiction.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('carousel')} />
+        </>
+      )}
+      {phase === 'hum' && (
+        <>
+          <iframe
+            src="/portals_exp.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('fiction')} />
+        </>
       )}
       {phase === 'site' && (
         <>
@@ -346,6 +437,9 @@ export default function App() {
           <FullscreenButton />
           <InstallPrompt />
         </>
+      )}
+      {tPhase !== 'idle' && (
+        <TransitionOverlay phase={tPhase} />
       )}
       {showIntro && (
         <IntroOverlay

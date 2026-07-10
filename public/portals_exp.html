@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>portal exp</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #0c0806;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .portal {
+    --h: 78vh;
+    --w: calc(var(--h) * 3 / 4);
+    --q: calc(var(--h) / 5);
+    height: var(--h);
+    width: var(--w);
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* heavy static/noise layer over everything — small tile + pixelated rendering = blocky, visible pixels */
+  .static-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.7;
+    /* screen (not overlay) so the noise actually shows up against the near-black background */
+    mix-blend-mode: screen;
+    image-rendering: pixelated;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 3 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 240px 240px;
+  }
+
+  .quarter {
+    height: var(--q);
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* per-row glitch noise, kept inside this quarter only — regional, not sign-wide */
+  .quarter .glitch-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    mix-blend-mode: screen;
+    image-rendering: pixelated;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 4 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 96px 96px;
+  }
+
+  /* JS toggles this class on ONE quarter at a time; CSS vars carry the randomized values */
+  .quarter.glitching {
+    filter: brightness(var(--glitch-brightness, 1));
+  }
+  .quarter.glitching .glitch-overlay {
+    opacity: var(--glitch-opacity, 0.9);
+    clip-path: inset(0 var(--glitch-right, 0%) 0 var(--glitch-left, 0%));
+    transform: translateX(var(--glitch-x, 0px));
+  }
+
+  /* ── Ticker ── */
+  .ticker {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .ticker-track {
+    display: flex;
+    white-space: nowrap;
+    will-change: transform;
+  }
+
+  .ticker-track span {
+    font-family: 'Avenir Next', 'Avenir', 'Helvetica Neue', sans-serif;
+    font-weight: 800;
+    /* oversized slightly so trimmed cap-height meets/exceeds --q; tiny overage gets clipped, never undershoots */
+    font-size: calc(var(--q) * 1.45);
+    line-height: 1;
+    text-box-trim: trim-both;
+    text-box-edge: cap alphabetic;
+    letter-spacing: -0.03em;
+    padding-right: 0;
+    user-select: none;
+    display: inline-block;
+    /* deboss/letterpress: dark groove below, rim-light above */
+    text-shadow: 0 3px 3px rgba(0, 0, 0, 0.85), 0 -2px 1px rgba(255, 255, 255, 0.35);
+  }
+
+  /* Q1/Q3/Q5 — alternating white/blue text on black, right to left */
+  .rtl span { font-weight: 700; }
+  .rtl { animation: scroll-rtl 14s linear infinite; }
+
+  /* Q1/Q5 — white first, then blue */
+  .rtl.phase-a span:nth-child(odd)  { color: #fff; }
+  .rtl.phase-a span:nth-child(even) { color: #2B5EFF; }
+
+  /* Q3 — opposite phase: blue first, then white */
+  .rtl.phase-b span:nth-child(odd)  { color: #2B5EFF; }
+  .rtl.phase-b span:nth-child(even) { color: #fff; }
+
+  /* Q2 — blue background flush to each word, black text, left to right */
+  .ltr span {
+    color: #000;
+    background: #2B5EFF;
+    /* deboss the color block itself so it reads pressed-in */
+    box-shadow: inset 0 3px 4px rgba(0, 0, 0, 0.7), inset 0 -2px 1px rgba(255, 255, 255, 0.3);
+  }
+  .ltr { animation: scroll-ltr 14s linear infinite; }
+
+  @keyframes scroll-rtl {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  @keyframes scroll-ltr {
+    from { transform: translateX(-50%); }
+    to   { transform: translateX(0); }
+  }
+
+  /* fixed frame — never moves, clips whatever the content inside does */
+  .viewport {
+    --h: 78vh;
+    --w: calc(var(--h) * 3 / 4);
+    height: var(--h);
+    width: var(--w);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* transformable content — this is what scale/rotate act on, not the viewport */
+  .stage {
+    position: absolute;
+    inset: 0;
+    transform-origin: center center;
+  }
+
+  /* duplicate layer, nudged left+down so the blend mode against the base layer is visible */
+  .portal-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(-14px, 14px);
+    mix-blend-mode: normal;
+  }
+
+  .controls {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 10;
+    font-family: 'Helvetica Neue', sans-serif;
+    font-size: 12px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.65);
+    padding: 10px 12px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 190px;
+  }
+  .controls .row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .controls .row output {
+    align-self: flex-end;
+    opacity: 0.7;
+  }
+  .controls select,
+  .controls input[type="range"] {
+    font-family: inherit;
+    font-size: 12px;
+    width: 100%;
+  }
+  .controls select {
+    background: #111;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 2px 4px;
+  }
+  .controls h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .controls h3:first-child {
+    margin-top: 0;
+  }
+  .controls hr {
+    border: none;
+    border-top: 1px solid #333;
+    width: 100%;
+    margin: 2px 0;
+  }
+</style>
+</head>
+<body>
+
+<script>
+  // hide the tweak panel when embedded live on the site (?embed=1); keep it for standalone experimentation
+  if (new URLSearchParams(location.search).get('embed') === '1') {
+    document.write('<style>.controls{display:none!important}</style>')
+  }
+</script>
+
+<div class="controls">
+  <h3>Top layer</h3>
+  <div class="row">
+    <label for="blendSelect">Blend mode</label>
+    <select id="blendSelect">
+      <option value="normal">normal</option>
+      <option value="multiply">multiply</option>
+      <option value="screen">screen</option>
+      <option value="overlay">overlay</option>
+      <option value="darken">darken</option>
+      <option value="lighten" selected>lighten</option>
+      <option value="color-dodge">color-dodge</option>
+      <option value="color-burn">color-burn</option>
+      <option value="hard-light">hard-light</option>
+      <option value="soft-light">soft-light</option>
+      <option value="difference">difference</option>
+      <option value="exclusion">exclusion</option>
+      <option value="hue">hue</option>
+      <option value="saturation">saturation</option>
+      <option value="color">color</option>
+      <option value="luminosity">luminosity</option>
+    </select>
+  </div>
+  <div class="row">
+    <label for="opacityRange">Opacity <output id="opacityOut">0.30</output></label>
+    <input type="range" id="opacityRange" min="0" max="1" value="0.3" step="0.01">
+  </div>
+  <div class="row">
+    <label for="hueRange">Hue <output id="hueOut">16&deg;</output></label>
+    <input type="range" id="hueRange" min="0" max="360" value="16" step="1">
+  </div>
+  <div class="row">
+    <label for="brightnessRange">Dark &harr; Light <output id="brightnessOut">0.64</output></label>
+    <input type="range" id="brightnessRange" min="0" max="2" value="0.64" step="0.01">
+  </div>
+  <div class="row">
+    <label for="saturationRange">Saturation <output id="saturationOut">3.00</output></label>
+    <input type="range" id="saturationRange" min="0" max="3" value="3" step="0.01">
+  </div>
+
+  <hr>
+  <h3>Bottom layer</h3>
+  <div class="row">
+    <label for="hueRangeBottom">Hue <output id="hueOutBottom">311&deg;</output></label>
+    <input type="range" id="hueRangeBottom" min="0" max="360" value="311" step="1">
+  </div>
+  <div class="row">
+    <label for="brightnessRangeBottom">Dark &harr; Light <output id="brightnessOutBottom">0.88</output></label>
+    <input type="range" id="brightnessRangeBottom" min="0" max="2" value="0.88" step="0.01">
+  </div>
+  <div class="row">
+    <label for="saturationRangeBottom">Saturation <output id="saturationOutBottom">1.43</output></label>
+    <input type="range" id="saturationRangeBottom" min="0" max="3" value="1.43" step="0.01">
+  </div>
+
+  <hr>
+  <h3>Whole thing</h3>
+  <div class="row">
+    <label for="scaleRange">Scale <output id="scaleOut">1.86</output></label>
+    <input type="range" id="scaleRange" min="0.3" max="2.5" value="1.86" step="0.01">
+  </div>
+  <div class="row">
+    <label for="rotateRange">Rotate <output id="rotateOut">-10&deg;</output></label>
+    <input type="range" id="rotateRange" min="-180" max="180" value="-10" step="1">
+  </div>
+  <div class="row">
+    <label for="xRange">X <output id="xOut">1px</output></label>
+    <input type="range" id="xRange" min="-300" max="300" value="1" step="1">
+  </div>
+  <div class="row">
+    <label for="yRange">Y (down &#8595;) <output id="yOut">300px</output></label>
+    <input type="range" id="yRange" min="-300" max="300" value="300" step="1">
+  </div>
+</div>
+
+<div class="viewport">
+<div class="stage">
+
+  <div class="portal portal-base">
+
+    <!-- Q1 — alternating white/blue on black, right to left, white first -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track rtl phase-a" style="animation-duration: 12.4s; animation-delay: -3.1s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <!-- Q2 — black on blue, left to right -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track ltr" style="animation-duration: 16.7s; animation-delay: -9.2s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <!-- Q3 — alternating blue/white on black, right to left, opposite phase -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track rtl phase-b" style="animation-duration: 9.8s; animation-delay: -1.4s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <!-- Q4 — black on blue, left to right -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track ltr" style="animation-duration: 18.5s; animation-delay: -6.6s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <!-- Q5 — alternating white/blue on black, right to left, white first -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track rtl phase-a" style="animation-duration: 14.9s; animation-delay: -11.3s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <div class="static-overlay"></div>
+
+  </div>
+
+  <div class="portal portal-top">
+
+    <!-- Q1 — alternating white/blue on black, right to left, white first -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track rtl phase-a" style="animation-duration: 12.4s; animation-delay: -3.1s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <!-- Q2 — black on blue, left to right -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track ltr" style="animation-duration: 16.7s; animation-delay: -9.2s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <!-- Q3 — alternating blue/white on black, right to left, opposite phase -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track rtl phase-b" style="animation-duration: 9.8s; animation-delay: -1.4s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <!-- Q4 — black on blue, left to right -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track ltr" style="animation-duration: 18.5s; animation-delay: -6.6s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <!-- Q5 — alternating white/blue on black, right to left, white first -->
+    <div class="quarter">
+      <div class="ticker">
+        <div class="ticker-track rtl phase-a" style="animation-duration: 14.9s; animation-delay: -11.3s;">
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+          <span>HUM</span><span>HUM</span><span>HUM</span><span>HUM</span>
+        </div>
+      </div>
+      <div class="glitch-overlay"></div>
+    </div>
+
+    <div class="static-overlay"></div>
+
+  </div>
+
+</div>
+</div>
+
+<script>
+(function () {
+  var select = document.getElementById('blendSelect');
+  var opacityRange = document.getElementById('opacityRange');
+  var opacityOut = document.getElementById('opacityOut');
+  var topLayer = document.querySelector('.portal-top');
+  select.addEventListener('change', function () {
+    topLayer.style.mixBlendMode = select.value;
+  });
+  opacityRange.addEventListener('input', function () {
+    opacityOut.textContent = parseFloat(opacityRange.value).toFixed(2);
+    topLayer.style.opacity = opacityRange.value;
+  });
+  // apply the baked-in defaults on load, not just when a slider is touched
+  topLayer.style.mixBlendMode = select.value;
+  topLayer.style.opacity = opacityRange.value;
+
+  function wireHueSatLight(layer, ids) {
+    var hueRange = document.getElementById(ids.hue);
+    var brightnessRange = document.getElementById(ids.brightness);
+    var saturationRange = document.getElementById(ids.saturation);
+    var hueOut = document.getElementById(ids.hueOut);
+    var brightnessOut = document.getElementById(ids.brightnessOut);
+    var saturationOut = document.getElementById(ids.saturationOut);
+
+    function updateFilter() {
+      hueOut.textContent = hueRange.value + '°';
+      brightnessOut.textContent = parseFloat(brightnessRange.value).toFixed(2);
+      saturationOut.textContent = parseFloat(saturationRange.value).toFixed(2);
+      layer.style.filter =
+        'hue-rotate(' + hueRange.value + 'deg) ' +
+        'brightness(' + brightnessRange.value + ') ' +
+        'saturate(' + saturationRange.value + ')';
+    }
+    hueRange.addEventListener('input', updateFilter);
+    brightnessRange.addEventListener('input', updateFilter);
+    saturationRange.addEventListener('input', updateFilter);
+    updateFilter();
+  }
+
+  wireHueSatLight(topLayer, {
+    hue: 'hueRange', brightness: 'brightnessRange', saturation: 'saturationRange',
+    hueOut: 'hueOut', brightnessOut: 'brightnessOut', saturationOut: 'saturationOut'
+  });
+
+  wireHueSatLight(document.querySelector('.portal-base'), {
+    hue: 'hueRangeBottom', brightness: 'brightnessRangeBottom', saturation: 'saturationRangeBottom',
+    hueOut: 'hueOutBottom', brightnessOut: 'brightnessOutBottom', saturationOut: 'saturationOutBottom'
+  });
+
+  var stage = document.querySelector('.stage');
+  var scaleRange = document.getElementById('scaleRange');
+  var rotateRange = document.getElementById('rotateRange');
+  var xRange = document.getElementById('xRange');
+  var yRange = document.getElementById('yRange');
+  var scaleOut = document.getElementById('scaleOut');
+  var rotateOut = document.getElementById('rotateOut');
+  var xOut = document.getElementById('xOut');
+  var yOut = document.getElementById('yOut');
+  function updateStageTransform() {
+    scaleOut.textContent = parseFloat(scaleRange.value).toFixed(2);
+    rotateOut.textContent = rotateRange.value + '°';
+    xOut.textContent = xRange.value + 'px';
+    yOut.textContent = yRange.value + 'px';
+    // translate listed first so it applies in fixed screen pixels, independent of the scale/rotate below it
+    stage.style.transform =
+      'translate(' + xRange.value + 'px, ' + yRange.value + 'px) ' +
+      'scale(' + scaleRange.value + ') ' +
+      'rotate(' + rotateRange.value + 'deg)';
+  }
+  scaleRange.addEventListener('input', updateStageTransform);
+  rotateRange.addEventListener('input', updateStageTransform);
+  xRange.addEventListener('input', updateStageTransform);
+  yRange.addEventListener('input', updateStageTransform);
+  updateStageTransform();
+})();
+</script>
+
+<script>
+(function () {
+  var quarters = Array.prototype.slice.call(document.querySelectorAll('.quarter'));
+
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  function fireGlitch() {
+    var q = quarters[Math.floor(Math.random() * quarters.length)];
+    var duration = rand(40, 160);
+    var dim = Math.random() < 0.5;
+    // random horizontal band within the row, not the full width
+    var left = rand(0, 60);
+    var right = rand(0, 100 - left);
+    q.style.setProperty('--glitch-brightness', dim ? rand(0.05, 0.35).toFixed(2) : rand(1.3, 2).toFixed(2));
+    q.style.setProperty('--glitch-opacity', rand(0.6, 1).toFixed(2));
+    q.style.setProperty('--glitch-x', rand(-10, 10).toFixed(1) + 'px');
+    q.style.setProperty('--glitch-left', left.toFixed(1) + '%');
+    q.style.setProperty('--glitch-right', right.toFixed(1) + '%');
+    q.classList.add('glitching');
+    setTimeout(function () { q.classList.remove('glitching'); }, duration);
+  }
+
+  function scheduleNext() {
+    var delay = rand(250, 1600);
+    setTimeout(function () {
+      fireGlitch();
+      if (Math.random() < 0.35) setTimeout(fireGlitch, rand(50, 120));
+      scheduleNext();
+    }, delay);
+  }
+
+  scheduleNext();
+})();
+</script>
+
+</body>
+</html>
