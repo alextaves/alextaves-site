@@ -667,12 +667,19 @@ function drawPortalCard(ctx, portal, W, H, lm, drawTrace) {
   // between the faded and full-colour held looks), with hysteresis to stop the
   // animated Moving Images card flickering near the threshold.
   if (portal === PORTALS[DETROIT_INDEX] || portal === PORTALS[POSTCARDS_INDEX] || portal === PORTALS[MOVING_IMAGES_INDEX]) {
-    // Sampling reads pixels back (getImageData) — cheap for the static Detroit/
-    // Postcards cards (redrawn rarely), so re-check every redraw; but throttle
-    // the animated Moving Images card to a few times a second.
+    // Deciding the title colour needs a getImageData pixel read-back. For the
+    // static Detroit/Postcards cards (redrawn rarely) that's fine every redraw.
+    // But the Moving Images card redraws ~60x/sec, and re-sampling it a few times
+    // a second allocated a fresh ~300KB ImageData each time — ~2.5MB/s of garbage
+    // that filled the heap and triggered a main-thread GC pause ~10-15s in (the
+    // "runs great then studders" onset). Its water backdrop keeps a near-constant
+    // brightness in the title band, so sample it ONCE and reuse the result.
     const animated = portal === PORTALS[MOVING_IMAGES_INDEX]
     const now = performance.now()
-    const due = !animated || !_titleLight.has(portal) || now - (_titleSampled.get(portal) || 0) > 130
+    // Sample the animated card's brightness once — but only after its water tile
+    // is actually drawn, so the title colour latches onto real content, not the
+    // bare background. Non-animated cards re-check every (rare) redraw as before.
+    const due = animated ? (!!swimGrayTile && !_titleLight.has(portal)) : true
     if (due) {
       _titleSampled.set(portal, now)
       const bandH = Math.max(20, Math.min(H - t.titleTop - 2, t.titleBottom - t.titleTop))
