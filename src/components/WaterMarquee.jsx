@@ -158,7 +158,7 @@ function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2 }
 
 function Strip({ params, speedMultiplierRef, transitionRef, blurRef }) {
   const { viewport } = useThree()
-  const texture = useLoader(THREE.TextureLoader, '/water2_seamless.png')
+  const texture = useLoader(THREE.TextureLoader, '/water2_seamless.webp')
 
   const tileWorldHeight = viewport.height * TILE_SCALE
   const tileWorldWidth = tileWorldHeight * TILE_ASPECT

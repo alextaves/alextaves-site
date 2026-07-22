@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>alextaves</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/vendor/fonts/ibm-plex.css" rel="stylesheet">
 <style>
   html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; }
   canvas { display: block; touch-action: none; }
@@ -160,7 +158,7 @@
     </form>
   </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
+<script src="/vendor/three.min.js"></script>
 <script>
 const PORTALS = [
   { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#FFFFFF', light: false },
@@ -172,8 +170,16 @@ const PORTALS = [
   { title: 'UNFILTERED IDEAS', sub: 'a journal',                               bg: '#D9D02F', light: false },
   { title: 'DETROIT',          sub: 'faces',                                   bg: '#A1A1A1', light: false },
   { title: 'POSTCARDS',        sub: '2016',                                    bg: '#A69A8C', light: false },
-  { title: 'WELCOME',          sub: 'recommended to have audio on',            bg: '#001ABE', light: true, welcome: true },
 ]
+// The WELCOME entry portal exists only on first arrival this session. Once you
+// press Begin it's remembered (sessionStorage), so returning from a portal —
+// which reloads this iframe — lands you in the normal rotating carousel rather
+// than back at the frozen entry screen.
+let welcomeBegun = false
+try { welcomeBegun = sessionStorage.getItem('welcomeBegun') === '1' } catch (e) {}
+if (!welcomeBegun) {
+  PORTALS.push({ title: 'WELCOME', sub: 'recommended to have audio on', bg: '#001ABE', light: true, welcome: true })
+}
 const COUNT = PORTALS.length
 const UNFILTERED_INDEX = 6
 const ENQUIRIES_INDEX = 5
@@ -184,10 +190,10 @@ const DETROIT_INDEX = 7
 const POSTCARDS_INDEX = 8
 const ARCHIVE_INDEX = 2   // was STILL IMAGES — now the archive showreel, links to /archive
 const ARCHIVE_URL = '/archive/index.html'   // explicit file → works in dev & prod; /archive also serves it via _redirects
-const WELCOME_INDEX = 9   // entry portal — front & centre on arrival, ring frozen until "Begin"
+const WELCOME_INDEX = welcomeBegun ? -1 : (COUNT - 1)   // last portal, or none once begun
 
 // Entry state: ring is static until Begin is pressed; audio preference starts ON.
-let welcomeActive = true
+let welcomeActive = !welcomeBegun
 let welcomeAudioOn = true
 let welcomeRegions = null   // {on,off,begin} hit rects in 600×800 card pixels
 
@@ -721,11 +727,11 @@ const orbitEuler = new THREE.Euler()
 const orbitPos   = new THREE.Vector3()
 
 // MOVING IMAGES gets a faint duotone trace of the swimmer marquee — the
-// seamless leaping figure (water2_seamless.png) height-fit to the card and
+// seamless leaping figure (water2_seamless.webp) height-fit to the card and
 // tiled across, scrolling right-to-left like the full-screen marquee, under
 // the same Klein-blue duotone the diver footage used to wear.
 const swimImg = new Image()
-swimImg.src = '/water2_seamless.png'
+swimImg.src = '/water2_seamless.webp'
 
 // ARCHIVE panel plays the showreel that showcases the previous alextaves.com,
 // cover-fit and full-colour; clicking the card links out to /archive.
@@ -796,6 +802,7 @@ function setWelcomeAudio(on) {
 function beginSite() {
   if (!welcomeActive) return
   welcomeActive = false
+  try { sessionStorage.setItem('welcomeBegun', '1') } catch (e) {}   // don't show entry again this session
   angVel = AUTO_SPEED   // kick the ring into its idle auto-rotation
   if (window !== window.top) window.parent.postMessage({ type: 'welcomeBegin', on: welcomeAudioOn }, '*')
 }
@@ -1345,9 +1352,8 @@ const AUTO_SPEED = 0.0375, DRAG_THRESH = 6
 const raycaster = new THREE.Raycaster()
 const clickPointer = new THREE.Vector2()
 
-// Start with the WELCOME portal front & centre. (front panel i ⇔ angle = a_i − π/2;
-// if WELCOME lands off-centre, flip the sign of this expression.)
-let angle = (WELCOME_INDEX / COUNT) * Math.PI * 2 - Math.PI / 2, angVel = 0
+// On first arrival start with WELCOME front & centre; otherwise a normal ring.
+let angle = welcomeActive ? (WELCOME_INDEX / COUNT) * Math.PI * 2 - Math.PI / 2 : 0, angVel = 0
 let dragging = false, didDrag = false
 let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0
 // Clicking a panel pauses the auto-rotation so it holds still for the confirm
@@ -1491,20 +1497,34 @@ window.addEventListener('resize', () => {
 // ── Render loop ───────────────────────────────────────────────────────────────
 let last = performance.now()
 
+// The animated card faces (moving-images water/caustic effect + archive video)
+// each rebuild a 600×800 canvas — per-pixel caustics, ~260 sliced draws, a CSS
+// grayscale filter — and re-upload it to the GPU. Doing that every frame starved
+// the main thread and made the ring stutter while spinning. The ring itself is a
+// cheap GPU transform at 60fps; these textures only need ~30fps (film is 24), so
+// we throttle the rebuilds. Animation phase (swimTime/swimScroll) still advances
+// every frame, so the motion stays continuous — only the refresh is halved.
+const CARD_REDRAW_INTERVAL = 1 / 30
+let cardRedrawAccum = 0
+
 function render(now) {
   requestAnimationFrame(render)
   let dt = (now - last) / 1000; last = now
   if (dt > 0.05) dt = 0.05
 
-  if (movingImagesFaceTex && swimImg.complete && swimImg.naturalWidth) {
-    swimScroll += SWIM_SCROLL_SPEED * dt
-    swimTime += dt
+  swimTime += dt
+  swimScroll += SWIM_SCROLL_SPEED * dt
+  cardRedrawAccum += dt
+  let redrawCards = false
+  if (cardRedrawAccum >= CARD_REDRAW_INTERVAL) { cardRedrawAccum = 0; redrawCards = true }
+
+  if (redrawCards && movingImagesFaceTex && swimImg.complete && swimImg.naturalWidth) {
     drawPortalCard(movingImagesFaceCtx, PORTALS[MOVING_IMAGES_INDEX], 600, 800, 54,
       (ctx, W, H) => drawSwimTrace(ctx, W, H, PORTALS[MOVING_IMAGES_INDEX].bg, 1.0))
     movingImagesFaceTex.needsUpdate = true
   }
 
-  if (archiveFaceTex && archiveVideo.readyState >= 2) {
+  if (redrawCards && archiveFaceTex && archiveVideo.readyState >= 2) {
     drawPortalCard(archiveFaceCtx, PORTALS[ARCHIVE_INDEX], 600, 800, 54,
       (ctx, W, H) => drawArchiveVideo(ctx, W, H))
     archiveFaceTex.needsUpdate = true

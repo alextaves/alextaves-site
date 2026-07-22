@@ -78,7 +78,7 @@ const fragmentShader = `
 
 function Strip({ params }) {
   const { viewport, size } = useThree()
-  const texture = useLoader(THREE.TextureLoader, '/water2_seamless.png')
+  const texture = useLoader(THREE.TextureLoader, '/water2_seamless.webp')
 
   const material = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {

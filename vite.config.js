@@ -10,7 +10,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
-        navigateFallbackDenylist: [/^\/inventium/, /^\/archive/],
+        navigateFallbackDenylist: [/^\/archive/],
       },
       manifest: {
         name: 'Alex Taves',

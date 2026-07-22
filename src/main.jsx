@@ -8,10 +8,12 @@ import FaceLines from './components/FaceLines.jsx'
 import FaceMarquee from './components/FaceMarquee.jsx'
 import FaceBurst from './components/FaceBurst.jsx'
 
-// Prevent overscroll bounce, back/forward swipe, and pinch-zoom at the document level.
-// Non-passive so preventDefault() is honoured by the browser.
-document.addEventListener('wheel',     (e) => e.preventDefault(), { passive: false })
-document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false })
+// Overscroll bounce, back/forward swipe, and pinch-zoom are all suppressed via
+// CSS (html,body: overflow hidden + overscroll-behavior:none + touch-action:none
+// in index.css) plus the locked viewport meta. Using JS preventDefault here
+// instead would force every wheel/touch event onto the browser's slow
+// synchronous path and make the whole site feel choppy — so it's intentionally
+// left to CSS.
 
 const preview = new URLSearchParams(window.location.search).get('preview')
 

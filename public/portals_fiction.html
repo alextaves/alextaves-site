@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>alextaves — fiction</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/vendor/fonts/ibm-plex.css" rel="stylesheet">
 <style>
   html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; }
   canvas { display: block; touch-action: none; }
@@ -87,7 +85,7 @@
     <div class="story-body" id="storyBody"></div>
   </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
+<script src="/vendor/three.min.js"></script>
 <script>
 const HUM_INDEX = 0
 const ELON_INDEX = 1
@@ -370,7 +368,7 @@ function makeImageCover(src, text, neonColor, opts) {
 const humCover = makeVideoCover('/hum_cover.mp4', 'HUM', '#FF14C0')
 const siphonCover = makeVideoCover('/siphon_cover.mp4', 'SIPHON', '#F5FF00')
 const knifeCover = makeVideoCover('/knife_cover.mp4', ['CASUAL', 'KNIFE', 'FIGHT'], '#CCFF00', { typeDur: 1600, backspaceDur: 1600, cycle: 6200 })
-const elonCover = makeImageCover('/elon.png', ["ELON'S", 'IN MY', 'ELEVATOR'], '#FFFFFF', { typeDur: 1600, backspaceDur: 1600, cycle: 6200, static: true })
+const elonCover = makeImageCover('/elon.webp', ["ELON'S", 'IN MY', 'ELEVATOR'], '#FFFFFF', { typeDur: 1600, backspaceDur: 1600, cycle: 6200, static: true })
 
 // Belt-and-braces: retry any cover video that's still paused on the
 // visitor's first touch/click, since that's a guaranteed user gesture and

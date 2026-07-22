@@ -121,7 +121,7 @@ const fragmentShader = `
 
 function Strip({ params }) {
   const { viewport, size } = useThree()
-  const texture = useLoader(THREE.TextureLoader, '/face_seamless.png')
+  const texture = useLoader(THREE.TextureLoader, '/face_seamless.webp')
 
   const tileWorldHeight = viewport.height * TILE_SCALE
   const tileWorldWidth = tileWorldHeight * TILE_ASPECT
