@@ -8,6 +8,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      // The service worker was mangling range requests for the archive video (and
+      // likely the piano's audio samples), breaking media for every visitor, and
+      // its stale cache kept serving old builds. Offline caching adds nothing to a
+      // heavy, network-driven WebGL site, so ship a self-destroying SW: it
+      // unregisters any previously-installed worker and clears its caches for all
+      // existing visitors, then goes away.
+      selfDestroying: true,
       registerType: 'autoUpdate',
       workbox: {
         navigateFallbackDenylist: [/^\/archive/],

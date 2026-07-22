@@ -992,16 +992,20 @@ for (let i = 0; i < COUNT; i++) {
     enquiryFaceTex = faceTex
     enquiryFaceCtx = faceTex.image.getContext('2d')
   }
+  // Once the trace image is decoded, cache BOTH looks (faint + full-colour held)
+  // up front and leave the resting faint look showing. This moves the expensive
+  // render off the interaction path so the first drag across the card doesn't
+  // hitch — later crossings just blit the cached pixels (see redrawTraceCard).
   if (i === DETROIT_INDEX) {
     detroitTraceImg.onload = () => {
-      drawPortalCard(faceTex.image.getContext('2d'), portal, 600, 800, 54, drawTrace)
-      faceTex.needsUpdate = true
+      redrawTraceCard(DETROIT_INDEX, TRACE_GRAYSCALE_HELD, 1.0)
+      redrawTraceCard(DETROIT_INDEX, TRACE_GRAYSCALE, 0.5)
     }
   }
   if (i === POSTCARDS_INDEX) {
     postcardsTraceImg.onload = () => {
-      drawPortalCard(faceTex.image.getContext('2d'), portal, 600, 800, 54, drawTrace)
-      faceTex.needsUpdate = true
+      redrawTraceCard(POSTCARDS_INDEX, TRACE_GRAYSCALE_HELD, 1.0)
+      redrawTraceCard(POSTCARDS_INDEX, TRACE_GRAYSCALE, 0.5)
     }
   }
   const backTex  = makeFlippedTex(faceTex.image)
@@ -1047,13 +1051,30 @@ for (let i = 0; i < COUNT; i++) {
 // with the trace swapped between its resting look (75% grayscale, 0.5 alpha —
 // faint) and a full-colour, full-opacity look (0% grayscale, 1.0 alpha) while
 // the card is actively held.
+// Each trace panel has only two looks (faint resting / full-colour held). Both
+// are expensive to render (getImageData luma read + a grayscale canvas filter on
+// a large image), and setHeldTrace can ask for them every time a drag crosses the
+// card — which is what stuttered the DETROIT/POSTCARDS cluster. So render each
+// look ONCE, cache the pixels, and thereafter just blit the cached face.
+const _traceFaceCache = new Map()   // key `${idx}:${held}` -> ImageData
 function redrawTraceCard(idx, grayscaleAmt, alpha) {
-  const portal = PORTALS[idx]
+  const held = grayscaleAmt === TRACE_GRAYSCALE_HELD
+  const key = idx + ':' + held
   const faceTex = faceTexes[idx]
-  const drawTrace = idx === DETROIT_INDEX
-    ? (ctx, W, H) => drawDuotoneTrace(ctx, detroitTraceImg, W, H, portal.bg, alpha, grayscaleAmt)
-    : (ctx, W, H) => drawDuotoneTrace(ctx, postcardsTraceImg, W, H, portal.bg, alpha, grayscaleAmt)
-  drawPortalCard(faceTex.image.getContext('2d'), portal, 600, 800, 54, drawTrace)
+  const ctx = faceTex.image.getContext('2d')
+  const cached = _traceFaceCache.get(key)
+  if (cached) {
+    ctx.putImageData(cached, 0, 0)
+  } else {
+    const portal = PORTALS[idx]
+    const traceImg = idx === DETROIT_INDEX ? detroitTraceImg : postcardsTraceImg
+    // If the source image isn't decoded yet, draw live (don't cache an empty face).
+    const drawTrace = (c, W, H) => drawDuotoneTrace(c, traceImg, W, H, portal.bg, alpha, grayscaleAmt)
+    drawPortalCard(ctx, portal, 600, 800, 54, drawTrace)
+    if (traceImg.complete && (traceImg.naturalWidth || traceImg.videoWidth)) {
+      _traceFaceCache.set(key, ctx.getImageData(0, 0, faceTex.image.width, faceTex.image.height))
+    }
+  }
   faceTex.needsUpdate = true
 }
 // The panel currently pressed and held. Any held panel renders fully opaque
