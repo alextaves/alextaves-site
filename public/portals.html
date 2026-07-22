@@ -247,7 +247,14 @@ camera.lookAt(0, 0, 0)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
 renderer.setSize(innerWidth, viewportH())
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+// Adaptive resolution. This scene is fragment-bound (many large translucent,
+// blended panels + AA), so on a Retina/high-DPI or weaker GPU, rendering at 2x
+// device pixels is what makes the ring step like a second hand. Start at a
+// lighter ratio and let the render loop drop it further if the machine can't
+// hold framerate — smoothness matters more than a slightly softer image here.
+const MAX_PR = Math.min(devicePixelRatio, 2)
+let curPR = Math.min(devicePixelRatio, 1.5)
+renderer.setPixelRatio(curPR)
 renderer.outputEncoding = THREE.sRGBEncoding
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.2
@@ -420,18 +427,20 @@ function drawCaustics(ctx, W, H, t) {
   ctx.restore()
 }
 function drawSwimTrace(ctx, W, H, tintHex, alpha, grayscaleAmt = 1) {
-  if (!swimImg.complete || !swimImg.naturalWidth) return
-  // 1. Build the scrolling, tiled figure as a plain greyscale plate offscreen —
-  //    no colour tint, so it reads like the grey ?preview=water marquee.
-  duotoneOff.width = W; duotoneOff.height = H
-  duotoneOffCtx.filter = `grayscale(1) contrast(1.1)`
+  const tile = swimGrayTile || (swimImg.complete && swimImg.naturalWidth ? swimImg : null)
+  if (!tile) return
+  // 1. Build the scrolling, tiled figure as a plain greyscale plate offscreen.
+  //    The greyscale/contrast is pre-baked into swimGrayTile once (buildSwimGray),
+  //    so this loop is plain drawImage — no per-frame canvas filter. Size the
+  //    offscreen only when it changes, so we don't reallocate it every frame.
+  if (duotoneOff.width !== W || duotoneOff.height !== H) { duotoneOff.width = W; duotoneOff.height = H }
+  else duotoneOffCtx.clearRect(0, 0, W, H)
   const dh = H
   const dw = dh * SWIM_TILE_ASPECT
   const startX = -(((swimScroll % 1) + 1) % 1) * dw
   for (let x = startX; x < W; x += dw) {
-    duotoneOffCtx.drawImage(swimImg, x, 0, dw, dh)
+    duotoneOffCtx.drawImage(tile, x, 0, dw, dh)
   }
-  duotoneOffCtx.filter = 'none'
   // 2. Composite to the card in horizontal slices, each nudged sideways by the
   //    same sine ripple the marquee shader uses, so the figure reads as seen
   //    through moving water.
@@ -732,6 +741,23 @@ const orbitPos   = new THREE.Vector3()
 // the same Klein-blue duotone the diver footage used to wear.
 const swimImg = new Image()
 swimImg.src = '/water2_seamless.webp'
+
+// Pre-bake the grayscale+contrast version of the swim tile ONCE. drawSwimTrace
+// tiles this across the card every frame; doing the `grayscale(1) contrast(1.1)`
+// canvas filter per tile per frame (the old path) was the single most expensive
+// thing in the render loop and is what stuttered the ring while spinning.
+let swimGrayTile = null
+function buildSwimGray() {
+  if (!swimImg.naturalWidth) return
+  const c = document.createElement('canvas')
+  c.width = swimImg.naturalWidth; c.height = swimImg.naturalHeight
+  const cx = c.getContext('2d')
+  cx.filter = 'grayscale(1) contrast(1.1)'
+  cx.drawImage(swimImg, 0, 0)
+  swimGrayTile = c
+}
+if (swimImg.complete) buildSwimGray()
+else swimImg.addEventListener('load', buildSwimGray)
 
 // ARCHIVE panel plays the showreel that showcases the previous alextaves.com,
 // cover-fit and full-colour; clicking the card links out to /archive.
@@ -1497,34 +1523,40 @@ window.addEventListener('resize', () => {
 // ── Render loop ───────────────────────────────────────────────────────────────
 let last = performance.now()
 
-// The animated card faces (moving-images water/caustic effect + archive video)
-// each rebuild a 600×800 canvas — per-pixel caustics, ~260 sliced draws, a CSS
-// grayscale filter — and re-upload it to the GPU. Doing that every frame starved
-// the main thread and made the ring stutter while spinning. The ring itself is a
-// cheap GPU transform at 60fps; these textures only need ~30fps (film is 24), so
-// we throttle the rebuilds. Animation phase (swimTime/swimScroll) still advances
-// every frame, so the motion stays continuous — only the refresh is halved.
-const CARD_REDRAW_INTERVAL = 1 / 30
-let cardRedrawAccum = 0
-
+// The animated card faces (moving-images water/caustic + archive video) redraw
+// every frame so their motion stays smooth. The per-frame cost is kept low by
+// pre-baking the grayscale swim tile once (see buildSwimGray) instead of running
+// a canvas filter on every tile of every frame, which is what used to stutter
+// the ring while spinning.
+let prFrames = 0, prAccum = 0
 function render(now) {
   requestAnimationFrame(render)
   let dt = (now - last) / 1000; last = now
   if (dt > 0.05) dt = 0.05
 
-  swimTime += dt
-  swimScroll += SWIM_SCROLL_SPEED * dt
-  cardRedrawAccum += dt
-  let redrawCards = false
-  if (cardRedrawAccum >= CARD_REDRAW_INTERVAL) { cardRedrawAccum = 0; redrawCards = true }
+  // Once a second, if we're below ~50fps, shed a quarter step of pixel ratio
+  // (down to 1.0) so the ring stays smooth on this device. Only steps down, so
+  // it settles without oscillating.
+  prFrames++; prAccum += dt
+  if (prAccum >= 1) {
+    const fps = prFrames / prAccum
+    prFrames = 0; prAccum = 0
+    if (fps < 50 && curPR > 1.0) {
+      curPR = Math.max(1.0, curPR - 0.25)
+      renderer.setPixelRatio(curPR)
+      renderer.setSize(innerWidth, viewportH())
+    }
+  }
 
-  if (redrawCards && movingImagesFaceTex && swimImg.complete && swimImg.naturalWidth) {
+  if (movingImagesFaceTex && swimImg.complete && swimImg.naturalWidth) {
+    swimScroll += SWIM_SCROLL_SPEED * dt
+    swimTime += dt
     drawPortalCard(movingImagesFaceCtx, PORTALS[MOVING_IMAGES_INDEX], 600, 800, 54,
       (ctx, W, H) => drawSwimTrace(ctx, W, H, PORTALS[MOVING_IMAGES_INDEX].bg, 1.0))
     movingImagesFaceTex.needsUpdate = true
   }
 
-  if (redrawCards && archiveFaceTex && archiveVideo.readyState >= 2) {
+  if (archiveFaceTex && archiveVideo.readyState >= 2) {
     drawPortalCard(archiveFaceCtx, PORTALS[ARCHIVE_INDEX], 600, 800, 54,
       (ctx, W, H) => drawArchiveVideo(ctx, W, H))
     archiveFaceTex.needsUpdate = true
