@@ -18,6 +18,13 @@ const OFF_DB    = -60    // true mute floor, used only when the site's audio tog
 const IDLE_DB   = -40    // barely-there ambient bed — the payoff is the swell on drag/scroll
 const ACTIVE_DB = -6     // noticeably louder while a ring is being dragged/scrolled
 
+// TEMP DIAGNOSTIC: omit the Tone.js piano entirely to test whether its
+// continuous audio processing (two samplers + a convolution reverb whose tail
+// builds up over the first several seconds) is what causes the ~10-15s studder.
+// Flip back to false to restore the piano. The plain intro_mix.mp3 bed is
+// unaffected (it's a normal <audio> element, not Tone.js).
+const PIANO_DISABLED = true
+
 let masterVol = null
 let buildPromise = null
 let dragCount = 0
@@ -77,6 +84,7 @@ function build() {
 // continuously as a quiet ambient bed (not just while dragging); when off,
 // it fades all the way out. Muting the intro track also mutes this.
 export async function setPianoAudioEnabled(on) {
+  if (PIANO_DISABLED) return
   audioEnabled = on
   if (on) {
     if (Tone.context.state !== 'running') await Tone.start()
@@ -88,6 +96,7 @@ export async function setPianoAudioEnabled(on) {
 }
 
 export async function startDragging() {
+  if (PIANO_DISABLED) return
   if (!audioEnabled) return
   dragCount++
   notifySwell(true)
@@ -97,6 +106,7 @@ export async function startDragging() {
 }
 
 export function stopDragging() {
+  if (PIANO_DISABLED) return
   dragCount = Math.max(0, dragCount - 1)
   if (dragCount === 0 && masterVol && audioEnabled) {
     notifySwell(false)
@@ -110,6 +120,7 @@ export function stopDragging() {
 // React scene component that reads wheel deltas for its own purposes.
 let scrollPulseTimeout = null
 export function pulseScroll() {
+  if (PIANO_DISABLED) return
   if (!scrollPulseTimeout) startDragging()
   clearTimeout(scrollPulseTimeout)
   scrollPulseTimeout = setTimeout(() => { stopDragging(); scrollPulseTimeout = null }, 220)
