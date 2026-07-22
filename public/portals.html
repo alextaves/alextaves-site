@@ -253,7 +253,7 @@ renderer.setSize(innerWidth, viewportH())
 // lighter ratio and let the render loop drop it further if the machine can't
 // hold framerate — smoothness matters more than a slightly softer image here.
 const MAX_PR = Math.min(devicePixelRatio, 2)
-let curPR = Math.min(devicePixelRatio, 1.5)
+let curPR = Math.min(devicePixelRatio, 1.25)
 renderer.setPixelRatio(curPR)
 renderer.outputEncoding = THREE.sRGBEncoding
 renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -1555,29 +1555,42 @@ function render(now) {
   let dt = (now - last) / 1000; last = now
   if (dt > 0.05) dt = 0.05
 
-  // Once a second, if we're below ~50fps, shed a quarter step of pixel ratio
-  // (down to 1.0) so the ring stays smooth on this device. Only steps down, so
-  // it settles without oscillating.
+  // Twice a second, if we're below ~56fps, shed a quarter step of pixel ratio
+  // (down to 0.75) so the ring recovers when the GPU throttles under sustained
+  // load. Only steps down, so it settles without oscillating. Checking twice a
+  // second lets it react to a thermal drop within ~half a second.
   prFrames++; prAccum += dt
-  if (prAccum >= 1) {
+  if (prAccum >= 0.5) {
     const fps = prFrames / prAccum
     prFrames = 0; prAccum = 0
-    if (fps < 50 && curPR > 1.0) {
-      curPR = Math.max(1.0, curPR - 0.25)
+    if (fps < 56 && curPR > 0.75) {
+      curPR = Math.max(0.75, curPR - 0.25)
       renderer.setPixelRatio(curPR)
       renderer.setSize(innerWidth, viewportH())
     }
   }
 
+  // Only rebuild + re-upload the two animated card textures (moving-images
+  // caustics, archive video) while the card is in the visible front arc. When a
+  // card is rotated to the back of the ring its animation can't be read anyway,
+  // so redrawing it there was pure sustained GPU load — the thing that heats the
+  // machine and makes it studder ~10-15s in. Phase (swimTime/swimScroll) still
+  // advances every frame, so there's no jump when a card swings back into view.
+  const visThresh = -(isMobile ? MOB_RADIUS : RADIUS) * 0.2   // front ~60% of the ring
+  const miVisible = !panels[MOVING_IMAGES_INDEX] || panels[MOVING_IMAGES_INDEX].position.z > visThresh
+  const arVisible = !panels[ARCHIVE_INDEX] || panels[ARCHIVE_INDEX].position.z > visThresh
+
   if (movingImagesFaceTex && swimImg.complete && swimImg.naturalWidth) {
     swimScroll += SWIM_SCROLL_SPEED * dt
     swimTime += dt
-    drawPortalCard(movingImagesFaceCtx, PORTALS[MOVING_IMAGES_INDEX], 600, 800, 54,
-      (ctx, W, H) => drawSwimTrace(ctx, W, H, PORTALS[MOVING_IMAGES_INDEX].bg, 1.0))
-    movingImagesFaceTex.needsUpdate = true
+    if (miVisible) {
+      drawPortalCard(movingImagesFaceCtx, PORTALS[MOVING_IMAGES_INDEX], 600, 800, 54,
+        (ctx, W, H) => drawSwimTrace(ctx, W, H, PORTALS[MOVING_IMAGES_INDEX].bg, 1.0))
+      movingImagesFaceTex.needsUpdate = true
+    }
   }
 
-  if (archiveFaceTex && archiveVideo.readyState >= 2) {
+  if (arVisible && archiveFaceTex && archiveVideo.readyState >= 2) {
     drawPortalCard(archiveFaceCtx, PORTALS[ARCHIVE_INDEX], 600, 800, 54,
       (ctx, W, H) => drawArchiveVideo(ctx, W, H))
     archiveFaceTex.needsUpdate = true
