@@ -1,6 +1,7 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useRef, useEffect, useState, useMemo } from 'react'
 import * as THREE from 'three'
+import { pulseScroll } from '../schoenbergPiano'
 
 const SRCS = ['/videos/diver4.mp4', '/videos/diver2.mp4']
 const ASPECTS = [1280 / 1956, 1280 / 766]
@@ -119,6 +120,7 @@ function VideoStrip({ textures, videos, velocityRef }) {
       colorShiftRef.current = THREE.MathUtils.clamp(
         colorShiftRef.current - e.deltaX * 0.008, -1, 1
       )
+      pulseScroll()
     }
     let lastY = 0, lastX = 0
     const onTouchStart = (e) => { lastY = e.touches[0].clientY; lastX = e.touches[0].clientX }

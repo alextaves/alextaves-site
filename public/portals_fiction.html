@@ -4,26 +4,104 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>alextaves — fiction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; }
   canvas { display: block; touch-action: none; }
+
+  .story-overlay {
+    --bg: #C9A400; --bg-r: 201; --bg-g: 164; --bg-b: 0;
+    position: fixed; z-index: 50;
+    background:
+      repeating-linear-gradient(to bottom, rgba(0,0,0,0.035) 0px, rgba(0,0,0,0.035) 1px, transparent 1px, transparent 3px),
+      rgba(var(--bg-r), var(--bg-g), var(--bg-b), 0.9);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    opacity: 0; pointer-events: none;
+    transition: opacity 400ms ease;
+    overflow-y: auto; overflow-x: hidden;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow:
+      0 0 90px 18px rgba(var(--bg-r), var(--bg-g), var(--bg-b), 0.4),
+      0 25px 80px rgba(0, 0, 0, 0.7);
+  }
+  .story-overlay.active {
+    opacity: 1; pointer-events: auto;
+    animation: storyGlow 5s ease-in-out infinite;
+  }
+  @keyframes storyGlow {
+    0%, 100% { box-shadow: 0 0 90px 18px rgba(var(--bg-r), var(--bg-g), var(--bg-b), 0.4), 0 25px 80px rgba(0, 0, 0, 0.7); }
+    50%      { box-shadow: 0 0 130px 30px rgba(var(--bg-r), var(--bg-g), var(--bg-b), 0.6), 0 25px 80px rgba(0, 0, 0, 0.7); }
+  }
+  .story-text {
+    padding: 7% 8% 10%;
+    font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+    color: #000;
+  }
+  .story-text::after { content: ''; display: table; clear: both; }
+  /* Exact duplicate of the portal card's typed neon title — same face, size
+     and type/backspace cadence (see makeTypedOverlay) — but in black ink and
+     floated so the prose wraps around it like a headline. */
+  .story-cover-title {
+    float: left;
+    width: 44%;
+    margin: 0 1.6em 1em 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-size: 2.3em;
+    line-height: 1.14;
+    color: #000;
+  }
+  .story-cover-title .line { min-height: 1.14em; }
+  .story-cover-title .line.cursor-on::after {
+    content: '';
+    display: inline-block;
+    width: 0.06em; height: 0.85em;
+    background: #000;
+    margin-left: 0.05em;
+    vertical-align: -0.08em;
+  }
+  .story-body p {
+    letter-spacing: 0.01em;
+    font-size: 1.05em; line-height: 1.85; margin: 0 0 1.2em;
+  }
+  .story-body .typing::after {
+    content: '▋'; color: #000; margin-left: 0.12em;
+    animation: caretBlink 0.9s steps(1) infinite;
+  }
+  @keyframes caretBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 </style>
 </head>
 <body>
+<div class="story-overlay" id="storyOverlay">
+  <div class="story-text" id="storyText">
+    <div class="story-cover-title" id="storyCoverTitle">
+      <div class="line"></div>
+      <div class="line"></div>
+      <div class="line"></div>
+    </div>
+    <div class="story-body" id="storyBody"></div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
 <script>
 const HUM_INDEX = 0
-const SIPHON_INDEX = 1
-const KNIFE_INDEX = 2
+const ELON_INDEX = 1
+const SIPHON_INDEX = 2
+const KNIFE_INDEX = 3
 const PORTALS = [
   { title: 'HUM',       sub: 'broken sign',      bg: '#0c0c0c', light: true  },
+  { title: "ELON'S IN MY ELEVATOR", sub: 'floor 41', bg: '#1a1a1a', light: true },
   { title: 'SIPHON',    sub: 'falling dots',      bg: '#05061a', light: true  },
   { title: 'KNIFE',     sub: 'casual knife fight', bg: '#C9A400', light: true  },
-  { title: 'UNTITLED',  sub: 'coming soon',       bg: '#1a1a1a', light: true  },
-  { title: 'UNTITLED',  sub: 'coming soon',       bg: '#232323', light: true  },
-  { title: 'UNTITLED',  sub: 'coming soon',       bg: '#1a1a1a', light: true  },
-  { title: 'UNTITLED',  sub: 'coming soon',       bg: '#232323', light: true  },
-  { title: 'UNTITLED',  sub: 'coming soon',       bg: '#1a1a1a', light: true  },
+  { title: 'GRAFTING',  sub: 'coming soon',       bg: '#046A38', light: true  },
+  { title: 'BOOGIE',    sub: 'coming soon',       bg: '#582C83', light: true  },
+  { title: 'CBC',       sub: 'coming soon',       bg: '#E4002B', light: true  },
+  { title: 'DORTHY SOTHERBY', sub: 'coming soon', bg: '#F37021', light: true  },
 ]
 const COUNT = PORTALS.length
 
@@ -38,28 +116,56 @@ const bgTex = new THREE.CanvasTexture(bgC); bgTex.encoding = THREE.sRGBEncoding
 scene.background = bgTex
 scene.fog = new THREE.Fog('#0e0b08', 8, 50)
 
-const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0) && innerWidth < 1024
+// Touch-capability detection (ontouchstart/maxTouchPoints) is unreliable on
+// Chrome for iOS specifically — it's a WKWebView wrapper, not Safari's native
+// engine plumbing, and has been observed reporting no touch support at all,
+// which silently forced the desktop ring code path on an actual phone no
+// matter what the page's own site-mode setting was. Viewport width alone is
+// a sufficient, more robust signal for "this is a phone/small tablet".
+const isMobile = innerWidth < 1024
 const RADIUS    = 6.0
 const CAM_Z     = 10.0
 const MOB_CAM_Z = 2.5
+// Mobile ring radius must stay smaller than MOB_CAM_Z so the camera sits
+// outside the ring looking in (same relationship desktop has: CAM_Z > RADIUS).
+// Using the desktop RADIUS here put the camera *inside* the ring on mobile,
+// which is what caused panels to flip/invert as they crossed behind it.
+const MOB_RADIUS = 1.5
 
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200)
+// Mobile browsers can report a taller innerHeight at load than what's
+// actually settled/visible once the address bar finishes animating, and
+// visualViewport.height turned out to disagree between Safari and Chrome on
+// the same device (fixed cropping in one, not the other). CSS `svh` (small
+// viewport height) is the standards-based fix: it's a WebKit-engine-level
+// primitive guaranteed to reflect the height visible with the toolbar fully
+// expanded, so it behaves consistently across browser apps sharing that
+// engine. Desktop is untouched (falls through to plain innerHeight).
+const svhProbe = document.createElement('div')
+svhProbe.style.cssText = 'position:fixed; top:0; left:0; height:100svh; width:0; visibility:hidden; pointer-events:none;'
+document.body.appendChild(svhProbe)
+const viewportH = () => {
+  if (!isMobile) return innerHeight
+  const svh = svhProbe.getBoundingClientRect().height
+  const vv = window.visualViewport ? window.visualViewport.height : innerHeight
+  return svh > 0 ? Math.min(svh, innerHeight) : Math.min(innerHeight, vv)
+}
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / viewportH(), 0.1, 200)
 camera.position.set(0, 0, isMobile ? MOB_CAM_Z : CAM_Z)
 camera.lookAt(0, 0, 0)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-renderer.setSize(innerWidth, innerHeight)
+renderer.setSize(innerWidth, viewportH())
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
 renderer.outputEncoding = THREE.sRGBEncoding
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.2
 document.body.appendChild(renderer.domElement)
 
-// ── Special portal covers — a recording of the finished standalone artwork,
-// played as a native video texture, with its name typed out over top in neon.
+// ── Typed neon title overlay, shared by video and image covers ────────────────
 // `text` may be a single word or an array of lines (typed in reading order,
 // filling each line before moving to the next).
-function makeVideoCover(src, text, neonColor, opts) {
+function makeTypedOverlay(text, neonColor, opts) {
   const lines = Array.isArray(text) ? text : [text]
   const totalLen = lines.reduce((n, l) => n + l.length, 0)
   const o = opts || {}
@@ -67,26 +173,6 @@ function makeVideoCover(src, text, neonColor, opts) {
   const BACKSPACE_DUR = o.backspaceDur || 750
   const CYCLE = o.cycle || 5000
   const LINE_HEIGHT = 84
-
-  const video = document.createElement('video')
-  video.src = src
-  video.muted = true
-  video.loop = true
-  video.playsInline = true
-  video.autoplay = true
-  video.play().catch(() => {})
-  const videoTex = new THREE.VideoTexture(video)
-  videoTex.encoding = THREE.sRGBEncoding
-  videoTex.minFilter = THREE.LinearFilter
-  videoTex.magFilter = THREE.LinearFilter
-
-  // mirrored copy for the back face — same live <video>, just horizontally flipped
-  const videoTexBack = new THREE.VideoTexture(video)
-  videoTexBack.encoding = THREE.sRGBEncoding
-  videoTexBack.minFilter = THREE.LinearFilter
-  videoTexBack.magFilter = THREE.LinearFilter
-  videoTexBack.wrapS = THREE.RepeatWrapping
-  videoTexBack.repeat.x = -1
 
   const overlayCanvas = document.createElement('canvas')
   overlayCanvas.width = 600; overlayCanvas.height = 800
@@ -140,12 +226,160 @@ function makeVideoCover(src, text, neonColor, opts) {
     overlayTex.needsUpdate = true
   }
 
+  return { overlayTex, drawOverlay }
+}
+
+// ── Special portal covers — a recording of the finished standalone artwork,
+// played as a native video texture, with its name typed out over top in neon.
+// Videos never attached to the document tree have been observed to silently
+// fail to autoplay as a WebGL texture source on iOS WebKit (Safari and
+// Chrome-iOS share the same engine there), even when muted+playsinline+
+// autoplay are all set correctly — desktop Chrome is lenient about this,
+// which is why it worked in every desktop/emulated check. Keeping the
+// element in the DOM (invisibly) and retrying play() once data has actually
+// loaded, plus once more on the visitor's first touch, makes this reliable.
+const allCoverVideos = []
+function makeVideoCover(src, text, neonColor, opts) {
+  const video = document.createElement('video')
+  video.src = src
+  video.muted = true
+  video.loop = true
+  video.playsInline = true
+  video.setAttribute('webkit-playsinline', '')
+  video.autoplay = true
+  video.style.cssText = 'position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; opacity:0.01; pointer-events:none;'
+  document.body.appendChild(video)
+  allCoverVideos.push(video)
+  video.play().catch(() => {})
+  video.addEventListener('loadeddata', () => video.play().catch(() => {}))
+  const videoTex = new THREE.VideoTexture(video)
+  videoTex.encoding = THREE.sRGBEncoding
+  videoTex.minFilter = THREE.LinearFilter
+  videoTex.magFilter = THREE.LinearFilter
+
+  // mirrored copy for the back face — same live <video>, just horizontally flipped
+  const videoTexBack = new THREE.VideoTexture(video)
+  videoTexBack.encoding = THREE.sRGBEncoding
+  videoTexBack.minFilter = THREE.LinearFilter
+  videoTexBack.magFilter = THREE.LinearFilter
+  videoTexBack.wrapS = THREE.RepeatWrapping
+  videoTexBack.repeat.x = -1
+
+  const { overlayTex, drawOverlay } = makeTypedOverlay(text, neonColor, opts)
+
   return { videoTex, videoTexBack, overlayTex, drawOverlay, meshRef: null }
+}
+
+// ── Fuzzy-TV static layer — subtle grayscale noise with occasional brief
+// glitch tears. Sits above the image, below the text overlay.
+function makeStaticOverlay(opts) {
+  const o = opts || {}
+  const W = 160, H = 213
+  const canvas = document.createElement('canvas')
+  canvas.width = W; canvas.height = H
+  const ctx = canvas.getContext('2d')
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.encoding = THREE.sRGBEncoding
+
+  const imgData = ctx.createImageData(W, H)
+  const baseAlpha = o.alpha ?? 55
+  const FRAME_INTERVAL = 1000 / 12
+  let lastDraw = 0
+  let nextGlitchAt = performance.now() + 1500 + Math.random() * 3000
+  let glitchUntil = 0
+
+  function drawStatic(now) {
+    if (now - lastDraw < FRAME_INTERVAL) return
+    lastDraw = now
+
+    const inGlitch = now < glitchUntil
+    if (!inGlitch && now > nextGlitchAt) {
+      glitchUntil = now + 80 + Math.random() * 140
+      nextGlitchAt = now + 2500 + Math.random() * 4500
+    }
+
+    const data = imgData.data
+    const alpha = inGlitch ? baseAlpha * 2.5 : baseAlpha
+    for (let i = 0; i < data.length; i += 4) {
+      const v = (Math.random() * 255) | 0
+      data[i] = v; data[i + 1] = v; data[i + 2] = v; data[i + 3] = alpha
+    }
+    ctx.putImageData(imgData, 0, 0)
+
+    if (inGlitch) {
+      const bandH = 4 + ((Math.random() * 10) | 0)
+      const bandY = (Math.random() * (H - bandH)) | 0
+      const shift = (Math.random() > 0.5 ? 1 : -1) * (4 + ((Math.random() * 10) | 0))
+      ctx.drawImage(canvas, 0, bandY, W, bandH, shift, bandY, W, bandH)
+    }
+
+    tex.needsUpdate = true
+  }
+
+  return { tex, drawStatic }
+}
+
+// ── Static image cover — same treatment as makeVideoCover, but for a still
+// image. The image is cropped (cover-fit) to the portrait panel aspect so it
+// fills the full panel height with the sides trimmed off.
+function makeImageCover(src, text, neonColor, opts) {
+  const W = 600, H = 800
+  const frontCanvas = document.createElement('canvas')
+  frontCanvas.width = W; frontCanvas.height = H
+  const frontCtx = frontCanvas.getContext('2d')
+  const imageTex = new THREE.CanvasTexture(frontCanvas)
+  imageTex.encoding = THREE.sRGBEncoding
+
+  const backCanvas = document.createElement('canvas')
+  backCanvas.width = W; backCanvas.height = H
+  const backCtx = backCanvas.getContext('2d')
+  const imageTexBack = new THREE.CanvasTexture(backCanvas)
+  imageTexBack.encoding = THREE.sRGBEncoding
+
+  const img = new Image()
+  img.onload = () => {
+    const scale = Math.max(W / img.width, H / img.height)
+    const dw = img.width * scale, dh = img.height * scale
+    const dx = (W - dw) / 2, dy = (H - dh) / 2
+    frontCtx.drawImage(img, dx, dy, dw, dh)
+    imageTex.needsUpdate = true
+
+    backCtx.translate(W, 0); backCtx.scale(-1, 1)
+    backCtx.drawImage(frontCanvas, 0, 0)
+    imageTexBack.needsUpdate = true
+  }
+  img.src = src
+
+  const { overlayTex, drawOverlay: drawTextOverlay } = makeTypedOverlay(text, neonColor, opts)
+
+  let staticTex = null, drawStatic = null
+  if (opts && opts.static) {
+    const s = makeStaticOverlay(opts.staticOpts)
+    staticTex = s.tex
+    drawStatic = s.drawStatic
+  }
+
+  function drawOverlay(now) {
+    drawTextOverlay(now)
+    if (drawStatic) drawStatic(now)
+  }
+
+  return { videoTex: imageTex, videoTexBack: imageTexBack, overlayTex, staticTex, drawOverlay, meshRef: null }
 }
 
 const humCover = makeVideoCover('/hum_cover.mp4', 'HUM', '#FF14C0')
 const siphonCover = makeVideoCover('/siphon_cover.mp4', 'SIPHON', '#F5FF00')
 const knifeCover = makeVideoCover('/knife_cover.mp4', ['CASUAL', 'KNIFE', 'FIGHT'], '#CCFF00', { typeDur: 1600, backspaceDur: 1600, cycle: 6200 })
+const elonCover = makeImageCover('/elon.png', ["ELON'S", 'IN MY', 'ELEVATOR'], '#FFFFFF', { typeDur: 1600, backspaceDur: 1600, cycle: 6200, static: true })
+
+// Belt-and-braces: retry any cover video that's still paused on the
+// visitor's first touch/click, since that's a guaranteed user gesture and
+// clears up any autoplay policy edge case the loadeddata retry above missed.
+function retryStalledCoverVideos() {
+  allCoverVideos.forEach(v => { if (v.paused) v.play().catch(() => {}) })
+}
+window.addEventListener('touchstart', retryStalledCoverVideos, { once: true, passive: true })
+window.addEventListener('pointerdown', retryStalledCoverVideos, { once: true })
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const envScene = new THREE.Scene()
@@ -166,22 +400,42 @@ const rim = new THREE.DirectionalLight('#ffcf90', 0.5); rim.position.set(-5, 2, 
 scene.add(key, rim)
 
 // ── Panel geometry ────────────────────────────────────────────────────────────
-const nearDist = CAM_Z - RADIUS
+const nearDist    = CAM_Z - RADIUS
+const mobNearDist = MOB_CAM_Z - MOB_RADIUS
 const vFOV = (camera.fov * Math.PI) / 180
 let panelW, panelH
 if (isMobile) {
   const hFOVhalf = Math.atan(Math.tan(vFOV / 2) * camera.aspect)
-  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.88
+  panelW = 2 * mobNearDist * Math.tan(hFOVhalf) * 0.95
   panelH = panelW * (4 / 3)
 } else {
   panelH = 0.9 * 2 * nearDist * Math.tan(vFOV / 2)
   panelW = panelH * (3 / 4)
 }
-const THICK      = 0.16
+// THICK is the card's physical depth in world units. Kept proportional to
+// panelH (rather than a fixed absolute value) so its edge — visible as a
+// dim sliver whenever a card isn't perfectly flat-on to the camera — reads
+// at the same relative size on mobile as on desktop. Mobile's camera sits
+// much closer to the ring (2.5 vs 10 units away), so the same absolute
+// thickness used to look ~4x more prominent there.
+const desktopPanelHRef = 0.9 * 2 * nearDist * Math.tan(vFOV / 2)
+const THICK      = 0.16 * (panelH / desktopPanelHRef)
 const REFL_FRAC  = 0.55
 const FRONT_OPACITY = 0.92
 const BACK_OPACITY  = 0.42
-const SPREAD = isMobile ? 0.7 : 1.0
+// SPREAD < 1 compresses ring position without compressing each panel's own
+// facing angle (computed from the true, uncompressed geometry below) — on
+// the old horizontal mobile ring that mismatch was mild, but on the vertical
+// ring it crowds far more panels into the camera's view at once than the
+// FOV should allow, and mismatches each one's tilt against where it's
+// actually drawn. Full spread (matching desktop) avoids both problems.
+const SPREAD = 1.0
+
+// Mobile touch feel matches the desktop drag/momentum physics (SENS,
+// AUTO_SPEED, MAX_VEL, FRICTION below) — same ring, same units (radians),
+// just spun about the vertical axis instead of the horizontal one, and
+// driven by a vertical swipe instead of a horizontal drag.
+const MOB_TOUCH_SENS = 0.006
 const panelGeo = new THREE.BoxGeometry(panelW, panelH, THICK)
 const reflH    = panelH * REFL_FRAC
 const reflGeo  = new THREE.PlaneGeometry(panelW, reflH)
@@ -271,18 +525,20 @@ function makeFlippedTex(canvas) {
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t
 }
 
-// ── Build ring (horizontal, XZ plane) ─────────────────────────────────────────
+// ── Build ring (horizontal XZ plane on desktop, vertical YZ plane on mobile) ──
 const orbitQuat = new THREE.Quaternion()
 const orbitEuler = new THREE.Euler()
 const orbitPos   = new THREE.Vector3()
 
 const panels = [], homePositions = []
 const faceMats = [], glassMats = [], backMats = [], sideMats = []
-const videoCoversByIndex = { [HUM_INDEX]: humCover, [SIPHON_INDEX]: siphonCover, [KNIFE_INDEX]: knifeCover }
+const videoCoversByIndex = { [HUM_INDEX]: humCover, [SIPHON_INDEX]: siphonCover, [KNIFE_INDEX]: knifeCover, [ELON_INDEX]: elonCover }
 
 for (let i = 0; i < COUNT; i++) {
   const a = (i / COUNT) * Math.PI * 2
-  homePositions.push(new THREE.Vector3(Math.cos(a) * RADIUS, 0, Math.sin(a) * RADIUS))
+  homePositions.push(isMobile
+    ? new THREE.Vector3(0, Math.sin(a) * MOB_RADIUS, Math.cos(a) * MOB_RADIUS)
+    : new THREE.Vector3(Math.cos(a) * RADIUS, 0, Math.sin(a) * RADIUS))
 
   const faceTex  = makePortalTex(PORTALS[i])
   const backTex  = makeFlippedTex(faceTex.image)
@@ -307,7 +563,7 @@ for (let i = 0; i < COUNT; i++) {
     roughness: 0.6, metalness: 0.0, envMapIntensity: 0.1,
   })
   const reflMat = new THREE.MeshBasicMaterial({
-    map: makePortalReflTex(PORTALS[i].bg), transparent: true, opacity: isMobile ? 0.18 : 0.38,
+    map: makePortalReflTex(PORTALS[i].bg), transparent: true, opacity: isMobile ? 0.42 : 0.38,
   })
 
   const mesh = new THREE.Mesh(panelGeo, [sideMat, sideMat, glassMat, glassMat, faceMat, backMat])
@@ -319,12 +575,26 @@ for (let i = 0; i < COUNT; i++) {
   reflMesh.frustumCulled = false
   mesh.add(reflMesh)
 
+  if (cover && cover.staticTex) {
+    const staticMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(panelW, panelH),
+      new THREE.MeshBasicMaterial({ map: cover.staticTex, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false })
+    )
+    // depthTest is off, so draw order comes entirely from renderOrder (set
+    // per-frame below) — no Z-offset needed, which removes the visible
+    // parallax gap between this layer and the card face at oblique angles.
+    staticMesh.position.set(0, 0, THICK / 2)
+    staticMesh.frustumCulled = false
+    mesh.add(staticMesh)
+    cover.staticMeshRef = staticMesh
+  }
+
   if (cover) {
     const overlayMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(panelW, panelH),
-      new THREE.MeshBasicMaterial({ map: cover.overlayTex, transparent: true, depthWrite: false })
+      new THREE.MeshBasicMaterial({ map: cover.overlayTex, transparent: true, depthWrite: false, depthTest: false })
     )
-    overlayMesh.position.set(0, 0, THICK / 2 + 0.003)
+    overlayMesh.position.set(0, 0, THICK / 2)
     overlayMesh.frustumCulled = false
     mesh.add(overlayMesh)
     cover.meshRef = overlayMesh
@@ -336,6 +606,208 @@ for (let i = 0; i < COUNT; i++) {
   backMats.push(backMat); sideMats.push(sideMat)
 }
 
+// ── Story overlay (KNIFE + ELON portals) ───────────────────────────────────────
+const STORIES = {
+  [HUM_INDEX]: {
+    title: 'HUM',
+    coverLines: ['HUM'],
+    coverTypeOpts: { typeDur: 750, backspaceDur: 750, cycle: 5000 },
+    bg: '#7DE8FF',
+    paragraphs: [
+      "As you walk through a store, the music and screens change to your taste. But the music is in your head. Everyone has their version. The screens are Hum’s, billboards, store displays, transit panels, the lobby screen at your building. Designated surfaces. If you’re WOCCA, they go black. I’ve lowered my glasses a few times out of curiosity. To not wear them seems so sad and lonely.",
+      "Those who hear no music or see no visuals at all are known as WOCCA. Apparently they’re around, I don’t know any.",
+      "The glasses are part of it. Mandatory since UV-C started punching through the atmosphere. Class 4 tinted frames, revised Radiation Protection Standard, you can’t legally leave the house without them. Everyone knows they track. The sneakers you linger on, the sports team whose scores you check, the exact blue you keep returning to. What most people don’t clock is the depth. Every fixation timestamped, every saccade logged. The glasses see what you see, and the audio responds.",
+      "You near the wine aisle at a grocery store and a signal fires from one of the Knowisphere mesh beacons above the shelving. Newer stores use KWM III, most still run the old mesh. The musak shifts to what you’d be doing that night. At least, a prediction. Most nights after work, you buy wine and watch a show. The musak knows the show and will play something that alludes to it. Not the melody per se. A hint. Or if you are heading to see your sport team play, the atmosphere shifts through sight and sound to let you pre-enjoy self. Of course you can adjust the settings. I’m hungry, or I need to prep for an exam. Billboard screens turn into cue cards. It’s subtle but shown to morph attitudes.",
+      "Every glance is noted and saved. Except in your own home, or at night, though there’s a beta program to push the night frames, softer tint, still tracking, marketed as reducing contrast fatigue. It’s catching on. People love the glasses. Chanel. Burberry. Prada does a really beautiful pair in tortoiseshell.",
+      "The wine aisle is the entry point. Every industry is vying for its share, particularly the dodgier ones. It really took off in the adult industry, it counts on men having types. The half-second glances, the ones you wouldn’t remember taking, are weighted highest.",
+      "So your glance at anything shifts the sound, ever so slightly. It’s not music we’re talking about here. This is purely generative, the model spitting out audio per frame based on what your eyes just did. But at the same time it could be music. And it’s impossible to hear the same thing twice.",
+      "WOCCA hear nothing. They see a grey city. Everyone else, the whole thing is illuminated.",
+    ],
+  },
+  [KNIFE_INDEX]: {
+    title: 'CASUAL KNIFE FIGHT',
+    coverLines: ['CASUAL', 'KNIFE', 'FIGHT'],
+    coverTypeOpts: { typeDur: 1600, backspaceDur: 1600, cycle: 6200 },
+    bg: '#C9A400',
+    paragraphs: [
+      "It was one of those casual knife fights. Effort was made, yes, but it was relaxed effort. Much like driving - one wrong move and you could die, but nonetheless, it can be relaxing. Knife fights, from time to time, can do this for me too. Don’t get me wrong, I’ve been in knife fights that were terrifying. This particular one wasn’t. It was very casual.",
+      "Was our aim to kill? Maybe not kill, but to at least injure enough that they may never walk again or use the washroom properly. Kill if it came to it, for sure.",
+      "He took a swing with his four-inch blade and it nearly hit my face. I noticed his technique was rather Montreal style; that being scrappy yet circus like. I moved my head gently to the left. You could tell it was a well-made knife - I’d say the handle was cedar, possibly hand-carved. It had a lovely aroma. I burn a lot of cedar incense at home; it relaxes me. His cologne was Tom Ford Oud Wood - excellent choice for a knife fight, subtle yet memorable. He seemed to have good taste. Too bad someone might die right now.",
+      "I grabbed his well-conditioned and styled hair - the kind of precision cut you only get at those appointment-only barbershops - and attempted to knife his temple, but he pushed me back and I fell. The lawn was that perfect length and lush. Whoever is taking care of this lawn understands the right amount of watering and has a clear sense of how much nitrogen to use. Too much makes the lawn go yellow and look burnt. This lawn, was luxurious. It had that deep summer grass clipping smell, mixed with the earthy undertones of recent irrigation. Through the carefully spaced Japanese maples, the sky was a particular shade of azure you only get in late August. I must say there was a lot of air travel that day - lots of jet streams criss-crossing like an amateur’s knife work.",
+      "He came running at me, knife pointed at my face as if to jump on me and stab my face off. His Brunello Cucinelli linen shirt moved beautifully with each thrust - breathing with his movements like good fabric should. I noticed his nice arms, clearly the result of a carefully balanced regime of calisthenics and light weights. Wow, he smells good and has nice arms. He’s the full package... I rolled out of the way, careful not to stain my own shirt - it was my favorite Jil Sander. My phone beeped and I took a second to check who it was. I had a little time - he had fumbled to the ground and seemed to be trying to rub dirt off his knees. They were nice jeans - raw Japanese denim, probably Momotaro given the subtle detailing. I’ll give him a second. I can quickly check my messages.",
+      "The fight continued.",
+      "He stabbed me in the stomach. It did hurt quite a bit, but I made it to the hospital promptly and all is good. My drink plans that evening were cancelled, but we rescheduled. I heard later he also had to cancel his plans - something about getting blood on his shirt and he had no backup.",
+    ],
+  },
+  [ELON_INDEX]: {
+    title: "ELON'S IN MY ELEVATOR",
+    coverLines: ["ELON'S", 'IN MY', 'ELEVATOR'],
+    coverTypeOpts: { typeDur: 1600, backspaceDur: 1600, cycle: 6200 },
+    bg: '#FF7EC5',
+    paragraphs: [
+      "It was summer of 2019 in Toronto, there was a tech convention and my new interest in computer programming led me there. There were rumors Elon Musk was going to be there but with all the commotion of too many booths to visit and speakers and people and more booths and too many things to grab your attention I soon forgot about Musk. This was until I dashed to catch an elevator to head to the 60th floor to the infamous restaurant — Canoe — to meet up with a few friends and perhaps grab an overpriced dinner. The elevator door was shutting as I neared and I darted to throw my arm in to stop the doors from shutting. I could see a guy that was standing in the elevator, and I both felt embarrassed and annoyed. One that I was holding him up and two, what a douche for not holding the door, it was obvious I was going to the same place.",
+      "Now, the long ride to the 60th floor. But I hadn’t even noticed who it was until we were well on our way up — Elon Musk. I’m not sure what face I made when I noticed but I’m sure there was a jolt to it. How could I not, it’s fucking Elon Musk. Mr. Everything, likely one of the most powerful people on the planet.",
+      "And as I write this, I realized I was staring. So I looked down quickly to pretend I hadn’t noticed. He was glaring at his phone and seemed like nothing was going to steal his attention so I looked up and stared from my peripheral view. His face seemed more play-dough like in real life, it looked damp and cold. His eyes fixated on his phone, eyes blinking rarely, and when they did blink it seemed to take twice as long as what is deemed normal for blinking. His thumb scrolled up, and up and then would pause, his eyes widened when he landed on a section that seemed critical to him. Then scroll, scroll, and pause.",
+      "That’s when the elevator came to a lurch — and stopped. The door didn’t open, and we were only on floor 41. Elon seemed unfazed by it, and continued to scroll. As a few minutes passed he opened his leather side bag and had a small tub of Mott’s applesauce with the mini wooden paddle like spoon. He peeled the foil back with concentrated precision. He started with the lip and very slowly peeled it back. His eyes widened, and brought the applesauce closer to his face as if to observe the container in finer detail.",
+      "Once he got the foil past the halfway point he accelerated the peel and stopped just shy of tearing it completely off. He took the foil and gently wrapped it over the side and to the bottom. Then he started to eat the applesauce with the same intensity. He knew that wooden spoon paddle well, the way he maximized each scoop, no applesauce spilled, but there also wasn’t room for even the slightest bit more. Once he got to the bottom of the container, he started to scrape the sides, again with great precision. There is no other way to describe it, he has mastered the Mott’s applesauce cup. This definitely wasn’t his first.",
+      "He pulled out another Mott’s applesauce out of his bag and placed it into the empty cup and continued to peel the foil back. He looked up at me, which was the first time he even acknowledged I was there, and said, “if you don’t peel carefully, the foil will rip”. I nodded to signal I understood.",
+      "He ate the Mott’s applesauce the same way as the first. He pulled out another one. The elevator jolted and we were back on our way, to which his reaction was to put the unopened Mott’s applesauce back into his bag. The door opened and that was my run-in with Elon Musk.",
+    ],
+  },
+}
+
+const storyOverlay = document.getElementById('storyOverlay')
+const storyText = document.getElementById('storyText')
+const storyCoverTitle = document.getElementById('storyCoverTitle')
+const storyBody = document.getElementById('storyBody')
+
+function setStoryBg(hex) {
+  storyOverlay.style.setProperty('--bg', hex)
+  storyOverlay.style.setProperty('--bg-r', parseInt(hex.slice(1, 3), 16))
+  storyOverlay.style.setProperty('--bg-g', parseInt(hex.slice(3, 5), 16))
+  storyOverlay.style.setProperty('--bg-b', parseInt(hex.slice(5, 7), 16))
+}
+
+// Exact duplicate of makeTypedOverlay's type/backspace loop (same durations,
+// same absolute-clock phase), but writing into DOM line divs instead of a
+// canvas — this is the black echo of the portal card's own neon title.
+function startCoverTitleLoop(lines, opts) {
+  const TYPE_DUR = opts.typeDur, BACKSPACE_DUR = opts.backspaceDur, CYCLE = opts.cycle
+  const totalLen = lines.reduce((n, l) => n + l.length, 0)
+  const lineEls = Array.from(storyCoverTitle.children)
+  let raf = null
+  function frame(now) {
+    const t = now % CYCLE
+    let charCount
+    if (t < TYPE_DUR) {
+      charCount = Math.min(totalLen, Math.floor((t / TYPE_DUR) * (totalLen + 1)))
+    } else if (t > CYCLE - BACKSPACE_DUR) {
+      const bt = t - (CYCLE - BACKSPACE_DUR)
+      charCount = totalLen - Math.min(totalLen, Math.floor((bt / BACKSPACE_DUR) * (totalLen + 1)))
+    } else {
+      charCount = totalLen
+    }
+    const cursorOn = Math.floor(now / 375) % 2 === 0
+    let remaining = charCount
+    let activeIdx = 0
+    lines.forEach((line, i) => {
+      const take = Math.max(0, Math.min(line.length, remaining))
+      lineEls[i].textContent = line.slice(0, take)
+      remaining -= take
+      if (take > 0) activeIdx = i
+    })
+    lineEls.forEach((el, i) => el.classList.toggle('cursor-on', i === activeIdx && cursorOn))
+    raf = requestAnimationFrame(frame)
+  }
+  raf = requestAnimationFrame(frame)
+  return () => { if (raf) cancelAnimationFrame(raf) }
+}
+
+// Fast terminal-style readout: the paragraphs type in as one continuous
+// stream, in reading order, at a fixed character rate — quick enough to
+// feel like a data dump, slow enough that each line visibly builds.
+const TYPE_CPS = 140
+let typingRAF = null
+
+function typeStory(idx) {
+  const story = STORIES[idx]
+  storyBody.innerHTML = ''
+  const nodes = story.paragraphs.map((text) => {
+    const p = document.createElement('p')
+    storyBody.appendChild(p)
+    return { el: p, full: text }
+  })
+
+  const totalLen = nodes.reduce((n, node) => n + node.full.length, 0)
+  const startTime = performance.now()
+  let activeIdx = nodes.length - 1
+
+  function tick(now) {
+    const charCount = Math.min(totalLen, Math.floor(((now - startTime) / 1000) * TYPE_CPS))
+    let offset = 0
+    let newActiveIdx = nodes.length - 1
+    let foundActive = false
+    nodes.forEach((node, i) => {
+      const take = Math.max(0, Math.min(node.full.length, charCount - offset))
+      node.el.textContent = node.full.slice(0, take)
+      if (!foundActive && take < node.full.length) { newActiveIdx = i; foundActive = true }
+      offset += node.full.length
+    })
+    if (newActiveIdx !== activeIdx) {
+      nodes.forEach((node, i) => node.el.classList.toggle('typing', i === newActiveIdx))
+      activeIdx = newActiveIdx
+    }
+    typingRAF = charCount < totalLen ? requestAnimationFrame(tick) : null
+  }
+  typingRAF = requestAnimationFrame(tick)
+}
+
+let storyOpen = false
+let storyPanelIdx = null
+const _storyCorner = new THREE.Vector3()
+
+// Projects the clicked panel's own front-face corners to screen space so the
+// white fade + text stay contained within that portal's on-screen shape,
+// rather than taking over the whole viewport.
+function updateStoryRect() {
+  if (storyPanelIdx === null) return
+  const mesh = panels[storyPanelIdx]
+  mesh.updateMatrixWorld(true)
+  const hw = panelW / 2, hh = panelH / 2, z = THICK / 2
+  const corners = [[-hw, -hh, z], [hw, -hh, z], [hw, hh, z], [-hw, hh, z]]
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  corners.forEach(([x, y, zz]) => {
+    _storyCorner.set(x, y, zz).applyMatrix4(mesh.matrixWorld).project(camera)
+    const sx = (_storyCorner.x * 0.5 + 0.5) * innerWidth
+    const sy = (1 - (_storyCorner.y * 0.5 + 0.5)) * viewportH()
+    minX = Math.min(minX, sx); maxX = Math.max(maxX, sx)
+    minY = Math.min(minY, sy); maxY = Math.max(maxY, sy)
+  })
+  storyOverlay.style.left = minX + 'px'
+  storyOverlay.style.top = minY + 'px'
+  storyOverlay.style.width = (maxX - minX) + 'px'
+  storyOverlay.style.height = (maxY - minY) + 'px'
+}
+
+let coverTitleStop = null
+function openStory(idx) {
+  if (storyOpen) return
+  storyOpen = true
+  storyPanelIdx = idx
+  angVel = 0
+  const story = STORIES[idx]
+  setStoryBg(story.bg)
+  if (coverTitleStop) coverTitleStop()
+  coverTitleStop = startCoverTitleLoop(story.coverLines, story.coverTypeOpts)
+  typeStory(idx)
+  storyOverlay.scrollTop = 0
+  updateStoryRect()
+  storyOverlay.classList.add('active')
+}
+function closeStory() {
+  storyOpen = false
+  storyPanelIdx = null
+  if (typingRAF) { cancelAnimationFrame(typingRAF); typingRAF = null }
+  if (coverTitleStop) { coverTitleStop(); coverTitleStop = null }
+  storyOverlay.classList.remove('active')
+}
+storyOverlay.addEventListener('click', closeStory)
+window.addEventListener('keydown', (e) => { if (storyOpen && e.key === 'Escape') closeStory() })
+
+function handlePanelClick(idx) {
+  if (idx === HUM_INDEX || idx === KNIFE_INDEX || idx === ELON_INDEX) { openStory(idx); return }
+  if (window !== window.top) {
+    window.parent.postMessage({ type: 'portalClick', idx }, '*')
+  }
+}
+
+// The ambient piano lives in the parent app (one continuous layer across
+// every ring/page) — this just reports when the user is actively moving
+// this ring, not the constant idle auto-rotation.
+function notifyRingDrag(dragging) {
+  if (window !== window.top) window.parent.postMessage({ type: 'ringDrag', dragging }, '*')
+}
+
 // ── Interaction ───────────────────────────────────────────────────────────────
 const SENS = 0.005, FRICTION = 2.5, MAX_VEL = 6.0
 const AUTO_SPEED = 0.0375, DRAG_THRESH = 6
@@ -345,9 +817,13 @@ const clickPointer = new THREE.Vector2()
 let angle = 0, angVel = 0
 let dragging = false, didDrag = false
 let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0
+// Clicking a panel pauses the auto-rotation and drops the front panel's
+// opacity ceiling from FRONT_OPACITY to fully opaque — the same "no longer
+// transparent" focus feedback detroit_dark.html has. Dragging clears it.
+let paused = false
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (isMobile) return
+  if (isMobile || storyOpen) return
   dragging = true; didDrag = false
   downX = lastX = e.clientX; downY = e.clientY
   lastMoveT = performance.now(); trackedVel = 0
@@ -359,6 +835,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   const dtm = Math.max((now - lastMoveT) / 1000, 0.001)
   lastX = e.clientX; lastMoveT = now
   if (Math.abs(e.clientX - downX) > DRAG_THRESH || Math.abs(e.clientY - downY) > DRAG_THRESH) {
+    if (!didDrag) { paused = false; notifyRingDrag(true) }
     didDrag = true
     angle += dx * SENS
     trackedVel = trackedVel * 0.6 + (dx / dtm) * 0.4
@@ -366,34 +843,34 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 })
 renderer.domElement.addEventListener('pointerup', () => {
   if (isMobile || !dragging) return
+  if (didDrag) notifyRingDrag(false)
   dragging = false
   if (!didDrag) {
     clickPointer.x = (downX / innerWidth) * 2 - 1
     clickPointer.y = -((downY / innerHeight) * 2 - 1)
     raycaster.setFromCamera(clickPointer, camera)
-    const hits = raycaster.intersectObjects(panels)
-    if (hits.length > 0 && window !== window.top) {
-      window.parent.postMessage({ type: 'portalClick', idx: hits[0].object.userData.panelIdx }, '*')
-    }
+    const hits = raycaster.intersectObjects(panels, false)
+    if (hits.length > 0) { paused = true; handlePanelClick(hits[0].object.userData.panelIdx) }
   } else {
     const av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS
     angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av))
   }
 })
 
-// Mobile touch — horizontal swipe
-let touchId = null, touchLastX = 0, touchLastT = 0, touchVel = 0
+// Mobile touch — vertical swipe (ring spins on the vertical axis on mobile)
+let touchId = null, touchLastY = 0, touchLastT = 0, touchVel = 0
 let mobHSwiping = false, touchStartX = 0, touchStartY = 0
 
 renderer.domElement.addEventListener('touchstart', (e) => {
-  if (!isMobile) return
+  if (!isMobile || storyOpen) return
   e.preventDefault()
   const t = e.touches[0]
   touchId = t.identifier
-  touchStartX = touchLastX = t.clientX
-  touchStartY = t.clientY
+  touchStartX = t.clientX
+  touchStartY = touchLastY = t.clientY
   touchLastT = performance.now()
   touchVel = 0; mobHSwiping = false
+  dragging = true
 }, { passive: false })
 renderer.domElement.addEventListener('touchmove', (e) => {
   if (!isMobile) return
@@ -401,52 +878,63 @@ renderer.domElement.addEventListener('touchmove', (e) => {
   const t = Array.from(e.touches).find(x => x.identifier === touchId)
   if (!t) return
   const now = performance.now()
-  const dx  = t.clientX - touchLastX
+  const dy  = t.clientY - touchLastY
   const dtm = Math.max((now - touchLastT) / 1000, 0.016)
-  if (!mobHSwiping && Math.abs(t.clientX - touchStartX) > 8) mobHSwiping = true
+  if (!mobHSwiping && Math.abs(t.clientY - touchStartY) > 8) { mobHSwiping = true; paused = false; notifyRingDrag(true) }
   if (mobHSwiping) {
-    angle += dx * 0.004
-    touchVel = touchVel * 0.6 + (dx / dtm) * 0.4
+    angle += dy * MOB_TOUCH_SENS
+    touchVel = touchVel * 0.6 + (dy / dtm) * 0.4
   }
-  touchLastX = t.clientX; touchLastT = now
+  touchLastY = t.clientY; touchLastT = now
 }, { passive: false })
 renderer.domElement.addEventListener('touchend', (e) => {
-  if (!isMobile) return
+  if (!isMobile || storyOpen) return
+  if (mobHSwiping) notifyRingDrag(false)
+  dragging = false
   if (!mobHSwiping) {
     const t = e.changedTouches[0]
     clickPointer.x = (t.clientX / innerWidth) * 2 - 1
-    clickPointer.y = -((t.clientY / innerHeight) * 2 - 1)
+    clickPointer.y = -((t.clientY / viewportH()) * 2 - 1)
     raycaster.setFromCamera(clickPointer, camera)
-    const hits = raycaster.intersectObjects(panels)
-    if (hits.length > 0 && window !== window.top) {
-      window.parent.postMessage({ type: 'portalClick', idx: hits[0].object.userData.panelIdx }, '*')
-    }
+    const hits = raycaster.intersectObjects(panels, false)
+    if (hits.length > 0) { paused = true; handlePanelClick(hits[0].object.userData.panelIdx) }
   } else {
-    angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, touchVel * 0.004))
+    angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, touchVel * MOB_TOUCH_SENS))
   }
   touchId = null
 }, { passive: true })
 
+// Wheel events fire continuously through a scroll gesture with no natural
+// start/end like pointerdown/up — debounce so the piano gets one "started"
+// per burst and one "stopped" after scrolling actually pauses.
+let wheelDragTimeout = null
 window.addEventListener('wheel', (e) => {
+  if (storyOpen) return
   e.preventDefault()
   angle -= e.deltaY * 0.0008
   angVel = 0
+  if (!wheelDragTimeout) notifyRingDrag(true)
+  clearTimeout(wheelDragTimeout)
+  wheelDragTimeout = setTimeout(() => { notifyRingDrag(false); wheelDragTimeout = null }, 220)
 }, { passive: false })
 
 window.addEventListener('keydown', (e) => {
+  if (storyOpen) return
   if (e.key === 'ArrowLeft')       angVel = Math.min(MAX_VEL, angVel + 1.8)
   else if (e.key === 'ArrowRight') angVel = Math.max(-MAX_VEL, angVel - 1.8)
 })
 window.addEventListener('message', (e) => {
+  if (storyOpen) return
   if (!e.data || e.data.type !== 'key') return
   if (e.data.key === 'ArrowLeft')       angVel = Math.min(MAX_VEL, angVel + 1.8)
   else if (e.data.key === 'ArrowRight') angVel = Math.max(-MAX_VEL, angVel - 1.8)
 })
 
 window.addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight
+  camera.aspect = innerWidth / viewportH()
   camera.updateProjectionMatrix()
-  renderer.setSize(innerWidth, innerHeight)
+  renderer.setSize(innerWidth, viewportH())
+  updateStoryRect()
 })
 
 // ── Render loop ───────────────────────────────────────────────────────────────
@@ -460,30 +948,59 @@ function render(now) {
   humCover.drawOverlay(now)
   siphonCover.drawOverlay(now)
   knifeCover.drawOverlay(now)
+  elonCover.drawOverlay(now)
 
-  if (!dragging) {
-    const target = AUTO_SPEED
-    angVel = target + (angVel - target) * Math.exp(-FRICTION * dt)
+  if (!dragging && !storyOpen) {
+    if (!paused) {
+      const target = AUTO_SPEED
+      angVel = target + (angVel - target) * Math.exp(-FRICTION * dt)
+    } else {
+      angVel *= Math.exp(-FRICTION * dt)
+    }
     angle += angVel * dt
   }
 
-  orbitEuler.set(0, angle, 0, 'XYZ')
-  orbitQuat.setFromEuler(orbitEuler)
+  if (isMobile) {
+    orbitEuler.set(angle, 0, 0, 'XYZ')
+    orbitQuat.setFromEuler(orbitEuler)
 
-  for (let i = 0; i < COUNT; i++) {
-    orbitPos.copy(homePositions[i]).applyQuaternion(orbitQuat)
-    panels[i].position.set(orbitPos.x * SPREAD, 0, orbitPos.z)
-    panels[i].rotation.set(0, Math.atan2(orbitPos.x, orbitPos.z), 0)
+    for (let i = 0; i < COUNT; i++) {
+      orbitPos.copy(homePositions[i]).applyQuaternion(orbitQuat)
+      panels[i].position.set(0, orbitPos.y * SPREAD, orbitPos.z)
+      panels[i].rotation.set(Math.atan2(-orbitPos.y, orbitPos.z), 0, 0)
 
-    const norm = Math.min(1, Math.max(0, (orbitPos.z + RADIUS) / (2 * RADIUS)))
-    const cover = videoCoversByIndex[i]
-    faceMats[i].opacity  = cover ? 1 : FRONT_OPACITY * (0.5 + 0.5 * norm)
-    glassMats[i].opacity = BACK_OPACITY  * (0.3 + 0.7 * norm)
-    sideMats[i].opacity  = 0.65 * (0.22 + 0.45 * norm)
-    backMats[i].opacity  = 0.72
-    panels[i].renderOrder = Math.round(orbitPos.z * 1000)
-    if (cover && cover.meshRef) cover.meshRef.renderOrder = panels[i].renderOrder + 1
+      const norm = Math.min(1, Math.max(0, (orbitPos.z + MOB_RADIUS) / (2 * MOB_RADIUS)))
+      const cover = videoCoversByIndex[i]
+      faceMats[i].opacity  = cover ? 1 : (paused ? 1 : FRONT_OPACITY * (0.5 + 0.5 * norm))
+      glassMats[i].opacity = BACK_OPACITY  * (0.3 + 0.7 * norm)
+      sideMats[i].opacity  = 0.65 * (0.22 + 0.45 * norm)
+      backMats[i].opacity  = 0.72
+      panels[i].renderOrder = Math.round(orbitPos.z * 1000)
+      if (cover && cover.staticMeshRef) cover.staticMeshRef.renderOrder = panels[i].renderOrder + 1
+      if (cover && cover.meshRef) cover.meshRef.renderOrder = panels[i].renderOrder + 2
+    }
+  } else {
+    orbitEuler.set(0, angle, 0, 'XYZ')
+    orbitQuat.setFromEuler(orbitEuler)
+
+    for (let i = 0; i < COUNT; i++) {
+      orbitPos.copy(homePositions[i]).applyQuaternion(orbitQuat)
+      panels[i].position.set(orbitPos.x * SPREAD, 0, orbitPos.z)
+      panels[i].rotation.set(0, Math.atan2(orbitPos.x, orbitPos.z), 0)
+
+      const norm = Math.min(1, Math.max(0, (orbitPos.z + RADIUS) / (2 * RADIUS)))
+      const cover = videoCoversByIndex[i]
+      faceMats[i].opacity  = cover ? 1 : (paused ? 1 : FRONT_OPACITY * (0.5 + 0.5 * norm))
+      glassMats[i].opacity = BACK_OPACITY  * (0.3 + 0.7 * norm)
+      sideMats[i].opacity  = 0.65 * (0.22 + 0.45 * norm)
+      backMats[i].opacity  = 0.72
+      panels[i].renderOrder = Math.round(orbitPos.z * 1000)
+      if (cover && cover.staticMeshRef) cover.staticMeshRef.renderOrder = panels[i].renderOrder + 1
+      if (cover && cover.meshRef) cover.meshRef.renderOrder = panels[i].renderOrder + 2
+    }
   }
+
+  if (storyOpen) updateStoryRect()
 
   renderer.render(scene, camera)
 }

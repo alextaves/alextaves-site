@@ -1,4 +1,5 @@
 # SPA fallback for main site (exclude archive and standalone pages)
+/archive 200
 /archive/* 200
 /inventium 200
 /inventium/* 200

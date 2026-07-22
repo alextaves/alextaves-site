@@ -1,6 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useRef, useEffect, useState, useMemo } from 'react'
 import * as THREE from 'three'
+import { pulseScroll } from '../schoenbergPiano'
 
 const TILE_COUNT = 10
 const FRAME_H = 2 * Math.tan((60 / 2) * (Math.PI / 180)) * 4
@@ -171,6 +172,7 @@ export default function VideoStripPreRaceCrossBlueGlass() {
   useEffect(() => {
     const onWheel = (e) => {
       velocityRef.current += Math.abs(e.deltaY) * 0.01 + Math.abs(e.deltaX) * 0.01
+      pulseScroll()
     }
     let lastY = 0, lastX = 0
     const onTouchStart = (e) => { lastY = e.touches[0].clientY; lastX = e.touches[0].clientX }

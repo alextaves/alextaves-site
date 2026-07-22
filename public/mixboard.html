@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>alextaves — mixboard</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%; background: #0c0c0c; color: rgba(255,255,255,0.88);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  body { padding: 40px 32px 120px; }
+
+  h1 {
+    font-size: clamp(28px, 4vw, 44px); font-weight: 700; letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .subhead {
+    font-size: 12px; font-weight: 300; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(255,255,255,0.4); margin: 0 0 32px;
+  }
+
+  /* ── Audio-enable gate ── */
+  #gate {
+    position: fixed; inset: 0; z-index: 50; background: #0c0c0c;
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px;
+  }
+  #gate button {
+    background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.9);
+    font-family: inherit; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    padding: 16px 32px; cursor: pointer; transition: background 0.2s, border-color 0.2s;
+  }
+  #gate button:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.6); }
+  #gate .gate-hint {
+    font-size: 11px; letter-spacing: 0.1em; color: rgba(255,255,255,0.32); max-width: 320px;
+    text-align: center; line-height: 1.6;
+  }
+
+  /* ── Track panel ── */
+  .tracks { display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
+  .track {
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; padding: 18px 20px;
+    background: rgba(255,255,255,0.02);
+    display: grid; grid-template-columns: 160px 1fr; gap: 18px 28px; align-items: center;
+  }
+  .track.empty { opacity: 0.55; }
+  .track-head { display: flex; flex-direction: column; gap: 10px; }
+  .track-num {
+    font-size: 10px; letter-spacing: 0.18em; color: rgba(255,255,255,0.35);
+  }
+  .track-name {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.01em; word-break: break-word;
+    min-height: 34px;
+  }
+  .load-btn, .transport-btn {
+    background: none; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.85);
+    font-family: inherit; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 8px 12px; cursor: pointer; border-radius: 2px; transition: background 0.15s, border-color 0.15s;
+  }
+  .load-btn:hover, .transport-btn:hover:not(:disabled) { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.5); }
+  .transport-btn:disabled { opacity: 0.3; cursor: default; }
+  .transport-btn.active { background: rgba(255,80,80,0.18); border-color: rgba(255,80,80,0.6); color: #ff9a9a; }
+  .transport-row { display: flex; gap: 8px; }
+  input[type="file"] { display: none; }
+
+  .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 22px; }
+  .ctl { display: flex; flex-direction: column; gap: 4px; }
+  .ctl label {
+    font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.45);
+    display: flex; justify-content: space-between;
+  }
+  .ctl label span.val { color: rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
+  input[type="range"] {
+    -webkit-appearance: none; width: 100%; height: 2px; background: rgba(255,255,255,0.18);
+    outline: none; border-radius: 2px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: rgba(255,255,255,0.85); cursor: pointer; margin-top: -5px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,0.85);
+    border: none; cursor: pointer;
+  }
+  input[type="checkbox"] { accent-color: rgba(255,255,255,0.8); }
+  .ctl.checkbox-ctl { flex-direction: row; align-items: center; gap: 8px; }
+  .ctl.checkbox-ctl label { text-transform: uppercase; letter-spacing: 0.14em; font-size: 9.5px; color: rgba(255,255,255,0.45); }
+
+  /* ── Master bar ── */
+  .master {
+    max-width: 980px; margin-top: 28px; border-top: 1px solid rgba(255,255,255,0.15);
+    padding-top: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 28px;
+  }
+  .master-label { font-size: 10px; letter-spacing: 0.18em; color: rgba(255,255,255,0.4); text-transform: uppercase; }
+  .master .ctl { width: 200px; }
+  .record-btn {
+    background: none; border: 1px solid rgba(255,80,80,0.5); color: #ff8080;
+    font-family: inherit; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 12px 22px; cursor: pointer; border-radius: 2px; display: flex; align-items: center; gap: 10px;
+    transition: background 0.15s;
+  }
+  .record-btn:hover { background: rgba(255,80,80,0.12); }
+  .record-btn .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #ff4d4d; display: inline-block;
+  }
+  .record-btn.recording .dot { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+  .transport-master { display: flex; gap: 10px; }
+  .recordings { max-width: 980px; margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .recordings a {
+    font-size: 11px; letter-spacing: 0.05em; color: rgba(140,200,255,0.85); text-decoration: none;
+  }
+  .recordings a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <button id="startBtn">ENABLE AUDIO</button>
+  <div class="gate-hint">Browsers require a tap before audio can start. This loads Tone.js and unlocks the mixboard below.</div>
+</div>
+
+<h1>MIXBOARD</h1>
+<div class="subhead">five-track granular mixer · alextaves-site</div>
+
+<div class="tracks" id="tracks"></div>
+
+<div class="master">
+  <div class="transport-master">
+    <button class="transport-btn" id="playAllBtn">Play all</button>
+    <button class="transport-btn" id="stopAllBtn">Stop all</button>
+  </div>
+  <div class="ctl">
+    <label>Master volume <span class="val" id="masterVolVal">80%</span></label>
+    <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.8">
+  </div>
+  <button class="record-btn" id="recordBtn"><span class="dot"></span><span id="recordLabel">Record master</span></button>
+</div>
+
+<div class="recordings" id="recordings"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14/build/Tone.js"></script>
+<script>
+const MAX_TRACKS = 5
+
+// ── Master bus: every track's gain → masterGain → limiter → speakers + recorder
+const masterGain = new Tone.Gain(0.8)
+const masterLimiter = new Tone.Limiter(-1)
+masterGain.chain(masterLimiter, Tone.Destination)
+const recorder = new Tone.Recorder()
+masterLimiter.connect(recorder)
+
+const tracksEl = document.getElementById('tracks')
+const tracks = []
+
+function fmtPct(v) { return Math.round(v * 100) + '%' }
+function fmtSemis(cents) { return (cents / 100).toFixed(1) + ' st' }
+function fmtRate(r) { return r.toFixed(2) + '×' }
+function fmtMs(sec) { return Math.round(sec * 1000) + ' ms' }
+
+function buildTrack(idx) {
+  const panner = new Tone.Panner(0).connect(masterGain)
+  const gain = new Tone.Gain(0.85).connect(panner)
+  // GrainPlayer gives independent pitch (detune) + speed (playbackRate) control
+  // without the classic "chipmunk" pitch/speed coupling, and exposes grain
+  // size/overlap directly — one node covers pitch, speed, and granular.
+  const player = new Tone.GrainPlayer({
+    loop: true,
+    grainSize: 0.2,
+    overlap: 0.1,
+    playbackRate: 1,
+    detune: 0,
+  }).connect(gain)
+
+  const state = { idx, player, gain, panner, loaded: false, playing: false, fileName: null }
+  tracks.push(state)
+
+  const el = document.createElement('div')
+  el.className = 'track empty'
+  el.innerHTML = `
+    <div class="track-head">
+      <div class="track-num">TRACK ${idx + 1}</div>
+      <div class="track-name" id="name-${idx}">— empty —</div>
+      <label class="load-btn" for="file-${idx}">Load audio</label>
+      <input type="file" id="file-${idx}" accept="audio/*">
+      <div class="transport-row">
+        <button class="transport-btn" id="play-${idx}" disabled>Play</button>
+        <button class="transport-btn" id="stop-${idx}" disabled>Stop</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="ctl">
+        <label>Volume <span class="val" id="volVal-${idx}">85%</span></label>
+        <input type="range" id="vol-${idx}" min="0" max="1.2" step="0.01" value="0.85">
+      </div>
+      <div class="ctl">
+        <label>Pan <span class="val" id="panVal-${idx}">C</span></label>
+        <input type="range" id="pan-${idx}" min="-1" max="1" step="0.01" value="0">
+      </div>
+      <div class="ctl checkbox-ctl">
+        <input type="checkbox" id="loop-${idx}" checked>
+        <label for="loop-${idx}">Loop</label>
+      </div>
+      <div class="ctl">
+        <label>Pitch <span class="val" id="pitchVal-${idx}">0 st</span></label>
+        <input type="range" id="pitch-${idx}" min="-1200" max="1200" step="1" value="0">
+      </div>
+      <div class="ctl">
+        <label>Speed <span class="val" id="speedVal-${idx}">1.00×</span></label>
+        <input type="range" id="speed-${idx}" min="0.25" max="4" step="0.01" value="1">
+      </div>
+      <div class="ctl"></div>
+      <div class="ctl">
+        <label>Grain size <span class="val" id="grainVal-${idx}">200 ms</span></label>
+        <input type="range" id="grain-${idx}" min="0.01" max="1" step="0.005" value="0.2">
+      </div>
+      <div class="ctl">
+        <label>Grain overlap <span class="val" id="overlapVal-${idx}">100 ms</span></label>
+        <input type="range" id="overlap-${idx}" min="0" max="0.5" step="0.005" value="0.1">
+      </div>
+      <div class="ctl">
+        <label>Detune drift <span class="val" id="driftVal-${idx}">off</span></label>
+        <input type="range" id="drift-${idx}" min="0" max="1" step="0.01" value="0">
+      </div>
+    </div>
+  `
+  tracksEl.appendChild(el)
+
+  const fileInput = el.querySelector(`#file-${idx}`)
+  const nameEl = el.querySelector(`#name-${idx}`)
+  const playBtn = el.querySelector(`#play-${idx}`)
+  const stopBtn = el.querySelector(`#stop-${idx}`)
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    nameEl.textContent = 'loading…'
+    try {
+      await player.buffer.load(url)
+      state.loaded = true
+      state.fileName = file.name
+      nameEl.textContent = file.name
+      el.classList.remove('empty')
+      playBtn.disabled = false
+      stopBtn.disabled = false
+    } catch (err) {
+      nameEl.textContent = 'failed to load'
+      console.error('mixboard: load failed', err)
+    }
+  })
+
+  playBtn.addEventListener('click', () => {
+    if (!state.loaded) return
+    if (Tone.context.state !== 'running') Tone.start()
+    player.start()
+    state.playing = true
+  })
+  stopBtn.addEventListener('click', () => {
+    player.stop()
+    state.playing = false
+  })
+
+  el.querySelector(`#vol-${idx}`).addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value)
+    gain.gain.rampTo(v, 0.05)
+    el.querySelector(`#volVal-${idx}`).textContent = fmtPct(v)
+  })
+  el.querySelector(`#pan-${idx}`).addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value)
+    panner.pan.rampTo(v, 0.05)
+    el.querySelector(`#panVal-${idx}`).textContent = Math.abs(v) < 0.02 ? 'C' : (v < 0 ? 'L' + Math.round(-v * 100) : 'R' + Math.round(v * 100))
+  })
+  el.querySelector(`#loop-${idx}`).addEventListener('change', (e) => {
+    player.loop = e.target.checked
+  })
+  el.querySelector(`#pitch-${idx}`).addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value)
+    player.detune = v
+    el.querySelector(`#pitchVal-${idx}`).textContent = fmtSemis(v)
+  })
+  el.querySelector(`#speed-${idx}`).addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value)
+    player.playbackRate = v
+    el.querySelector(`#speedVal-${idx}`).textContent = fmtRate(v)
+  })
+  el.querySelector(`#grain-${idx}`).addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value)
+    player.grainSize = v
+    el.querySelector(`#grainVal-${idx}`).textContent = fmtMs(v)
+  })
+  el.querySelector(`#overlap-${idx}`).addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value)
+    player.overlap = v
+    el.querySelector(`#overlapVal-${idx}`).textContent = fmtMs(v)
+  })
+  // "Detune drift" isn't a native GrainPlayer param — it's a slow random
+  // walk applied on top of the pitch slider's base value, for the classic
+  // unstable-tape-loop granular texture. 0 = off, 1 = most unstable.
+  let driftAmt = 0, driftRAF = null
+  function driftTick() {
+    if (driftAmt > 0) {
+      const base = parseFloat(el.querySelector(`#pitch-${idx}`).value)
+      const wobble = (Math.sin(performance.now() / (600 - driftAmt * 400)) + (Math.random() - 0.5) * 0.6) * driftAmt * 40
+      player.detune = base + wobble
+    }
+    driftRAF = requestAnimationFrame(driftTick)
+  }
+  driftTick()
+  el.querySelector(`#drift-${idx}`).addEventListener('input', (e) => {
+    driftAmt = parseFloat(e.target.value)
+    el.querySelector(`#driftVal-${idx}`).textContent = driftAmt < 0.02 ? 'off' : Math.round(driftAmt * 100) + '%'
+  })
+
+  return state
+}
+
+for (let i = 0; i < MAX_TRACKS; i++) buildTrack(i)
+
+// ── Master controls ──────────────────────────────────────────────────────────
+document.getElementById('masterVol').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value)
+  masterGain.gain.rampTo(v, 0.05)
+  document.getElementById('masterVolVal').textContent = fmtPct(v)
+})
+document.getElementById('playAllBtn').addEventListener('click', async () => {
+  if (Tone.context.state !== 'running') await Tone.start()
+  tracks.forEach(t => { if (t.loaded) { t.player.start(); t.playing = true } })
+})
+document.getElementById('stopAllBtn').addEventListener('click', () => {
+  tracks.forEach(t => { t.player.stop(); t.playing = false })
+})
+
+// ── Recording ─────────────────────────────────────────────────────────────────
+let isRecording = false
+const recordBtn = document.getElementById('recordBtn')
+const recordLabel = document.getElementById('recordLabel')
+const recordingsEl = document.getElementById('recordings')
+
+recordBtn.addEventListener('click', async () => {
+  if (Tone.context.state !== 'running') await Tone.start()
+  if (!isRecording) {
+    await recorder.start()
+    isRecording = true
+    recordBtn.classList.add('recording')
+    recordLabel.textContent = 'Stop recording'
+  } else {
+    const blob = await recorder.stop()
+    isRecording = false
+    recordBtn.classList.remove('recording')
+    recordLabel.textContent = 'Record master'
+    const url = URL.createObjectURL(blob)
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `alextaves-mix-${stamp}.webm`
+    a.textContent = `⬇ mix-${stamp}.webm — click to download`
+    recordingsEl.prepend(a)
+  }
+})
+
+// ── Audio-enable gate ─────────────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', async () => {
+  await Tone.start()
+  document.getElementById('gate').style.display = 'none'
+})
+</script>
+</body>
+</html>

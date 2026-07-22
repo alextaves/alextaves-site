@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>alextaves — schoenberg browser</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%; background: #0c0c0c; color: rgba(255,255,255,0.88);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  body { padding: 40px 32px 120px; }
+
+  h1 { font-size: clamp(26px, 4vw, 40px); font-weight: 700; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .subhead {
+    font-size: 12px; font-weight: 300; letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(255,255,255,0.4); margin: 0 0 8px;
+  }
+  .note {
+    font-size: 12px; font-weight: 300; color: rgba(255,255,255,0.42); max-width: 620px;
+    line-height: 1.7; margin: 0 0 36px;
+  }
+  h2 {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(255,255,255,0.55); margin: 44px 0 14px; padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+  }
+
+  #gate {
+    position: fixed; inset: 0; z-index: 50; background: #0c0c0c;
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px;
+  }
+  #gate button {
+    background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.9);
+    font-family: inherit; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    padding: 16px 32px; cursor: pointer;
+  }
+  #gate button:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.6); }
+  #gate .gate-hint { font-size: 11px; color: rgba(255,255,255,0.32); max-width: 320px; text-align: center; line-height: 1.6; }
+
+  .list { display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+  .item {
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; padding: 16px 18px;
+    display: flex; align-items: center; gap: 16px; background: rgba(255,255,255,0.02);
+    transition: border-color 0.15s;
+  }
+  .item.playing { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .item-main { flex: 1; min-width: 0; }
+  .item-name { font-size: 14px; font-weight: 500; }
+  .item-desc { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+  .play-btn {
+    background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.85);
+    font-family: inherit; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 9px 16px; cursor: pointer; border-radius: 2px; flex-shrink: 0; min-width: 64px;
+  }
+  .play-btn:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+  .play-btn:disabled { opacity: 0.35; cursor: default; }
+  .item.playing .play-btn { border-color: rgba(255,120,120,0.6); color: #ff9a9a; }
+
+  .star-btn {
+    background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px;
+    color: rgba(255,255,255,0.25); flex-shrink: 0; line-height: 1;
+  }
+  .star-btn.on { color: #ffd54f; }
+
+  .picks {
+    max-width: 760px; margin-top: 36px; border-top: 1px solid rgba(255,255,255,0.15);
+    padding-top: 20px;
+  }
+  .picks-label { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 10px; }
+  .picks-list { font-size: 13px; color: rgba(255,255,255,0.85); line-height: 2; }
+  .picks-list .none { color: rgba(255,255,255,0.35); font-style: italic; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <button id="startBtn">ENABLE AUDIO</button>
+  <div class="gate-hint">Browsers require a tap before audio can start.</div>
+</div>
+
+<h1>SCHOENBERG BROWSER</h1>
+<div class="subhead">material from oswin-redo, issue 3</div>
+<p class="note">
+  Six curated mixes (each combines 1–3 Schoenberg MIDI pieces — Op.11, Op.19, and "33" —
+  through the same Salamander piano samples, reverb, and per-track detune/distortion used in
+  Issue 3's playable keys), plus the seven raw MIDI pieces on their own if you want to hear them
+  unmixed. Star anything you want to keep — picks are saved in this browser and listed at the
+  bottom.
+</p>
+
+<h2>Curated mixes</h2>
+<div class="list" id="compList"></div>
+
+<h2>Raw pieces</h2>
+<div class="list" id="rawList"></div>
+
+<h2>Already in use (alextaves-site)</h2>
+<div class="list" id="existingList"></div>
+
+<div class="picks">
+  <div class="picks-label">Your picks</div>
+  <div class="picks-list" id="picksList"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14/build/Tone.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2/build/Midi.js"></script>
+<script>
+// ── Same curated mixes as oswin-redo's compositions.js ─────────────────────────
+const COMPOSITIONS = [
+  { id: 'schoenberg', name: 'Yellow', bg: '#F5DD33',
+    tracks: [
+      { midi: '/midi/op19.mid',    volume: -2,  detune: -100, dist: { distortion: 0.15, wet: 0.2 } },
+      { midi: '/midi/op19no2.mid', volume: -11, detune: -600 },
+    ] },
+  { id: '33', name: 'Green', bg: '#22C55E',
+    tracks: [ { midi: '/midi/33.mid', volume: -2, detune: 0, dist: { distortion: 0.15, wet: 0.2 } } ] },
+  { id: 'op19no6-33', name: 'Blue', bg: '#00BFFF',
+    tracks: [
+      { midi: '/midi/op19no6.mid', volume: 0,   detune: 0 },
+      { midi: '/midi/33.mid',      volume: -21, detune: 0 },
+    ] },
+  { id: 'op11no2-no3-33', name: 'Purple', bg: '#9333EA',
+    tracks: [
+      { midi: '/midi/33.mid',      volume: -19, detune: 0 },
+      { midi: '/midi/op11no2.mid', volume: -6,  detune: 0 },
+      { midi: '/midi/op11no3.mid', volume: -22, detune: -600 },
+    ] },
+  { id: 'op11no3-33', name: 'Red', bg: '#E8196A',
+    tracks: [
+      { midi: '/midi/33.mid',      volume: -19, detune: 0 },
+      { midi: '/midi/op11no3.mid', volume: 0,   detune: 0 },
+    ] },
+  { id: 'op19-no2-33', name: 'Orange', bg: '#F97316',
+    tracks: [
+      { midi: '/midi/op19.mid',    volume: 6,   detune: 0 },
+      { midi: '/midi/op19no2.mid', volume: -27, detune: 0 },
+      { midi: '/midi/33.mid',      volume: -21, detune: 0 },
+    ] },
+]
+
+const RAW_MIDI = [
+  { id: 'raw-op11', name: 'Op.11 (raw)', midi: '/midi/op11.mid' },
+  { id: 'raw-op11no2', name: 'Op.11 No.2 (raw)', midi: '/midi/op11no2.mid' },
+  { id: 'raw-op11no3', name: 'Op.11 No.3 (raw)', midi: '/midi/op11no3.mid' },
+  { id: 'raw-op19', name: 'Op.19 (raw)', midi: '/midi/op19.mid' },
+  { id: 'raw-op19no2', name: 'Op.19 No.2 (raw)', midi: '/midi/op19no2.mid' },
+  { id: 'raw-op19no6', name: 'Op.19 No.6 (raw)', midi: '/midi/op19no6.mid' },
+  { id: 'raw-33', name: '"33" (raw)', midi: '/midi/33.mid' },
+]
+
+const SAMPLES = { A3: 'A3.mp3', C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3', A4: 'A4.mp3', C5: 'C5.mp3' }
+
+const PICKS_KEY = 'schoenberg_picks_v1'
+function getPicks() { try { return JSON.parse(localStorage.getItem(PICKS_KEY) || '[]') } catch { return [] } }
+function setPicks(arr) { localStorage.setItem(PICKS_KEY, JSON.stringify(arr)) }
+
+let currentStop = null // stop() fn for whatever is playing now, so only one plays at a time
+
+async function playComposition(comp, itemEl, btn) {
+  if (currentStop) currentStop()
+  btn.textContent = 'Loading…'
+  btn.disabled = true
+
+  const reverb = new Tone.Reverb({ decay: 3, wet: 0.4 }).toDestination()
+  const parts = []
+  const nodes = [reverb]
+  let readyCount = 0
+
+  const cleanup = () => {
+    parts.forEach(p => p.dispose())
+    nodes.forEach(n => n.dispose())
+    Tone.Transport.stop()
+    Tone.Transport.cancel()
+    itemEl.classList.remove('playing')
+    btn.textContent = 'Play'
+    btn.disabled = false
+    if (currentStop === stop) currentStop = null
+  }
+  function stop() { cleanup() }
+  currentStop = stop
+
+  // Random start: same idea as the eventual movement-triggered piano —
+  // every time playback starts, jump into a random point in the piece
+  // instead of always the beginning. One shared fraction across all of a
+  // composition's tracks, so multi-track mixes stay proportionally aligned
+  // to each other rather than each track picking an unrelated offset.
+  const startFraction = Math.random()
+
+  await Promise.all(comp.tracks.map(async (trackCfg) => {
+    let endpoint = reverb
+    if (trackCfg.dist) {
+      const dist = new Tone.Distortion(trackCfg.dist).connect(reverb)
+      nodes.push(dist)
+      endpoint = dist
+    }
+    const vol = new Tone.Volume(trackCfg.volume ?? 0).connect(endpoint)
+    nodes.push(vol)
+    const sampler = new Tone.Sampler(SAMPLES, { baseUrl: '/audio/salamander/' }).connect(vol)
+    sampler.detune = trackCfg.detune ?? 0
+    nodes.push(sampler)
+    await Tone.loaded()
+    const midi = await Midi.fromUrl(trackCfg.midi)
+    midi.tracks.forEach(track => {
+      if (!track.notes.length) return
+      const events = track.notes.map(n => ({ time: n.time, name: n.name, duration: n.duration, velocity: n.velocity }))
+      const part = new Tone.Part((time, note) => {
+        sampler.triggerAttackRelease(note.name, note.duration, time, note.velocity)
+      }, events)
+      part.loop = true
+      part.loopEnd = midi.duration
+      part.start(0, startFraction * midi.duration)
+      parts.push(part)
+    })
+    readyCount++
+  }))
+
+  if (currentStop !== stop) return // stopped while loading
+  btn.textContent = 'Stop'
+  btn.disabled = false
+  itemEl.classList.add('playing')
+  Tone.Transport.start()
+}
+
+async function playRawMidi(item, itemEl, btn) {
+  if (currentStop) currentStop()
+  btn.textContent = 'Loading…'
+  btn.disabled = true
+
+  const reverb = new Tone.Reverb({ decay: 3, wet: 0.35 }).toDestination()
+  const sampler = new Tone.Sampler(SAMPLES, { baseUrl: '/audio/salamander/' }).connect(reverb)
+  const parts = []
+
+  const cleanup = () => {
+    parts.forEach(p => p.dispose())
+    sampler.dispose()
+    reverb.dispose()
+    Tone.Transport.stop()
+    Tone.Transport.cancel()
+    itemEl.classList.remove('playing')
+    btn.textContent = 'Play'
+    btn.disabled = false
+    if (currentStop === stop) currentStop = null
+  }
+  function stop() { cleanup() }
+  currentStop = stop
+
+  await Tone.loaded()
+  const midi = await Midi.fromUrl(item.midi)
+  const startFraction = Math.random()
+  midi.tracks.forEach(track => {
+    if (!track.notes.length) return
+    const events = track.notes.map(n => ({ time: n.time, name: n.name, duration: n.duration, velocity: n.velocity }))
+    const part = new Tone.Part((time, note) => {
+      sampler.triggerAttackRelease(note.name, note.duration, time, note.velocity)
+    }, events)
+    part.loop = true
+    part.loopEnd = midi.duration
+    part.start(0, startFraction * midi.duration)
+    parts.push(part)
+  })
+
+  if (currentStop !== stop) return
+  btn.textContent = 'Stop'
+  btn.disabled = false
+  itemEl.classList.add('playing')
+  Tone.Transport.start()
+}
+
+function playExistingClip(url, itemEl, btn) {
+  if (currentStop) currentStop()
+  const audio = new Audio(url)
+  audio.loop = true
+  function stop() {
+    audio.pause()
+    audio.currentTime = 0
+    itemEl.classList.remove('playing')
+    btn.textContent = 'Play'
+    if (currentStop === stop) currentStop = null
+  }
+  currentStop = stop
+  audio.play()
+  itemEl.classList.add('playing')
+  btn.textContent = 'Stop'
+}
+
+function renderPicks() {
+  const picks = getPicks()
+  const el = document.getElementById('picksList')
+  if (!picks.length) { el.innerHTML = '<span class="none">nothing starred yet</span>'; return }
+  const all = [...COMPOSITIONS, ...RAW_MIDI, { id: 'existing-red', name: 'schoenberg_red.mp3 (existing)' }]
+  el.innerHTML = picks.map(id => {
+    const item = all.find(x => x.id === id)
+    return `<div>★ ${item ? item.name : id}</div>`
+  }).join('')
+}
+
+function toggleStar(id, starBtn) {
+  let picks = getPicks()
+  if (picks.includes(id)) {
+    picks = picks.filter(p => p !== id)
+    starBtn.classList.remove('on')
+  } else {
+    picks.push(id)
+    starBtn.classList.add('on')
+  }
+  setPicks(picks)
+  renderPicks()
+}
+
+function buildItem(container, { id, name, desc, bg, onPlay }) {
+  const picks = getPicks()
+  const el = document.createElement('div')
+  el.className = 'item'
+  el.innerHTML = `
+    ${bg ? `<div class="swatch" style="background:${bg}"></div>` : ''}
+    <div class="item-main">
+      <div class="item-name">${name}</div>
+      ${desc ? `<div class="item-desc">${desc}</div>` : ''}
+    </div>
+    <button class="star-btn ${picks.includes(id) ? 'on' : ''}" title="star this">★</button>
+    <button class="play-btn">Play</button>
+  `
+  container.appendChild(el)
+  const btn = el.querySelector('.play-btn')
+  const starBtn = el.querySelector('.star-btn')
+  btn.addEventListener('click', async () => {
+    if (Tone.context.state !== 'running') await Tone.start()
+    if (el.classList.contains('playing')) { currentStop?.(); return }
+    onPlay(el, btn)
+  })
+  starBtn.addEventListener('click', () => toggleStar(id, starBtn))
+}
+
+const compList = document.getElementById('compList')
+COMPOSITIONS.forEach(comp => {
+  buildItem(compList, {
+    id: comp.id, name: comp.name, bg: comp.bg,
+    desc: comp.tracks.map(t => t.midi.split('/').pop().replace('.mid', '')).join(' + '),
+    onPlay: (el, btn) => playComposition(comp, el, btn),
+  })
+})
+
+const rawList = document.getElementById('rawList')
+RAW_MIDI.forEach(item => {
+  buildItem(rawList, {
+    id: item.id, name: item.name,
+    onPlay: (el, btn) => playRawMidi(item, el, btn),
+  })
+})
+
+const existingList = document.getElementById('existingList')
+buildItem(existingList, {
+  id: 'existing-red', name: 'schoenberg_red.mp3', desc: 'already used in detroit_dark.html — pre-rendered, ~66s',
+  onPlay: (el, btn) => playExistingClip('/schoenberg_red.mp3', el, btn),
+})
+
+renderPicks()
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+  await Tone.start()
+  document.getElementById('gate').style.display = 'none'
+})
+</script>
+</body>
+</html>

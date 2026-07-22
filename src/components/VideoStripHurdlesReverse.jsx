@@ -1,6 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useRef, useEffect, useState, useMemo } from 'react'
 import * as THREE from 'three'
+import { pulseScroll } from '../schoenbergPiano'
 
 const TILE_COUNT = 10
 const FRAME_H = 2 * Math.tan((60 / 2) * (Math.PI / 180)) * 4
@@ -31,6 +32,7 @@ function Strip({ texture, video }) {
     const onWheel = (e) => {
       if (e.deltaY > 5)  directionRef.current = -1
       if (e.deltaY < -5) directionRef.current = 1
+      pulseScroll()
     }
     const onKeyDown = (e) => {
       if (e.key === 'ArrowDown') directionRef.current = -1

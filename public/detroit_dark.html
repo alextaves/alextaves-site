@@ -114,7 +114,6 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/loaders/FontLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/geometries/TextGeometry.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 <script>
 
 // ── Detroit images ────────────────────────────────────────────────────────────
@@ -190,32 +189,6 @@ let SPREAD = 1.0, AUTO_SPEED = 0.0375;
 
 const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth < 1024;
 
-// ── Tone.js swipe synth ───────────────────────────────────────────────────────
-let toneReady = false;
-const swipeSynth = new Tone.MetalSynth({
-  frequency: 100,
-  envelope: { attack: 0.001, decay: 0.09, release: 0.4 },
-  harmonicity: 5.1,
-  modulationIndex: 28,
-  resonance: 3000,
-  octaves: 0.5,
-});
-const swipeGain = new Tone.Gain(0.18).toDestination();
-swipeSynth.connect(swipeGain);
-
-async function ensureTone() {
-  if (toneReady) return;
-  await Tone.start();
-  toneReady = true;
-}
-
-function fireSwipe(vel) {
-  if (!toneReady) return;
-  const norm = Math.min(Math.abs(vel) / MAX_VEL, 1);
-  if (norm < 0.1) return;
-  swipeSynth.frequency.value = 60 + norm * 220;
-  swipeSynth.triggerAttackRelease('32n', Tone.now());
-}
 if (isMobile) { SPREAD = 0.7; AUTO_SPEED = 0.01875; }
 const MOB_CAM_Z = RADIUS - 6; // 18 — inside ring, comfortable viewing distance
 if (isMobile) camera.position.set(0, 0, MOB_CAM_Z);
@@ -287,7 +260,15 @@ let floorCooldown = 0;
 const FLOOR_COOLDOWN_MS = 1200;
 const floors = [null, null, null];
 
+// Scroll/swipe/arrow-key navigation to FLOOR_UPPER and FLOOR_DIVER is
+// disabled for now — entering via the portal should land on a single
+// self-contained scene, not open a path into the other floors (which also
+// haven't been vetted on mobile). The floor setup code itself is untouched;
+// flip this back on to restore navigation between all three.
+const FLOOR_NAV_ENABLED = false
+
 function goToFloor(idx) {
+  if (!FLOOR_NAV_ENABLED) return;
   if (idx < 0 || idx > 2) return;
   if (performance.now() - floorCooldown < FLOOR_COOLDOWN_MS) return;
   currentFloor = idx;
@@ -1134,6 +1115,14 @@ function diverClick() {
   else window.open('https://alextaves.com', '_blank');
 }
 
+// The ambient piano lives in the parent app (one continuous layer across
+// every ring/page) — this just reports when the user is actively moving
+// this ring, not the constant idle auto-rotation. Separate from this file's
+// own toggleSchoenberg()/schoenberg_red.mp3 click feature above.
+function notifyRingDrag(dragging) {
+  if (window !== window.top) window.parent.postMessage({ type: 'ringDrag', dragging }, '*');
+}
+
 let started = false, paused = false;
 let dragging = false, didDrag = false, downOnPanel = false;
 let clickedFloor = -1, clickedPanelIdx = -1, autoDir = 1;
@@ -1235,6 +1224,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   const dtm = Math.max((now - lastMoveT) / 1000, 0.001);
   lastX = e.clientX; lastMoveT = now;
   if (Math.abs(e.clientX - downX) > DRAG_THRESH || Math.abs(e.clientY - downY) > DRAG_THRESH) {
+    if (!didDrag) notifyRingDrag(true);
     didDrag = true;
     if (paused) paused = false;
   }
@@ -1246,6 +1236,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 
 renderer.domElement.addEventListener('pointerup', () => {
   if (isMobile || !dragging) return;
+  if (didDrag) notifyRingDrag(false);
   dragging = false;
   if (!didDrag && currentFloor === FLOOR_DIVER) {
     diverClick();
@@ -1275,14 +1266,18 @@ renderer.domElement.addEventListener('pointerup', () => {
   const av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS;
   const f = floors[currentFloor];
   if (f) f.angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
-  if (didDrag && Math.abs(av) > 0.05) { autoDir = av < 0 ? -1 : 1; fireSwipe(av); }
+  if (didDrag && Math.abs(av) > 0.05) { autoDir = av < 0 ? -1 : 1; }
 });
 
 // ── Scroll / touch ────────────────────────────────────────────────────────────
 // deltaY > 0 = fingers UP on Mac (natural scroll) = go to upper floor
+let wheelDragTimeout = null;
 window.addEventListener('wheel', (e) => {
   if (e.deltaY > 0) goToFloor(currentFloor - 1);
   else if (e.deltaY < 0) goToFloor(currentFloor + 1);
+  if (!wheelDragTimeout) notifyRingDrag(true);
+  clearTimeout(wheelDragTimeout);
+  wheelDragTimeout = setTimeout(() => { notifyRingDrag(false); wheelDragTimeout = null; }, 220);
 }, { passive: true });
 
 let touchY0 = 0;
@@ -1319,7 +1314,7 @@ if (isMobile) {
     mobLastX = t.clientX; mobLastY = t.clientY; mobLastT = now;
 
     if (!mobHSwiping && !mobVSwiping) {
-      if (Math.abs(totalDx) > MOB_SWIPE_THRESH) mobHSwiping = true;
+      if (Math.abs(totalDx) > MOB_SWIPE_THRESH) { mobHSwiping = true; notifyRingDrag(true); }
       else if (Math.abs(totalDy) > MOB_SWIPE_THRESH) mobVSwiping = true;
     }
 
@@ -1348,7 +1343,7 @@ if (isMobile) {
       if (f) {
         const av = mobVel * 0.004;
         f.angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
-        if (mobileState === 'roaming' && Math.abs(av) > 0.05) { autoDir = av < 0 ? -1 : 1; fireSwipe(av); }
+        if (mobileState === 'roaming' && Math.abs(av) > 0.05) { autoDir = av < 0 ? -1 : 1; }
       }
     } else if (isDblTap && mobileState === 'viewing') {
       exitMobileViewing();
@@ -1548,7 +1543,7 @@ function render(now) {
       const norm = Math.min(1, Math.max(0, (orbitPos.z + f.radius) / (2 * f.radius)));
       const fa = f.floorAmt;
 
-      f.faceMats[i].opacity  = (paused ? 0.5 + 0.5*norm : FRONT_OPACITY * (0.5 + 0.5*norm)) * fa;
+      f.faceMats[i].opacity  = (paused ? 1 : FRONT_OPACITY * (0.5 + 0.5*norm)) * fa;
       f.glassMats[i].opacity = BACK_OPACITY * (0.3 + 0.7 * norm) * fa;
       f.sideMats[i].opacity  = 0.65 * fa * (0.22 + 0.45 * norm);
       f.backMats[i].opacity  = 0.72 * fa;
@@ -1603,16 +1598,13 @@ function tryGyro() {
   }
 }
 
-document.getElementById('btn-audio-on').addEventListener('click', function() { enter(true); ensureTone(); });
-document.getElementById('btn-audio-off').addEventListener('click', function() { enter(false); ensureTone(); });
+document.getElementById('btn-audio-on').addEventListener('click', function() { enter(true); });
+document.getElementById('btn-audio-off').addEventListener('click', function() { enter(false); });
 
 // Auto-start when embedded in iframe — parent (alextaves-site) handles intro and audio
 if (window !== window.top) {
   document.getElementById('begin').style.display = 'none';
   started = true;
-  // Unlock Tone.js on first user interaction with the canvas
-  renderer.domElement.addEventListener('pointerdown', ensureTone, { once: true });
-  renderer.domElement.addEventListener('touchstart', ensureTone, { once: true, passive: true });
 }
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────

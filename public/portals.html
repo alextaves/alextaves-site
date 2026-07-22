@@ -4,26 +4,192 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>alextaves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; }
   canvas { display: block; touch-action: none; }
+
+  .story-overlay {
+    --bg: #D9D02F; --bg-r: 217; --bg-g: 208; --bg-b: 47;
+    container-type: size;
+    position: fixed; z-index: 50;
+    background:
+      repeating-linear-gradient(to bottom, rgba(0,0,0,0.035) 0px, rgba(0,0,0,0.035) 1px, transparent 1px, transparent 3px),
+      rgba(var(--bg-r), var(--bg-g), var(--bg-b), 0.9);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    opacity: 0; pointer-events: none;
+    transition: opacity 400ms ease;
+    overflow-y: auto; overflow-x: hidden;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow:
+      0 0 90px 18px rgba(var(--bg-r), var(--bg-g), var(--bg-b), 0.4),
+      0 25px 80px rgba(0, 0, 0, 0.7);
+  }
+  .story-overlay.active {
+    opacity: 1; pointer-events: auto;
+    animation: storyGlow 5s ease-in-out infinite;
+  }
+  @keyframes storyGlow {
+    0%, 100% { box-shadow: 0 0 90px 18px rgba(var(--bg-r), var(--bg-g), var(--bg-b), 0.4), 0 25px 80px rgba(0, 0, 0, 0.7); }
+    50%      { box-shadow: 0 0 130px 30px rgba(var(--bg-r), var(--bg-g), var(--bg-b), 0.6), 0 25px 80px rgba(0, 0, 0, 0.7); }
+  }
+  .story-text {
+    padding: 7% 8% 10%;
+    font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+    color: #000;
+  }
+  .story-text::after { content: ''; display: table; clear: both; }
+  /* Same typed-title treatment used for the fiction ring's story cards —
+     black ink, floated so the prose wraps around it like a headline. */
+  .story-cover-title {
+    float: left;
+    width: 44%;
+    margin: 0 1.6em 1em 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-size: 2.3em;
+    line-height: 1.14;
+    color: #000;
+  }
+  .story-cover-title .line { min-height: 1.14em; }
+  .story-cover-title .line.cursor-on::after {
+    content: '';
+    display: inline-block;
+    width: 0.06em; height: 0.85em;
+    background: #000;
+    margin-left: 0.05em;
+    vertical-align: -0.08em;
+  }
+  .story-body p {
+    letter-spacing: 0.01em;
+    font-size: 1.05em; line-height: 1.85; margin: 0 0 1.2em;
+  }
+  .story-body .entry-date { font-weight: 700; }
+  .story-body .typing::after {
+    content: '▋'; color: #000; margin-left: 0.12em;
+    animation: caretBlink 0.9s steps(1) infinite;
+  }
+  @keyframes caretBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  /* Enquiries — sized with container-query units so the heading lands at
+     exactly the same scale and position as the plain card's own canvas
+     texture (makePortalTex: 74px title baseline at 16.5% of height, 9%
+     left margin, thin tracked sub at 23.75%) — the form reads as the same
+     card continuing to unfold, not a differently-proportioned modal. */
+  .enquiry-form {
+    display: none;
+    padding: 9.5cqh 9cqw 5cqh;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #000;
+  }
+  .enquiry-form h1 {
+    font-weight: 700; letter-spacing: -0.01em;
+    font-size: 9.25cqh; line-height: 1;
+    margin: 0; padding-bottom: 2.3cqh;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.22);
+    color: rgba(0, 0, 0, 0.88);
+  }
+  .enquiry-form .enquiry-sub {
+    font-weight: 300; letter-spacing: 0.16em; text-transform: uppercase;
+    font-size: 1.75cqh; color: rgba(0, 0, 0, 0.50);
+    margin: 3.2cqh 0 7cqh;
+  }
+  .enquiry-form label {
+    display: block;
+    font-weight: 300; letter-spacing: 0.16em; text-transform: uppercase;
+    font-size: 1.75cqh; color: rgba(0, 0, 0, 0.75);
+    margin: 0 0 4.5cqh;
+  }
+  .enquiry-form input, .enquiry-form textarea {
+    display: block;
+    width: 100%;
+    margin-top: 1.4cqh;
+    background: transparent;
+    border: none; border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+    padding: 0.6cqh 0;
+    font-family: inherit;
+    font-weight: 300; letter-spacing: 0.01em; text-transform: none;
+    font-size: 2.9cqh;
+    color: #000;
+    outline: none;
+  }
+  .enquiry-form input:focus, .enquiry-form textarea:focus { border-bottom-color: #000; }
+  .enquiry-form textarea { resize: vertical; min-height: 8cqh; }
+  .enquiry-form button[type="submit"] {
+    display: block;
+    margin-top: 1.5cqh;
+    background: none; border: none; border-bottom: 2px solid #000;
+    padding: 0.4cqh 0;
+    font-family: inherit;
+    font-weight: 700; letter-spacing: 0.02em;
+    font-size: 2.9cqh;
+    color: #000;
+    cursor: pointer;
+  }
+  .enquiry-form button[type="submit"]:hover { opacity: 0.7; }
+  .enquiry-form .enquiry-status {
+    margin: 2cqh 0 0;
+    font-weight: 300; letter-spacing: 0.1em;
+    font-size: 1.75cqh; color: rgba(0, 0, 0, 0.6);
+  }
 </style>
 </head>
 <body>
+<div class="story-overlay" id="storyOverlay">
+  <div class="story-text" id="storyText">
+    <div class="story-cover-title" id="storyCoverTitle">
+      <div class="line"></div>
+      <div class="line"></div>
+    </div>
+    <div class="story-body" id="storyBody"></div>
+  </div>
+  <div class="enquiry-form" id="enquiryForm">
+    <h1>ENQUIRIES</h1>
+    <p class="enquiry-sub">get in touch · looking for like minded</p>
+    <form id="enquiryFormEl">
+      <label>NAME:<input type="text" name="name" autocomplete="name" required></label>
+      <label>EMAIL:<input type="email" name="email" autocomplete="email" required></label>
+      <label>MESSAGE:<textarea name="message" required></textarea></label>
+      <button type="submit">SUBMIT</button>
+      <p class="enquiry-status" id="enquiryStatus"></p>
+    </form>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
 <script>
 const PORTALS = [
-  { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#16161C', light: true  },
-  { title: 'MOVING IMAGES',    sub: 'immersive exploration',                   bg: '#002FA7', light: true  },
-  { title: 'STILL IMAGES',     sub: 'collection of works, 1990 — now',        bg: '#0B3D2E', light: true  },
+  { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#FFFFFF', light: false },
+  { title: 'MOVING IMAGES',    sub: 'immersive exploration',                   bg: '#C4C4C4', light: false },
+  { title: 'ARCHIVE',          sub: 'the previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
   { title: 'FICTION',          sub: 'sci fi meets absurdism',                  bg: '#FF5F00', light: false },
-  { title: 'ESSAY',            sub: 'conversations with myself',               bg: '#B5A99A', light: false },
-  { title: 'ALEX TAVES',       sub: 'a bit about me',                         bg: '#f5f5f3', light: false },
+  { title: 'ALEX TAVES',       sub: 'a bit about me',                         bg: '#FFFFFF', light: false },
   { title: 'ENQUIRIES',        sub: 'get in touch · looking for like minded',  bg: '#00C2A8', light: false },
   { title: 'UNFILTERED IDEAS', sub: 'a journal',                               bg: '#D9D02F', light: false },
-  { title: 'CONCEPTUAL WEB',   sub: 'experimentations',                        bg: '#C8A415', light: false },
+  { title: 'DETROIT',          sub: 'faces',                                   bg: '#A1A1A1', light: false },
+  { title: 'POSTCARDS',        sub: '2016',                                    bg: '#A69A8C', light: false },
+  { title: 'WELCOME',          sub: 'recommended to have audio on',            bg: '#001ABE', light: true, welcome: true },
 ]
 const COUNT = PORTALS.length
+const UNFILTERED_INDEX = 6
+const ENQUIRIES_INDEX = 5
+const OSWIN_INDEX = 0
+const MOVING_IMAGES_INDEX = 1
+const ALEX_TAVES_INDEX = 4
+const DETROIT_INDEX = 7
+const POSTCARDS_INDEX = 8
+const ARCHIVE_INDEX = 2   // was STILL IMAGES — now the archive showreel, links to /archive
+const ARCHIVE_URL = '/archive/index.html'   // explicit file → works in dev & prod; /archive also serves it via _redirects
+const WELCOME_INDEX = 9   // entry portal — front & centre on arrival, ring frozen until "Begin"
+
+// Entry state: ring is static until Begin is pressed; audio preference starts ON.
+let welcomeActive = true
+let welcomeAudioOn = true
+let welcomeRegions = null   // {on,off,begin} hit rects in 600×800 card pixels
 
 // ── Scene ─────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene()
@@ -36,17 +202,45 @@ const bgTex = new THREE.CanvasTexture(bgC); bgTex.encoding = THREE.sRGBEncoding
 scene.background = bgTex
 scene.fog = new THREE.Fog('#0e0b08', 8, 50)
 
-const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0) && innerWidth < 1024
+// Touch-capability detection (ontouchstart/maxTouchPoints) is unreliable on
+// Chrome for iOS specifically — it's a WKWebView wrapper, not Safari's native
+// engine plumbing, and has been observed reporting no touch support at all,
+// which silently forces the desktop code path on an actual phone regardless
+// of the page's own site-mode setting. Viewport width alone is a sufficient,
+// more robust signal for "this is a phone/small tablet".
+const isMobile = innerWidth < 1024
 const RADIUS    = 6.0
 const CAM_Z     = 10.0
 const MOB_CAM_Z = 2.5
+// Mobile ring radius must stay smaller than MOB_CAM_Z so the camera sits
+// outside the ring looking in (same relationship desktop has: CAM_Z > RADIUS).
+// Using the desktop RADIUS here would put the camera *inside* the ring on
+// mobile, causing panels to flip/invert as they cross behind it.
+const MOB_RADIUS = 1.5
 
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200)
+// Mobile browsers can report a taller innerHeight at load than what's
+// actually settled/visible once the address bar finishes animating, and
+// visualViewport.height disagrees between Safari and Chrome on the same
+// device. CSS `svh` (small viewport height) is the standards-based fix: a
+// WebKit-engine-level primitive guaranteed to reflect the height visible
+// with the toolbar fully expanded, so it behaves consistently across
+// browser apps sharing that engine. Desktop is untouched (plain innerHeight).
+const svhProbe = document.createElement('div')
+svhProbe.style.cssText = 'position:fixed; top:0; left:0; height:100svh; width:0; visibility:hidden; pointer-events:none;'
+document.body.appendChild(svhProbe)
+const viewportH = () => {
+  if (!isMobile) return innerHeight
+  const svh = svhProbe.getBoundingClientRect().height
+  const vv = window.visualViewport ? window.visualViewport.height : innerHeight
+  return svh > 0 ? Math.min(svh, innerHeight) : Math.min(innerHeight, vv)
+}
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / viewportH(), 0.1, 200)
 camera.position.set(0, 0, isMobile ? MOB_CAM_Z : CAM_Z)
 camera.lookAt(0, 0, 0)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-renderer.setSize(innerWidth, innerHeight)
+renderer.setSize(innerWidth, viewportH())
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
 renderer.outputEncoding = THREE.sRGBEncoding
 renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -72,22 +266,40 @@ const rim = new THREE.DirectionalLight('#ffcf90', 0.5); rim.position.set(-5, 2, 
 scene.add(key, rim)
 
 // ── Panel geometry ────────────────────────────────────────────────────────────
-const nearDist = CAM_Z - RADIUS
+const nearDist    = CAM_Z - RADIUS
+const mobNearDist = MOB_CAM_Z - MOB_RADIUS
 const vFOV = (camera.fov * Math.PI) / 180
 let panelW, panelH
 if (isMobile) {
   const hFOVhalf = Math.atan(Math.tan(vFOV / 2) * camera.aspect)
-  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.88
+  panelW = 2 * mobNearDist * Math.tan(hFOVhalf) * 0.95
   panelH = panelW * (4 / 3)
 } else {
   panelH = 0.9 * 2 * nearDist * Math.tan(vFOV / 2)
   panelW = panelH * (3 / 4)
 }
-const THICK      = 0.16
+// THICK is the card's physical depth in world units. Kept proportional to
+// panelH (rather than a fixed absolute value) so its edge — visible as a
+// dim sliver whenever a card isn't perfectly flat-on to the camera — reads
+// at the same relative size on mobile as on desktop. Mobile's camera sits
+// much closer to the ring (2.5 vs 10 units away), so the same absolute
+// thickness used to look proportionally far more prominent there.
+const desktopPanelHRef = 0.9 * 2 * nearDist * Math.tan(vFOV / 2)
+const THICK      = 0.16 * (panelH / desktopPanelHRef)
 const REFL_FRAC  = 0.55
 const FRONT_OPACITY = 0.92
 const BACK_OPACITY  = 0.42
-const SPREAD = isMobile ? 0.7 : 1.0
+// SPREAD < 1 compresses ring position without compressing each panel's own
+// facing angle (computed from the true, uncompressed geometry below) — on
+// the vertical mobile ring that mismatch crowds far more panels into the
+// camera's view at once than the FOV should allow, and mismatches each
+// one's tilt against where it's actually drawn. Full spread avoids both.
+const SPREAD = 1.0
+// Mobile touch feel matches the desktop drag/momentum physics (SENS,
+// AUTO_SPEED, MAX_VEL, FRICTION below) — same ring, same units (radians),
+// just spun about the vertical axis instead of the horizontal one, and
+// driven by a vertical swipe instead of a horizontal drag.
+const MOB_TOUCH_SENS = 0.006
 const panelGeo = new THREE.BoxGeometry(panelW, panelH, THICK)
 const reflH    = panelH * REFL_FRAC
 const reflGeo  = new THREE.PlaneGeometry(panelW, reflH)
@@ -133,38 +345,364 @@ function makePortalReflTex(bgHex) {
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t
 }
 
-// ── Portal card texture ───────────────────────────────────────────────────────
-function makePortalTex(portal) {
-  const W = 600, H = 800, lm = 54
-  const c = document.createElement('canvas'); c.width = W; c.height = H
-  const ctx = c.getContext('2d')
-  ctx.fillStyle = portal.bg; ctx.fillRect(0, 0, W, H)
+// ── Duotone trace — a faint single-hue impression of a video frame or still
+// image, composited behind a card's title so it reads as a subtle imprint
+// of the content ("a hint of the video play") rather than a picture in its
+// own right. Reuses the portal's own bg colour as the tint, so it always
+// "reads" as that card's colour, just varied by the source's luminance.
+const duotoneOff = document.createElement('canvas')
+const duotoneOffCtx = duotoneOff.getContext('2d')
+function drawDuotoneTrace(ctx, source, W, H, tintHex, alpha, grayscaleAmt = 1) {
+  const sw = source.videoWidth || source.naturalWidth
+  const sh = source.videoHeight || source.naturalHeight
+  if (!sw || !sh) return
+  duotoneOff.width = W; duotoneOff.height = H
+  duotoneOffCtx.filter = `grayscale(${grayscaleAmt}) contrast(1.1)`
+  const scale = Math.max(W / sw, H / sh)
+  const dw = sw * scale, dh = sh * scale
+  duotoneOffCtx.drawImage(source, (W - dw) / 2, (H - dh) / 2, dw, dh)
+  duotoneOffCtx.filter = 'none'
+  duotoneOffCtx.globalCompositeOperation = 'multiply'
+  duotoneOffCtx.fillStyle = tintHex
+  duotoneOffCtx.fillRect(0, 0, W, H)
+  duotoneOffCtx.globalCompositeOperation = 'source-over'
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.drawImage(duotoneOff, 0, 0, W, H)
+  ctx.restore()
+}
 
-  const ink     = portal.light ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.88)'
-  const inkSub  = portal.light ? 'rgba(255,255,255,0.52)' : 'rgba(0,0,0,0.50)'
-  const inkRule = portal.light ? 'rgba(255,255,255,0.30)' : 'rgba(0,0,0,0.22)'
+// Swimmer marquee trace: each figure is height-fit to the card and the
+// seamless tile is repeated across, offset by swimScroll so the figures
+// drift right-to-left. Same duotone (grayscale → tint multiply) as the trace
+// above, so it reads identically to the diver it replaced.
+const SWIM_TILE_ASPECT = 555 / 995   // seamless tile's own width / height
+const SWIM_SCROLL_SPEED = 0.12       // tile-widths per second, right-to-left
+const SWIM_WATER = 0.08              // ripple strength — a touch of water, gentler than the marquee
+const SWIM_CAUSTIC = 0.04           // caustic shimmer strength (subtle)
+let swimScroll = 0                   // accumulated tile-widths
+let swimTime = 0                     // seconds, drives the ripple + caustic phase
 
+// Caustic shimmer: the marquee's shader adds a moving light-mesh (product of
+// two drifting sine gratings) on top of the figure. We reproduce it on a small
+// offscreen buffer — cheap to compute, and upscaling softens it into blobs —
+// then composite it additively over the card.
+const CAUSTIC_W = 150, CAUSTIC_H = 200
+const causticCanvas = document.createElement('canvas')
+causticCanvas.width = CAUSTIC_W; causticCanvas.height = CAUSTIC_H
+const causticCtx = causticCanvas.getContext('2d')
+const causticData = causticCtx.createImageData(CAUSTIC_W, CAUSTIC_H)
+function drawCaustics(ctx, W, H, t) {
+  const d = causticData.data
+  let i = 0
+  for (let py = 0; py < CAUSTIC_H; py++) {
+    const uy = py / CAUSTIC_H
+    for (let px = 0; px < CAUSTIC_W; px++) {
+      const ux = px / CAUSTIC_W
+      const c = (Math.sin(ux * 22.0 + uy * 18.0 + t * 1.6) * 0.5 + 0.5)
+              * (Math.sin(ux * 11.0 - uy * 26.0 - t * 2.1) * 0.5 + 0.5)
+      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255
+      d[i + 3] = c * SWIM_CAUSTIC * 255
+      i += 4
+    }
+  }
+  causticCtx.putImageData(causticData, 0, 0)
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.imageSmoothingEnabled = true
+  ctx.drawImage(causticCanvas, 0, 0, W, H)
+  ctx.restore()
+}
+function drawSwimTrace(ctx, W, H, tintHex, alpha, grayscaleAmt = 1) {
+  if (!swimImg.complete || !swimImg.naturalWidth) return
+  // 1. Build the scrolling, tiled figure as a plain greyscale plate offscreen —
+  //    no colour tint, so it reads like the grey ?preview=water marquee.
+  duotoneOff.width = W; duotoneOff.height = H
+  duotoneOffCtx.filter = `grayscale(1) contrast(1.1)`
+  const dh = H
+  const dw = dh * SWIM_TILE_ASPECT
+  const startX = -(((swimScroll % 1) + 1) % 1) * dw
+  for (let x = startX; x < W; x += dw) {
+    duotoneOffCtx.drawImage(swimImg, x, 0, dw, dh)
+  }
+  duotoneOffCtx.filter = 'none'
+  // 2. Composite to the card in horizontal slices, each nudged sideways by the
+  //    same sine ripple the marquee shader uses, so the figure reads as seen
+  //    through moving water.
+  ctx.save()
+  ctx.globalAlpha = alpha
+  const SLICE = 3
+  for (let y = 0; y < H; y += SLICE) {
+    const v = y / H
+    const dx = (Math.sin(v * 14.0 + swimTime * 1.3) * 0.014
+              + Math.sin(v * 23.0 - swimTime * 0.8) * 0.006) * SWIM_WATER * W
+    ctx.drawImage(duotoneOff, 0, y, W, SLICE, dx, y, W, SLICE)
+  }
+  ctx.restore()
+  // Bright caustic light-mesh over the figure, at full additive strength.
+  drawCaustics(ctx, W, H, swimTime)
+}
+
+// OSWIN JOURNAL: a large black circle filling most of the bottom 3/4 of the
+// card, below the title/rule/subtitle header band.
+function drawOswinCircle(ctx, W, H, portal) {
+  const top = Math.max(H * 0.25, titleLayout(ctx, portal, W - 108).headerBottom + 10)
+  const margin = 20
+  const cx = W / 2
+  const cy = top + (H - top) / 2 - 24
+  const r = Math.min(W - margin * 2, (H - top) - margin * 2) / 2 * 0.9
+  ctx.fillStyle = '#000'
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+// ALEX TAVES: the bio itself, printed straight onto the card under the
+// subtitle — same wording as the full story overlay this card opens into.
+const ALEX_TAVES_BIO = [
+  "Alex Taves builds rooms on the internet, part of what he calls the Slow Web, and his gut says the web is only beginning. He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario. It took off, earned a nod from The New York Times, then crashed. The crash mattered: it opened a whole new world. Out of desperation he learned to code, and React, the framework Netflix runs on, became an obsession. It seemed wildly untapped as a medium for art.",
+  "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
+]
+
+function drawAlexTavesBio(ctx, W, H, portal) {
+  const lm = 54
   const maxW = W - lm * 2
-  let fontSize = 74
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
-  do {
-    ctx.font = `700 ${fontSize}px 'Helvetica Neue', Helvetica, Arial, sans-serif`
-    ctx.letterSpacing = '-0.01em'
-    if (ctx.measureText(portal.title).width <= maxW) break
-    fontSize -= 2
-  } while (fontSize > 20)
-
+  const startY = Math.max(224, titleLayout(ctx, portal, maxW).headerBottom)
+  const ink = portal.light ? 'rgba(255,255,255,0.62)' : 'rgba(0,0,0,0.58)'
+  ctx.textAlign = 'left'
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.letterSpacing = '0'
   ctx.fillStyle = ink
-  ctx.fillText(portal.title, lm, 132)
+  const lineHeight = 20
+  let y = startY
+  ALEX_TAVES_BIO.forEach((para) => {
+    wrapText(ctx, para, maxW).forEach((ln) => { ctx.fillText(ln, lm, y); y += lineHeight })
+    y += 12
+  })
+}
 
-  ctx.strokeStyle = inkRule; ctx.lineWidth = 0.5
-  ctx.beginPath(); ctx.moveTo(lm, 152); ctx.lineTo(W - lm, 152); ctx.stroke()
+// ENQUIRIES: a preview of the real form's fields, styled to match the
+// subtitle exactly, so the card reads as one piece with the form it opens
+// into on click. A pretend message types itself out, holds once complete,
+// then restarts — same idea as the UNFILTERED IDEAS journal typewriter.
+const ENQUIRY_SAMPLE_MESSAGE = "Hey! I came across your work during a mandatory rest period aboard the International Space Station (ISS). Downlink is slow up here so your site took forty minutes to load, which honestly added to the experience. Everyone here is glued to the window, but I'm fixated on your site. I have a thing for carousels, I guess. I feel your 3D carousel could really elevate the NASA homepage. Pluto gets its own screen, its own facts, maybe a little ambient hum. It deserves that after everything. I have no authority to commission anything. I'm just an astronaut. Budget: I can get you a moon rock, or a button from our ship. Best, Tony"
+const ENQUIRY_HOLD_MS = 10000
+let enquiryFaceTex = null, enquiryFaceCtx = null
+let enquiryCharCount = 0, enquiryPhase = 'typing'
+
+function drawEnquiryFormPreview(ctx, W, H, portal) {
+  const lm = 54
+  const maxW = W - lm * 2
+  const inkSub = portal.light ? 'rgba(255,255,255,0.52)' : 'rgba(0,0,0,0.50)'
+  const inkMsg = portal.light ? 'rgba(255,255,255,0.62)' : 'rgba(0,0,0,0.58)'
+  const shown = ENQUIRY_SAMPLE_MESSAGE.slice(0, enquiryCharCount)
+  ctx.textAlign = 'left'
 
   ctx.font = "300 14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
   ctx.letterSpacing = '0.16em'
   ctx.fillStyle = inkSub
-  ctx.fillText(portal.sub, lm, 190)
+  ctx.fillText('message', lm, 260)
 
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.letterSpacing = '0'
+  ctx.fillStyle = inkMsg
+  const lines = wrapText(ctx, shown, maxW)
+  const lineHeight = 20
+  let y = 288
+  lines.forEach((ln) => { ctx.fillText(ln, lm, y); y += lineHeight })
+
+  ctx.font = "300 14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.letterSpacing = '0.16em'
+  ctx.fillStyle = inkSub
+  ctx.fillText('submit', lm, H - H / 5)
+}
+
+// ── Portal card texture ───────────────────────────────────────────────────────
+// drawTrace(ctx, W, H), if given, is called right after the bg fill and
+// before the title — used to bake in the faint duotone trace above.
+// Mean luminance of a card region — used to decide whether the title needs a
+// light or dark ink to read against whatever the image puts behind it.
+function regionLuma(ctx, x, y, w, h) {
+  const data = ctx.getImageData(x, y, w, h).data
+  let sum = 0, n = 0
+  for (let i = 0; i < data.length; i += 16) {
+    sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]; n++
+  }
+  return sum / n
+}
+
+// The genuine lightest colour of a trace panel's *source* photo (before the
+// duotone tint darkens it). Cached once the image has loaded.
+const _srcLightest = new Map()
+function sourceLightest(portal) {
+  if (_srcLightest.has(portal)) return _srcLightest.get(portal)
+  const img = portal === PORTALS[DETROIT_INDEX] ? detroitTraceImg
+            : portal === PORTALS[POSTCARDS_INDEX] ? postcardsTraceImg
+            : portal === PORTALS[MOVING_IMAGES_INDEX] ? swimImg : null
+  if (!img || !img.complete || !img.naturalWidth) return null
+  const w = 100, h = 133
+  const oc = document.createElement('canvas'); oc.width = w; oc.height = h
+  const octx = oc.getContext('2d'); octx.drawImage(img, 0, 0, w, h)
+  const d = octx.getImageData(0, 0, w, h).data
+  let bl = -1, r = 245, g = 245, b = 245
+  for (let i = 0; i < d.length; i += 4) {
+    const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+    if (l > bl) { bl = l; r = d[i]; g = d[i + 1]; b = d[i + 2] }
+  }
+  const c = { r, g, b }; _srcLightest.set(portal, c); return c
+}
+
+// Which titles currently read as light ink; sticky per portal (hysteresis) so
+// the animated Moving Images card doesn't flicker as its backdrop scrolls.
+// _titleSampled throttles the (costly) getImageData for the animated card.
+const _titleLight = new Map()
+const _titleSampled = new Map()
+
+// Shared title metrics: keep the type large and wrap long titles onto two lines
+// (three only if a title truly won't fit one word per line at the minimum size),
+// shrinking only as a last resort. Also reports where the header ends so the
+// content cards can start their body below a taller, wrapped title.
+function titleLayout(ctx, portal, maxW) {
+  let size = 74, lines
+  for (; size >= 24; size -= 2) {
+    ctx.font = `700 ${size}px 'Helvetica Neue', Helvetica, Arial, sans-serif`
+    ctx.letterSpacing = '-0.01em'
+    lines = wrapText(ctx, portal.title, maxW)
+    const widest = Math.max(...lines.map(l => ctx.measureText(l).width))
+    if (lines.length <= 3 && widest <= maxW) break
+  }
+  const lineH = size
+  const titleTop = 64
+  const titleBottom = titleTop + lines.length * lineH
+  const ruleY = titleBottom + 10
+  const subTop = ruleY + 12
+  const headerBottom = subTop + 24
+  return { size, lines, lineH, titleTop, titleBottom, ruleY, subTop, headerBottom }
+}
+
+// WELCOME entry portal: same header system as the others (chartreuse plate,
+// dark ink), plus ON/OFF (the CURRENT audio state is dulled) and a Begin
+// control. Records hit rects (in 600×800 card pixels) for click routing.
+function drawWelcomeCard(ctx, W, H, portal, lm) {
+  ctx.textAlign = 'left'
+  // Chartreuse text on the intro blue.
+  const ink = '#D8FF14', dull = 'rgba(216,255,20,0.30)', inkSub = 'rgba(216,255,20,0.62)', inkRule = 'rgba(216,255,20,0.38)'
+  const t = titleLayout(ctx, portal, W - lm * 2)
+  ctx.font = `700 ${t.size}px 'Helvetica Neue', Helvetica, Arial, sans-serif`
+  ctx.letterSpacing = '-0.01em'; ctx.textBaseline = 'top'; ctx.fillStyle = ink
+  t.lines.forEach((ln, i) => ctx.fillText(ln, lm, t.titleTop + i * t.lineH))
+  ctx.strokeStyle = inkRule; ctx.lineWidth = 0.5
+  ctx.beginPath(); ctx.moveTo(lm, t.ruleY); ctx.lineTo(W - lm, t.ruleY); ctx.stroke()
+  ctx.font = "300 14px 'Helvetica Neue', Helvetica, Arial, sans-serif"; ctx.letterSpacing = '0.16em'
+  ctx.textBaseline = 'top'; ctx.fillStyle = inkSub
+  ctx.fillText(portal.sub, lm, t.subTop)
+
+  // Intro line, wrapped, beneath the subtitle
+  ctx.font = "300 16px 'Helvetica Neue', Helvetica, Arial, sans-serif"; ctx.letterSpacing = '0.02em'
+  ctx.textBaseline = 'top'; ctx.fillStyle = inkSub
+  let iy = t.subTop + 34
+  wrapText(ctx, 'this is a slow web experience — the sound will follow you', W - lm * 2)
+    .forEach((ln) => { ctx.fillText(ln, lm, iy); iy += 24 })
+
+  // ON / OFF — dulled label reflects the current state (audio on → ON dulled)
+  ctx.textBaseline = 'alphabetic'
+  ctx.font = "700 34px 'Helvetica Neue', Helvetica, Arial, sans-serif"; ctx.letterSpacing = '0.03em'
+  const rowY = 384
+  ctx.fillStyle = welcomeAudioOn ? dull : ink
+  ctx.fillText('ON', lm, rowY)
+  const onW = ctx.measureText('ON').width
+  const offX = lm + onW + 34
+  ctx.fillStyle = welcomeAudioOn ? ink : dull
+  ctx.fillText('OFF', offX, rowY)
+  const offW = ctx.measureText('OFF').width
+
+  // Begin
+  ctx.font = "700 40px 'Helvetica Neue', Helvetica, Arial, sans-serif"; ctx.letterSpacing = '0'
+  const beginY = 724
+  ctx.fillStyle = ink
+  ctx.fillText('Begin  →', lm, beginY)
+  const beginW = ctx.measureText('Begin  →').width
+
+  welcomeRegions = {
+    on:    { x: lm - 14, y: rowY - 40, w: onW + 28, h: 56 },
+    off:   { x: offX - 14, y: rowY - 40, w: offW + 28, h: 56 },
+    begin: { x: lm - 14, y: beginY - 46, w: beginW + 28, h: 64 },
+  }
+}
+
+function drawPortalCard(ctx, portal, W, H, lm, drawTrace) {
+  ctx.clearRect(0, 0, W, H)
+  ctx.fillStyle = portal.bg; ctx.fillRect(0, 0, W, H)
+  if (drawTrace) drawTrace(ctx, W, H)
+
+  // WELCOME entry portal — bespoke layout with ON/OFF + Begin controls.
+  if (portal.welcome) { drawWelcomeCard(ctx, W, H, portal, lm); return }
+
+  let ink     = portal.light ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.88)'
+  let inkSub  = portal.light ? 'rgba(255,255,255,0.52)' : 'rgba(0,0,0,0.50)'
+  let inkRule = portal.light ? 'rgba(255,255,255,0.30)' : 'rgba(0,0,0,0.22)'
+
+  const maxW = W - lm * 2
+  ctx.textAlign = 'left'
+  const t = titleLayout(ctx, portal, maxW)
+
+  // Detroit/Postcards/Moving Images: when the image behind the title is dark,
+  // switch the header to the source photo's lightest tone so it pops; keep the
+  // dark ink when the backdrop is light. Re-evaluated every redraw (so it flips
+  // between the faded and full-colour held looks), with hysteresis to stop the
+  // animated Moving Images card flickering near the threshold.
+  if (portal === PORTALS[DETROIT_INDEX] || portal === PORTALS[POSTCARDS_INDEX] || portal === PORTALS[MOVING_IMAGES_INDEX]) {
+    // Sampling reads pixels back (getImageData) — cheap for the static Detroit/
+    // Postcards cards (redrawn rarely), so re-check every redraw; but throttle
+    // the animated Moving Images card to a few times a second.
+    const animated = portal === PORTALS[MOVING_IMAGES_INDEX]
+    const now = performance.now()
+    const due = !animated || !_titleLight.has(portal) || now - (_titleSampled.get(portal) || 0) > 130
+    if (due) {
+      _titleSampled.set(portal, now)
+      const bandH = Math.max(20, Math.min(H - t.titleTop - 2, t.titleBottom - t.titleTop))
+      const backLuma = regionLuma(ctx, lm, t.titleTop, maxW, bandH)
+      let light = _titleLight.get(portal) ?? (backLuma < 135)
+      if (backLuma < 120) light = true
+      else if (backLuma > 155) light = false
+      _titleLight.set(portal, light)
+    }
+    if (_titleLight.get(portal)) {
+      const c = sourceLightest(portal) || { r: 245, g: 245, b: 245 }
+      ink     = `rgba(${c.r},${c.g},${c.b},0.96)`
+      inkSub  = `rgba(${c.r},${c.g},${c.b},0.60)`
+      inkRule = `rgba(${c.r},${c.g},${c.b},0.40)`
+    }
+  }
+
+  // Fixed heading colour (e.g. ARCHIVE's chartreuse), overriding the defaults.
+  if (portal.titleColor) {
+    ink     = portal.titleColor + 'F2'
+    inkSub  = portal.titleColor + '99'
+    inkRule = portal.titleColor + '55'
+  }
+
+  ctx.font = `700 ${t.size}px 'Helvetica Neue', Helvetica, Arial, sans-serif`
+  ctx.letterSpacing = '-0.01em'
+  ctx.textBaseline = 'top'
+  ctx.fillStyle = ink
+  t.lines.forEach((ln, i) => ctx.fillText(ln, lm, t.titleTop + i * t.lineH))
+
+  ctx.strokeStyle = inkRule; ctx.lineWidth = 0.5
+  ctx.beginPath(); ctx.moveTo(lm, t.ruleY); ctx.lineTo(W - lm, t.ruleY); ctx.stroke()
+
+  ctx.font = "300 14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.letterSpacing = '0.16em'
+  ctx.textBaseline = 'top'
+  ctx.fillStyle = inkSub
+  ctx.fillText(portal.sub, lm, t.subTop)
+}
+
+function makePortalTex(portal, drawTrace) {
+  const W = 600, H = 800, lm = 54
+  const c = document.createElement('canvas'); c.width = W; c.height = H
+  const ctx = c.getContext('2d')
+  drawPortalCard(ctx, portal, W, H, lm, drawTrace)
   const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex
 }
 
@@ -182,14 +720,257 @@ const orbitQuat = new THREE.Quaternion()
 const orbitEuler = new THREE.Euler()
 const orbitPos   = new THREE.Vector3()
 
+// MOVING IMAGES gets a faint duotone trace of the swimmer marquee — the
+// seamless leaping figure (water2_seamless.png) height-fit to the card and
+// tiled across, scrolling right-to-left like the full-screen marquee, under
+// the same Klein-blue duotone the diver footage used to wear.
+const swimImg = new Image()
+swimImg.src = '/water2_seamless.png'
+
+// ARCHIVE panel plays the showreel that showcases the previous alextaves.com,
+// cover-fit and full-colour; clicking the card links out to /archive.
+const archiveVideo = document.createElement('video')
+archiveVideo.src = '/videos/showreel2_3.mp4'
+archiveVideo.muted = true
+archiveVideo.loop = true
+archiveVideo.playsInline = true
+archiveVideo.setAttribute('webkit-playsinline', '')
+archiveVideo.autoplay = true
+archiveVideo.style.cssText = 'position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; opacity:0.01; pointer-events:none;'
+document.body.appendChild(archiveVideo)
+archiveVideo.play().catch(() => {})
+archiveVideo.addEventListener('loadeddata', () => archiveVideo.play().catch(() => {}))
+window.addEventListener('pointerdown', () => { if (archiveVideo.paused) archiveVideo.play().catch(() => {}) }, { once: true })
+
+// Draw the current showreel frame cover-fit onto the card, with a soft dark
+// gradient behind the header so the chartreuse title stays legible.
+function drawArchiveVideo(ctx, W, H) {
+  const vw = archiveVideo.videoWidth, vh = archiveVideo.videoHeight
+  if (!vw || !vh) return
+  const scale = Math.max(W / vw, H / vh)
+  const dw = vw * scale, dh = vh * scale
+  ctx.drawImage(archiveVideo, (W - dw) / 2, (H - dh) / 2, dw, dh)
+  const grad = ctx.createLinearGradient(0, 0, 0, H * 0.55)
+  grad.addColorStop(0, 'rgba(0,0,0,0.55)')
+  grad.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, W, H * 0.55)
+}
+
+// DETROIT gets the same treatment from a single still, picked at random
+// from the actual Detroit face set each time the page loads.
+const DETROIT_TRACE_CANDIDATES = [
+  '01','02','03','04','05','06','07','08','09','10','11','12','13','14',
+  '16','17','18','19','20','21','22','23','24','25','26','27','28',
+  '29','30','31','32','33','34','35','36','37','38','39','40',
+]
+const detroitTraceImg = new Image()
+detroitTraceImg.src = `/detroit/${DETROIT_TRACE_CANDIDATES[Math.floor(Math.random() * DETROIT_TRACE_CANDIDATES.length)]}.webp`
+
+// POSTCARDS gets the same treatment from a single fixed still (the "face
+// 01b" postcard sheet, rotated upright), not a random pick like Detroit.
+const postcardsTraceImg = new Image()
+postcardsTraceImg.src = '/postcards/trace_face01b.webp'
+
+// Detroit and Postcards both hold back 25% of the trace's desaturation —
+// full grayscale(1) read as too flat/graphic; grayscale(0.75) lets a
+// quarter of the source colour bleed through under the tint.
+const TRACE_GRAYSCALE = 0.75
+// Press-and-hold on either card drops the trace to full colour (grayscale 0)
+// as a reveal; releasing settles it back to TRACE_GRAYSCALE.
+const TRACE_GRAYSCALE_HELD = 0
+
+let movingImagesFaceTex = null, movingImagesFaceCtx = null
+let archiveFaceTex = null, archiveFaceCtx = null
+let welcomeFaceTex = null, welcomeFaceCtx = null
+function redrawWelcome() {
+  if (!welcomeFaceCtx) return
+  drawPortalCard(welcomeFaceCtx, PORTALS[WELCOME_INDEX], 600, 800, 54, null)
+  welcomeFaceTex.needsUpdate = true
+}
+function setWelcomeAudio(on) {
+  welcomeAudioOn = on
+  redrawWelcome()
+  if (window !== window.top) window.parent.postMessage({ type: 'welcomeAudio', on }, '*')
+}
+function beginSite() {
+  if (!welcomeActive) return
+  welcomeActive = false
+  angVel = AUTO_SPEED   // kick the ring into its idle auto-rotation
+  if (window !== window.top) window.parent.postMessage({ type: 'welcomeBegin', on: welcomeAudioOn }, '*')
+}
+// Route a click on the (frozen, front-centre) WELCOME card to ON / OFF / Begin.
+function handleWelcomeClick(hits) {
+  const wh = hits.find(h => h.object.userData.panelIdx === WELCOME_INDEX)
+  if (!wh || !wh.uv || !welcomeRegions) return
+  const cx = wh.uv.x * 600, cy = (1 - wh.uv.y) * 800   // uv → card pixels (flipY)
+  const inR = r => cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h
+  if (inR(welcomeRegions.begin)) beginSite()
+  else if (inR(welcomeRegions.on)) setWelcomeAudio(true)
+  else if (inR(welcomeRegions.off)) setWelcomeAudio(false)
+}
+
+// UNFILTERED IDEAS: cycles through real journal quotes — exact wording, not
+// paraphrased — typed out at the same cadence as the intro overlay, held
+// for a few seconds once complete, then advances to the next one.
+const JOURNAL_QUOTES = [
+  { date: 'MARCH 25, 2025', text: "MORE FLOWERS PLEASE. It's a loose idea at the moment but its a blend of artwork depicting flowers in a contemporary and explosive way... The idea is stemmed from an uncertainty collectively a lot of people are feeling and how flowers bring a feeling of joy... I want it to be a name people remember and feel a sense of positivity... If we are feeling gloomy, at least let's make the world more beautiful." },
+  { date: 'JUNE 26, 2026', text: 'Maybe we live in a world of islands of environments that cater to your interests, purely designed to be what that is, not a generic platform that caters to everything.' },
+  { date: 'MAY 29, 2026', text: 'I am building the slow web.' },
+  { date: 'JULY 7, 2026', text: "I am back in Melbourne. Bit jet lagged, was up a 2:30 am wide awake. It's not 4:44 and here I am getting my thoughts together. I am writing this as a brainstorm on how to tackle things that have been swirling in my mind for the past 2-3 weeks. I have implemented any of it but I think the distance from my work really helped me. It gave me clarity i was seeking. Even though my trip was frought  with situations that made me feel quite low and sad, it also pointed me in the direction i'm facing with determination. What i feel I'm doing is participating in creating the what the future web looks like. A future web that emboldens artists and thinkers. I sort of feeling things like oswinjournal.com and alextaves.com almost misses the point. I think the web will become a place that one moves through - there is no beginning and no end. What is the difference between alextaves.com and oswinjournal.com - both a portals into itself. The user seamlessly moves through each site with out feeling they left the other. This is where I feel the net is going. Everything is a portal. So to get this started, (and i get this will be a long process and won't happen overnight- but i could beginning small by blending both sites into eachother. When you arrive to the 'website' you arrive to a 3d carousel that acts as portals to places to go within the ecosystem. So to begin, one portal within the carousel will be oswin journal. Another will short stories. Another will be a shop (not built but just as an idea) Another would be contact. In the future it could be other artists." },
+  { date: 'JUNE 9, 2026', text: "note to self. with regards to webdesign, there is no home screen and there is no not homesreen. it's always there sort of  - so it's not this homebase, maybe even have the website randomly select places in the website to start. So you are instantly immersed." },
+]
+const JOURNAL_CHAR_MS = 32.5 // 2x IntroOverlay's typewriter cadence
+const JOURNAL_HOLD_MS = 3000
+let unfilteredFaceTex = null, unfilteredFaceCtx = null
+let journalQuoteIdx = 0, journalCharCount = 0, journalPhase = 'typing'
+
+function wrapText(ctx, text, maxW) {
+  const words = text.split(' ')
+  const lines = []
+  let line = ''
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w
+    if (line && ctx.measureText(test).width > maxW) {
+      lines.push(line)
+      line = w
+    } else {
+      line = test
+    }
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
+function drawJournalQuote(ctx, W, H, portal) {
+  const lm = 54
+  const startY = Math.max(234, titleLayout(ctx, portal, W - lm * 2).headerBottom)
+  const quote = JOURNAL_QUOTES[journalQuoteIdx]
+  const done = journalCharCount >= quote.text.length
+  const shown = done ? quote.text : quote.text.slice(0, journalCharCount)
+  const inkQuote = portal.light ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.68)'
+  const inkDate  = portal.light ? 'rgba(255,255,255,0.40)' : 'rgba(0,0,0,0.38)'
+
+  ctx.textAlign = 'left'
+  ctx.font = "300 15px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.letterSpacing = '0.01em'
+  ctx.fillStyle = inkQuote
+  const display = done ? `"${shown}"` : `"${shown}`
+  const lines = wrapText(ctx, display, W - lm * 2)
+  const lineHeight = 24
+  let y = startY
+  lines.forEach((ln) => { ctx.fillText(ln, lm, y); y += lineHeight })
+
+  if (done) {
+    ctx.font = "300 12px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    ctx.letterSpacing = '0.16em'
+    ctx.fillStyle = inkDate
+    ctx.fillText(quote.date, lm, y + 8)
+  }
+}
+
+setInterval(() => {
+  if (journalPhase !== 'typing') return
+  const quote = JOURNAL_QUOTES[journalQuoteIdx]
+  journalCharCount = Math.min(quote.text.length, journalCharCount + 1)
+  if (unfilteredFaceTex) {
+    drawPortalCard(unfilteredFaceCtx, PORTALS[UNFILTERED_INDEX], 600, 800, 54,
+      (ctx, W, H) => drawJournalQuote(ctx, W, H, PORTALS[UNFILTERED_INDEX]))
+    unfilteredFaceTex.needsUpdate = true
+  }
+  if (journalCharCount >= quote.text.length) {
+    journalPhase = 'holding'
+    setTimeout(() => {
+      journalQuoteIdx = (journalQuoteIdx + 1) % JOURNAL_QUOTES.length
+      journalCharCount = 0
+      journalPhase = 'typing'
+    }, JOURNAL_HOLD_MS)
+  }
+}, JOURNAL_CHAR_MS)
+
+setInterval(() => {
+  if (enquiryPhase !== 'typing') return
+  enquiryCharCount = Math.min(ENQUIRY_SAMPLE_MESSAGE.length, enquiryCharCount + 1)
+  if (enquiryFaceTex) {
+    drawPortalCard(enquiryFaceCtx, PORTALS[ENQUIRIES_INDEX], 600, 800, 54,
+      (ctx, W, H) => drawEnquiryFormPreview(ctx, W, H, PORTALS[ENQUIRIES_INDEX]))
+    enquiryFaceTex.needsUpdate = true
+  }
+  if (enquiryCharCount >= ENQUIRY_SAMPLE_MESSAGE.length) {
+    enquiryPhase = 'holding'
+    setTimeout(() => {
+      enquiryCharCount = 0
+      enquiryPhase = 'typing'
+    }, ENQUIRY_HOLD_MS)
+  }
+}, JOURNAL_CHAR_MS)
+
 const panels = [], homePositions = []
 const faceMats = [], glassMats = [], backMats = [], sideMats = []
+const faceTexes = []
 
 for (let i = 0; i < COUNT; i++) {
   const a = (i / COUNT) * Math.PI * 2
-  homePositions.push(new THREE.Vector3(Math.cos(a) * RADIUS, 0, Math.sin(a) * RADIUS))
+  homePositions.push(isMobile
+    ? new THREE.Vector3(0, Math.sin(a) * MOB_RADIUS, Math.cos(a) * MOB_RADIUS)
+    : new THREE.Vector3(Math.cos(a) * RADIUS, 0, Math.sin(a) * RADIUS))
 
-  const faceTex  = makePortalTex(PORTALS[i])
+  const portal = PORTALS[i]
+  const drawTrace = i === MOVING_IMAGES_INDEX
+    ? (ctx, W, H) => drawSwimTrace(ctx, W, H, portal.bg, 1.0)
+    : i === ARCHIVE_INDEX
+    ? (ctx, W, H) => drawArchiveVideo(ctx, W, H)
+    : i === DETROIT_INDEX
+    ? (ctx, W, H) => drawDuotoneTrace(ctx, detroitTraceImg, W, H, portal.bg, 0.5, TRACE_GRAYSCALE)
+    : i === POSTCARDS_INDEX
+    ? (ctx, W, H) => drawDuotoneTrace(ctx, postcardsTraceImg, W, H, portal.bg, 0.5, TRACE_GRAYSCALE)
+    : i === OSWIN_INDEX
+    ? (ctx, W, H) => drawOswinCircle(ctx, W, H, PORTALS[OSWIN_INDEX])
+    : i === ENQUIRIES_INDEX
+    ? (ctx, W, H) => drawEnquiryFormPreview(ctx, W, H, portal)
+    : i === UNFILTERED_INDEX
+    ? (ctx, W, H) => drawJournalQuote(ctx, W, H, portal)
+    : i === ALEX_TAVES_INDEX
+    ? (ctx, W, H) => drawAlexTavesBio(ctx, W, H, portal)
+    : null
+  const faceTex  = makePortalTex(portal, drawTrace)
+  faceTexes.push(faceTex)
+  if (i === MOVING_IMAGES_INDEX) {
+    movingImagesFaceTex = faceTex
+    movingImagesFaceCtx = faceTex.image.getContext('2d')
+    swimImg.onload = () => {
+      drawPortalCard(faceTex.image.getContext('2d'), portal, 600, 800, 54, drawTrace)
+      faceTex.needsUpdate = true
+    }
+  }
+  if (i === ARCHIVE_INDEX) {
+    archiveFaceTex = faceTex
+    archiveFaceCtx = faceTex.image.getContext('2d')
+  }
+  if (i === WELCOME_INDEX) {
+    welcomeFaceTex = faceTex
+    welcomeFaceCtx = faceTex.image.getContext('2d')
+  }
+  if (i === UNFILTERED_INDEX) {
+    unfilteredFaceTex = faceTex
+    unfilteredFaceCtx = faceTex.image.getContext('2d')
+  }
+  if (i === ENQUIRIES_INDEX) {
+    enquiryFaceTex = faceTex
+    enquiryFaceCtx = faceTex.image.getContext('2d')
+  }
+  if (i === DETROIT_INDEX) {
+    detroitTraceImg.onload = () => {
+      drawPortalCard(faceTex.image.getContext('2d'), portal, 600, 800, 54, drawTrace)
+      faceTex.needsUpdate = true
+    }
+  }
+  if (i === POSTCARDS_INDEX) {
+    postcardsTraceImg.onload = () => {
+      drawPortalCard(faceTex.image.getContext('2d'), portal, 600, 800, 54, drawTrace)
+      faceTex.needsUpdate = true
+    }
+  }
   const backTex  = makeFlippedTex(faceTex.image)
   const panelCol = new THREE.Color(PORTALS[i].bg)
 
@@ -211,7 +992,7 @@ for (let i = 0; i < COUNT; i++) {
     roughness: 0.6, metalness: 0.0, envMapIntensity: 0.1,
   })
   const reflMat = new THREE.MeshBasicMaterial({
-    map: makePortalReflTex(PORTALS[i].bg), transparent: true, opacity: isMobile ? 0.18 : 0.38,
+    map: makePortalReflTex(PORTALS[i].bg), transparent: true, opacity: isMobile ? 0.42 : 0.38,
   })
 
   const mesh = new THREE.Mesh(panelGeo, [sideMat, sideMat, glassMat, glassMat, faceMat, backMat])
@@ -229,117 +1010,482 @@ for (let i = 0; i < COUNT; i++) {
   backMats.push(backMat); sideMats.push(sideMat)
 }
 
+// Press-and-hold reveal: Detroit and Postcards redraw their own card texture
+// with the trace swapped between its resting look (75% grayscale, 0.5 alpha —
+// faint) and a full-colour, full-opacity look (0% grayscale, 1.0 alpha) while
+// the card is actively held.
+function redrawTraceCard(idx, grayscaleAmt, alpha) {
+  const portal = PORTALS[idx]
+  const faceTex = faceTexes[idx]
+  const drawTrace = idx === DETROIT_INDEX
+    ? (ctx, W, H) => drawDuotoneTrace(ctx, detroitTraceImg, W, H, portal.bg, alpha, grayscaleAmt)
+    : (ctx, W, H) => drawDuotoneTrace(ctx, postcardsTraceImg, W, H, portal.bg, alpha, grayscaleAmt)
+  drawPortalCard(faceTex.image.getContext('2d'), portal, 600, 800, 54, drawTrace)
+  faceTex.needsUpdate = true
+}
+// The panel currently pressed and held. Any held panel renders fully opaque
+// (see the loop below); Detroit/Postcards additionally recolour their trace to
+// full colour + full opacity. Everything reverts on release.
+let heldTraceIdx = null
+const isTracePanel = (i) => i === DETROIT_INDEX || i === POSTCARDS_INDEX
+function setHeldTrace(idx) {
+  if (heldTraceIdx === idx) return
+  if (isTracePanel(heldTraceIdx)) redrawTraceCard(heldTraceIdx, TRACE_GRAYSCALE, 0.5)
+  heldTraceIdx = idx
+  if (isTracePanel(idx)) redrawTraceCard(idx, TRACE_GRAYSCALE_HELD, 1.0)
+}
+function clearHeldTrace() {
+  if (heldTraceIdx === null) return
+  if (isTracePanel(heldTraceIdx)) redrawTraceCard(heldTraceIdx, TRACE_GRAYSCALE, 0.5)
+  heldTraceIdx = null
+}
+
+// ── Story overlay (UNFILTERED IDEAS) ────────────────────────────────────────
+const STORIES = {
+  [UNFILTERED_INDEX]: {
+    coverLines: ['UNFILTERED', 'IDEAS'],
+    coverTypeOpts: { typeDur: 1600, backspaceDur: 1600, cycle: 6200 },
+    bg: PORTALS[UNFILTERED_INDEX].bg,
+    reverseReveal: true,
+    paragraphs: [
+      { date: "JANUARY 6, 2026", text: "The band site should be two things at once. A front door that works like the industry expects, tour dates, links, photos. Then you go inside and the music plays and the site becomes atmosphere. Landing page outside, installation inside. This is the offer." },
+      { date: "FEBRUARY 20, 2026", text: "The artist's website is the app. A PWA a fan installs to their home screen with one tap. The artist uploads new tracks, new visuals, new shop items, and the fan stays in the loop without a platform in between. It cuts out Spotify. It cuts out Instagram. You can message the artist there. You could even video call. The social layer exists but the point is ownership." },
+      { date: "MARCH 5, 2026", text: "Build the showreel first. A fast cut of everything, moving type, images, video, After Effects. One piece, three jobs: portfolio for applications, hero for the landing page, proof for outreach. Then the landing page. Then reach out. Never the other order." },
+      { date: "MARCH 13, 2026", text: "The whole web is about to explode with new voices. Unique, original, starting local and growing organically out. Popularity is not algorithm based anymore. That era is closing fast. Rushkoff, Godin, Hedges all pointing at the same door from different rooms." },
+      { date: "MARCH 16, 2026", text: "The browser is the album. Schoenberg performed by the code itself, colour bars as the composition made visible. One image across all the colorways, not many images. The boxer flexing. It has a Warhol vibe but it unfolds in time, which Warhol never had. An edition, not a group show." },
+      { date: "MARCH 16, 2026", text: "DemoTape2 opens as a piano. Bach already playing, the visitor invited to play along. And a looser thought: jamming not as a serious tool but as doodling while chatting. Jasper suggested the ecosystem layer, bands who use it belong to something. The piano is a signature move. The belonging is the business." },
+      { date: "MARCH 16, 2026", text: "The DemoTape premise in one line: every platform inserts itself between artist and audience, this inverts it. Not a bigger mall renting stalls. Keys to your own shop on the high street." },
+      { date: "MARCH 20, 2026", text: "Named my own method plainly for the first time. I direct the concept and the feel, raw material gets generated collaboratively, then I rewrite every line in my own words. The filter is the authorship. And the signature move across all the fiction: tonal inversion, making the violent and cosmic feel mundane and casual." },
+      { date: "MARCH 27, 2026", text: "Stopped worrying about posting regularly and I feel more creative and focused when I am not thinking about it. Unless you are already famous or performing yourself, the platform is close to pointless. The relief is signal, not laziness. Protect it." },
+      { date: "APRIL 19, 2026", text: "Grafting. Fusing incompatible things, eye onto tree, pencil sharpener onto missile, as both the literal premise and the structural method of the writing itself. The frame: AI's combinatorial infinity is a new frontier, the same vertigo the early explorers had, everyone in it at once." },
+      { date: "APRIL 19, 2026", text: "The line to keep forever: the reader doesn't know where the factual floor is. Load the prose with enough accurate-feeling terminology that nobody can locate where real ends and invention begins. The mundane specific detail is what sells the whole edifice. My entire technical voice in one sentence." },
+      { date: "APRIL 23, 2026", text: "Issue 3 locked in one breath. Schoenberg loop, piano keys overlaid on the boxer, five colorways, stories slipped between, and the keys stay playable while you read. You can play piano with Schoenberg mid-sentence." },
+      { date: "APRIL 23, 2026", text: "The RP fix: generate the faces with AI so it's no one. No real agent in Reservoir recognising himself. And then the sharper turn, link the fake clickbait ads straight to thispersondoesnotexist.com. It stops being mockery and becomes an argument about the interchangeability of authority personas." },
+      { date: "APRIL 28, 2026", text: "Ran Oswin through the salient idea exercise. The belief underneath everything: the web was once a space of creative promise and AI has lowered the barriers enough to reclaim it. The distillation: the web as a place where ideas live, not describe themselves. Other publications write about art. Oswin builds rooms for it to inhabit." },
+      { date: "MAY 3, 2026", text: "Siphon's engine is the frame. Total surveillance database, complete visual record of human existence, narrated by a distracted girlfriend between perfume sprays, wipers and blinkers confused, sitting too close to the wheel. Cheryl unwraps a candy methodically and delivers the verdict: at least he does stuff. Horror as domestic texture." },
+      { date: "MAY 3, 2026", text: "The fifth Bone piece. A war or climate event or virus shut the world down, five years and no sign of letting up. No galleries. Business folded inwards. The web was the empty vessel put up and almost forgotten about, and artists recreated it as a universal art space. They didn't win the web. They inherited it because nobody else wanted it. The origin myth of Oswin told as speculative history." },
+      { date: "MAY 3, 2026", text: "The 5am note. Dreamlike spaces with no beginning and no end that one can tap into. The sea of forgotten footage brought back to life. The way people went to Rome to see the origins of our collective humanity, the empty void that was called the web made that pilgrimage seamless and part of your every moment. The web is the new Rome. Not the surveillance web. The empty vessel web, the one the artists inherited. This is the positive vision the Bone stories deliberately withhold, and it is the manifesto for everything I am building." },
+      { date: "MAY 3, 2026", text: "The Bone glossary. Thirty entries, real terminology braided with invented terms until the seam disappears. Bose, Sheldrake, Schoenberg as the factual foundation, all thinkers dismissed in their time and rehabilitated later. The factual floor technique scaled from a paragraph to a universe." },
+      { date: "MAY 3, 2026", text: "Versions. A public installation called ECHO+ that projects the viewer back at themselves, and over time the illumination stratifies into a ranked hierarchy. The hall of mirrors that becomes a caste system, and nobody in the piece registers it as anything but nice lighting." },
+      { date: "MAY 5, 2026", text: "The line that finished Hum: I've lowered my glasses a few times out of curiosity. To not wear them seems so sad and lonely. The narrator embedded inside the system, not above it. Cut every trailer-voice sentence, keep every dry-observer sentence. Describe the world as furniture." },
+      { date: "MAY 21, 2026", text: "The architecture decision that settled a year of circling. Oswinjournal.com stays a pure gallery. Each issue is a room, nothing on the walls. The Substack is the newspaper you pick up at the gallery entrance. Adjacent, never merged." },
+      { date: "MAY 27, 2026", text: "Diver. Vintage diver footage in near-portrait, infinite descent, the loop endless, scroll left or right and the colour inverts, resting in blue. My strongest work so far. The reason it works became the test for everything after: the gesture and the meaning are the same thing. Scrolling down is the dive." },
+      { date: "MAY 28, 2026", text: "The collapse essay fragment. Abandoned brand domains, the internet left running after capital withdrew, an artist in Berlin claiming nike.com. The closer for the collection." },
+      { date: "MAY 28, 2026", text: "The strongman piece. Yoni's music inside a walkable space built from the vintage strongman series, the flexing figure across coloured scrims. Oli handles the 3D immersion, I handle the web. Collaboration on the Comme des Garçons model: discrete named objects, both identities intact, no merged business." },
+      { date: "MAY 28, 2026", text: "The reframe that reorganised all outreach. My engine is collaboration, not distribution. Every name that generated real energy was a make-with. Every name that felt hollow was a show-to. The sensor already knows before I do. Listen to it." },
+      { date: "JUNE 1, 2026", text: "The journal build has a real reason now. Scored reading. Shaping the soundtrack to the text so the page feels like an experience, not a post. Oswin's thesis pointed at my own sentences. The one thing Substack physically cannot do." },
+      { date: "JUNE 2, 2026", text: "The RP project, full session. Infinite corflute grid of AI faces, click to flip, agent or politician. Tiered rewards: flavour text mostly, Oswin links common, tee discounts medium, curated web art rare. Deadpan testimonials living inside the grid itself. A docked weather widget with the wrong register on purpose. A prize counter ticking upward and never paying out. Tees printed with AI faces, modelled by AI models. The recursive logic that defends it: real people already flatten themselves into performed friendliness on corflutes, AI distills the performance, the infinite grid mocks the feed that numbed us to human faces, the tee prints the synthetic face for real commercial sale, and the loop closes at commerce." },
+      { date: "JUNE 2, 2026", text: "Rejected Notion. Built the organisation system as a single HTML file instead. No app, no account, no dependency. One file I own outright. This is the seed of the Prototypes portal and the essay that goes with it: build your own tools." },
+      { date: "JUNE 9, 2026", text: "The stacked carousel. Two rings. Content frames below, arranged so the gaps between forward-facing frames reveal the back of the ring and you feel the volume of the space. A second ring above where the frames are the menu, each one a gateway to a room. Navigation as a spatial place you ascend to, not a bar you click." },
+      { date: "JUNE 11, 2026", text: "Coined personable bubble mid-riff and it stuck. Same session, the diary scroll: a website that just keeps going, up and up, like a diary that begins where you left off. The page as time itself. Scroll position is the date." },
+      { date: "JUNE 11, 2026", text: "Moodypiece fragment. Her face inches from mine. She lit up like a spotlight, a moody one. What started bright, even washed out, caved into itself. Five words doing a whole scene." },
+      { date: "JUNE 26, 2026", text: "The escalating theses session. Word and Docs go redundant when custom apps can be built on demand. Spotify could go the way of 8-track. Maybe we live in a world of islands, environments designed purely to be what they are, not generic platforms catering to everything. The correction that came back holds: islands form an archipelago around the continent, they don't sink it. And I am already living on the island." },
+      { date: "JUNE 26, 2026", text: "The gold rush read. Bought baseball tickets for a game in Chatham the other night and the site was clunky. Almost the whole web is clunky. Felt like the moment to pounce. The correction holds here too: cheap building commoditises the generic developer, taste is what stays scarce. The lane is not fixing the clunky web. It is the narrow expensive lane where the look is the product." },
+      { date: "JUNE 26, 2026", text: "Also for the record: held my ground mid-session when the debate got misread as avoidance. It was a debate. Being able to tell the difference matters in both directions." },
+      { date: "JULY 1, 2026", text: "Issue 4 locked in one breath. Alejandro's images are exceptional and flat and they carry an odd sameness, so the concept is a floating infinite grid where you are lost in a sea of mundane image, and the lostness is the point. His work only lives on Instagram, so take the exact grammar of the feed, the infinite scroll, the sameness, and move it into a room where the mechanism serves the work instead of the extraction. Same mechanism, opposite master." },
+      { date: "JULY 1, 2026", text: "Jasper's placement. His music sits in the Alex G and Duster world, and that scene's web culture is as considered as its sound. Lo-fi, deliberately small, allergic to slick. An immersive single-page site there is not decoration, it is fluency. It says we are from your world before a note plays." },
+      { date: "JULY 2, 2026", text: "Said the authorship thing out loud. It takes tonnes of tweaking. What I tell the tools barely scratches the surface. There is no magic prompt that gets anywhere close to what I want. The one-shot prompt produces the median of everything that already exists. The moat was never the code. It is the accumulated chain of small judgment calls made against a running prototype. Oswin is a masthead: taste plus relationships plus a back catalogue with real names attached." },
+      { date: "JULY 2, 2026", text: "Pushed the grid through Eno and Hawtin. Make it generative, not looped, a seeded shuffle so every visitor gets a different configuration. Treat the ratio of interview tiles to images as a compositional variable, tested, not guessed. And the pressable thesis: the infinite scroll rebuilt with every platform mechanic removed." },
+      { date: "JULY 8, 2026 — 4:44AM", text: "Everything is a portal. What is the difference between alextaves.com and oswinjournal.com, both are portals into themselves. The user moves seamlessly through each without feeling they left the other. The web becomes a place one moves through, no beginning and no end. Two domains, one application. The trip did not give me a new plan. It gave me the philosophy that makes the plan coherent." },
+      { date: "JULY 8, 2026", text: "The global audio layer. Music chosen at arrival, persisting as you move between portals, fading out when you cross into a defined ecosystem like an issue. The whole idea of Oswin is collaboration with audio artists, so the corridor has sound and the screening rooms have their own. The fade is the architectural signature." },
+      { date: "JULY 8, 2026", text: "The Jasper piece, argued and won. A brilliant artist lives in my house. A week of two-hour sessions, existing Three.js patterns, one track, one interactive piece. A gift he can show his friends and teachers, the smallest possible demo of the portal ecosystem, and an audience-building artifact all at once. Not drift. Resequencing, and the window is his enthusiasm, which does not wait." },
+    ],
+  },
+  [ALEX_TAVES_INDEX]: {
+    coverLines: ['ALEX', 'TAVES'],
+    coverTypeOpts: { typeDur: 1600, backspaceDur: 1600, cycle: 6200 },
+    bg: PORTALS[ALEX_TAVES_INDEX].bg,
+    paragraphs: [
+      "Alex Taves builds rooms on the internet, part of what he calls the Slow Web, and his gut says the web is only beginning. He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario. It took off, earned a nod from The New York Times, then crashed. The crash mattered: it opened a whole new world. Out of desperation he learned to code, and React, the framework Netflix runs on, became an obsession. It seemed wildly untapped as a medium for art.",
+      "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
+    ],
+  },
+}
+
+const storyOverlay = document.getElementById('storyOverlay')
+const storyText = document.getElementById('storyText')
+const storyCoverTitle = document.getElementById('storyCoverTitle')
+const storyBody = document.getElementById('storyBody')
+const enquiryForm = document.getElementById('enquiryForm')
+const enquiryFormEl = document.getElementById('enquiryFormEl')
+const enquiryStatus = document.getElementById('enquiryStatus')
+
+enquiryFormEl.addEventListener('click', (e) => e.stopPropagation())
+enquiryFormEl.addEventListener('submit', (e) => {
+  e.preventDefault()
+  const name = enquiryFormEl.name.value.trim()
+  const email = enquiryFormEl.email.value.trim()
+  const message = enquiryFormEl.message.value.trim()
+  const subject = `Enquiry from ${name || email}`
+  const body = `${message}\n\n— ${name} (${email})`
+  window.location.href = `mailto:alextaves@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  enquiryStatus.textContent = 'opening your email client…'
+})
+
+function setStoryBg(hex) {
+  storyOverlay.style.setProperty('--bg', hex)
+  storyOverlay.style.setProperty('--bg-r', parseInt(hex.slice(1, 3), 16))
+  storyOverlay.style.setProperty('--bg-g', parseInt(hex.slice(3, 5), 16))
+  storyOverlay.style.setProperty('--bg-b', parseInt(hex.slice(5, 7), 16))
+}
+
+// Exact duplicate of makeTypedOverlay's type/backspace loop (same durations,
+// same absolute-clock phase), but writing into DOM line divs instead of a
+// canvas — this is the black echo of the portal card's own neon title.
+function startCoverTitleLoop(lines, opts) {
+  const TYPE_DUR = opts.typeDur, BACKSPACE_DUR = opts.backspaceDur, CYCLE = opts.cycle
+  const totalLen = lines.reduce((n, l) => n + l.length, 0)
+  const lineEls = Array.from(storyCoverTitle.children)
+  let raf = null
+  function frame(now) {
+    const t = now % CYCLE
+    let charCount
+    if (t < TYPE_DUR) {
+      charCount = Math.min(totalLen, Math.floor((t / TYPE_DUR) * (totalLen + 1)))
+    } else if (t > CYCLE - BACKSPACE_DUR) {
+      const bt = t - (CYCLE - BACKSPACE_DUR)
+      charCount = totalLen - Math.min(totalLen, Math.floor((bt / BACKSPACE_DUR) * (totalLen + 1)))
+    } else {
+      charCount = totalLen
+    }
+    const cursorOn = Math.floor(now / 375) % 2 === 0
+    let remaining = charCount
+    let activeIdx = 0
+    lines.forEach((line, i) => {
+      const take = Math.max(0, Math.min(line.length, remaining))
+      lineEls[i].textContent = line.slice(0, take)
+      remaining -= take
+      if (take > 0) activeIdx = i
+    })
+    lineEls.forEach((el, i) => el.classList.toggle('cursor-on', i === activeIdx && cursorOn))
+    raf = requestAnimationFrame(frame)
+  }
+  raf = requestAnimationFrame(frame)
+  return () => { if (raf) cancelAnimationFrame(raf) }
+}
+
+// Fast terminal-style readout: the paragraphs type in as one continuous
+// stream, in reading order, at a fixed character rate — quick enough to
+// feel like a data dump, slow enough that each line visibly builds.
+const TYPE_CPS = 140
+let typingRAF = null
+
+function typeStory(idx) {
+  const story = STORIES[idx]
+  storyBody.innerHTML = ''
+  // A paragraph entry is either a plain string, or a { date, text } object
+  // whose date prefix renders bold (see .entry-date).
+  const nodes = story.paragraphs.map((entry) => {
+    const p = document.createElement('p')
+    const dateEl = document.createElement('span')
+    dateEl.className = 'entry-date'
+    const bodyEl = document.createElement('span')
+    p.appendChild(dateEl); p.appendChild(bodyEl)
+    storyBody.appendChild(p)
+    const datePart = typeof entry === 'string' ? '' : entry.date + ' — '
+    const bodyPart = typeof entry === 'string' ? entry : entry.text
+    return { el: p, dateEl, bodyEl, datePart, bodyPart, full: datePart + bodyPart }
+  })
+
+  const totalLen = nodes.reduce((n, node) => n + node.full.length, 0)
+  const startTime = performance.now()
+  // Normal stories type start-to-end; reverseReveal types the last entry
+  // first and works backward, DOM position unchanged — so already-typed
+  // text never moves, it just scrolls out of view as we work backward.
+  const order = []
+  for (let i = 0; i < nodes.length; i++) order.push(story.reverseReveal ? nodes.length - 1 - i : i)
+  let activeIdx = -1
+
+  function tick(now) {
+    const charCount = Math.min(totalLen, Math.floor(((now - startTime) / 1000) * TYPE_CPS))
+    let offset = 0
+    let newActiveIdx = order[order.length - 1]
+    let foundActive = false
+    order.forEach((i) => {
+      const node = nodes[i]
+      const take = Math.max(0, Math.min(node.full.length, charCount - offset))
+      const dateTake = Math.min(node.datePart.length, take)
+      const bodyTake = Math.max(0, take - node.datePart.length)
+      node.dateEl.textContent = node.datePart.slice(0, dateTake)
+      node.bodyEl.textContent = node.bodyPart.slice(0, bodyTake)
+      if (!foundActive && take < node.full.length) { newActiveIdx = i; foundActive = true }
+      offset += node.full.length
+    })
+    if (newActiveIdx !== activeIdx) {
+      nodes.forEach((node, i) => node.el.classList.toggle('typing', i === newActiveIdx))
+      activeIdx = newActiveIdx
+    }
+    if (story.reverseReveal) {
+      // Hug the bottom: the most-recently-completed entries stay in view at
+      // the bottom while older ones silently fill in above, out of sight —
+      // the only way to actually watch text being typed is to scroll up,
+      // away from the bottom. Only re-pin when already at/near the bottom,
+      // so a deliberate scroll-up to watch it type isn't fought every frame.
+      const nearBottom = storyOverlay.scrollHeight - storyOverlay.scrollTop - storyOverlay.clientHeight < 48
+      if (nearBottom) storyOverlay.scrollTop = storyOverlay.scrollHeight
+    }
+    // Forward (non-reverseReveal) stories intentionally don't auto-scroll —
+    // the overlay opens at the top and stays there, so the reader can start
+    // straight away instead of waiting for the typing animation to catch up.
+    typingRAF = charCount < totalLen ? requestAnimationFrame(tick) : null
+  }
+  typingRAF = requestAnimationFrame(tick)
+}
+
+let storyOpen = false
+let storyPanelIdx = null
+const _storyCorner = new THREE.Vector3()
+
+// Projects the clicked panel's own front-face corners to screen space so the
+// overlay stays contained within that portal's on-screen shape.
+function updateStoryRect() {
+  if (storyPanelIdx === null) return
+  const mesh = panels[storyPanelIdx]
+  mesh.updateMatrixWorld(true)
+  const hw = panelW / 2, hh = panelH / 2, z = THICK / 2
+  const corners = [[-hw, -hh, z], [hw, -hh, z], [hw, hh, z], [-hw, hh, z]]
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  corners.forEach(([x, y, zz]) => {
+    _storyCorner.set(x, y, zz).applyMatrix4(mesh.matrixWorld).project(camera)
+    const sx = (_storyCorner.x * 0.5 + 0.5) * innerWidth
+    const sy = (1 - (_storyCorner.y * 0.5 + 0.5)) * viewportH()
+    minX = Math.min(minX, sx); maxX = Math.max(maxX, sx)
+    minY = Math.min(minY, sy); maxY = Math.max(maxY, sy)
+  })
+  storyOverlay.style.left = minX + 'px'
+  storyOverlay.style.top = minY + 'px'
+  storyOverlay.style.width = (maxX - minX) + 'px'
+  storyOverlay.style.height = (maxY - minY) + 'px'
+}
+
+let coverTitleStop = null
+function openStory(idx) {
+  if (storyOpen) return
+  storyOpen = true
+  storyPanelIdx = idx
+  angVel = 0
+  if (idx === ENQUIRIES_INDEX) {
+    setStoryBg(PORTALS[ENQUIRIES_INDEX].bg)
+    storyText.style.display = 'none'
+    enquiryForm.style.display = 'block'
+    enquiryFormEl.reset()
+    enquiryStatus.textContent = ''
+  } else {
+    const story = STORIES[idx]
+    setStoryBg(story.bg)
+    storyText.style.display = ''
+    enquiryForm.style.display = 'none'
+    if (coverTitleStop) coverTitleStop()
+    coverTitleStop = startCoverTitleLoop(story.coverLines, story.coverTypeOpts)
+    typeStory(idx)
+    if (!story.reverseReveal) storyOverlay.scrollTop = 0
+  }
+  updateStoryRect()
+  storyOverlay.classList.add('active')
+}
+function closeStory() {
+  storyOpen = false
+  storyPanelIdx = null
+  if (typingRAF) { cancelAnimationFrame(typingRAF); typingRAF = null }
+  if (coverTitleStop) { coverTitleStop(); coverTitleStop = null }
+  storyOverlay.classList.remove('active')
+}
+storyOverlay.addEventListener('click', closeStory)
+window.addEventListener('keydown', (e) => { if (storyOpen && e.key === 'Escape') closeStory() })
+
+// Panels that navigate away from the carousel entirely (as opposed to
+// opening an in-place overlay) need a confirm step — the first click just
+// focuses/opacifies the panel, a second click on that same still-focused
+// panel is what actually triggers the reroute. Stops a stray click while
+// spinning the ring from yanking you out of it.
+let pendingConfirmIdx = null
+
+// A click is meant to act on the panel the user is looking at — the one rotated
+// to the front of the ring. Picking the nearest raycast hit instead grabs
+// whichever large, semi-transparent neighbour happens to intercept the ray
+// first (adjacent cards like Detroit/Postcards overlap heavily off-centre), so
+// clicks landed on the wrong panel. Selecting the front-most panel by depth is
+// deterministic and matches what's visually centred.
+function frontPanelIdx() {
+  let best = -1, bestZ = -Infinity
+  for (let i = 0; i < COUNT; i++) {
+    const z = panels[i].position.z
+    if (z > bestZ) { bestZ = z; best = i }
+  }
+  return best
+}
+
+function handlePanelClick(idx) {
+  if (idx === UNFILTERED_INDEX || idx === ENQUIRIES_INDEX || idx === ALEX_TAVES_INDEX) { openStory(idx); return }
+  if (idx === OSWIN_INDEX) { window.open('https://oswinjournal.com', '_blank'); return }
+  if (pendingConfirmIdx !== idx) {
+    pendingConfirmIdx = idx
+    return
+  }
+  pendingConfirmIdx = null
+  if (idx === ARCHIVE_INDEX) {
+    (window.top || window).location.href = ARCHIVE_URL
+    return
+  }
+  if (window !== window.top) {
+    window.parent.postMessage({ type: 'portalClick', idx }, '*')
+  }
+}
+
+// The ambient piano lives in the parent app (one continuous layer across
+// every ring/page) — this just reports when the user is actively moving
+// this ring, not the constant idle auto-rotation.
+function notifyRingDrag(dragging) {
+  if (window !== window.top) window.parent.postMessage({ type: 'ringDrag', dragging }, '*')
+}
+
 // ── Interaction ───────────────────────────────────────────────────────────────
 const SENS = 0.005, FRICTION = 2.5, MAX_VEL = 6.0
 const AUTO_SPEED = 0.0375, DRAG_THRESH = 6
 const raycaster = new THREE.Raycaster()
 const clickPointer = new THREE.Vector2()
 
-let angle = 0, angVel = 0
+// Start with the WELCOME portal front & centre. (front panel i ⇔ angle = a_i − π/2;
+// if WELCOME lands off-centre, flip the sign of this expression.)
+let angle = (WELCOME_INDEX / COUNT) * Math.PI * 2 - Math.PI / 2, angVel = 0
 let dragging = false, didDrag = false
 let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0
+// Clicking a panel pauses the auto-rotation so it holds still for the confirm
+// tap. The fully-opaque focus look is now driven by press-and-hold (heldTraceIdx),
+// not by the click itself. Dragging clears the pause, same as before.
+let paused = false
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (isMobile) return
+  if (isMobile || storyOpen) return
   dragging = true; didDrag = false
   downX = lastX = e.clientX; downY = e.clientY
   lastMoveT = performance.now(); trackedVel = 0
+  clickPointer.x = (downX / innerWidth) * 2 - 1
+  clickPointer.y = -((downY / innerHeight) * 2 - 1)
+  raycaster.setFromCamera(clickPointer, camera)
+  const hits = raycaster.intersectObjects(panels, false)
+  if (hits.length > 0) setHeldTrace(frontPanelIdx())
 })
 renderer.domElement.addEventListener('pointermove', (e) => {
-  if (isMobile || !dragging) return
+  if (isMobile || !dragging || welcomeActive) return
   const now = performance.now()
   const dx  = e.clientX - lastX
   const dtm = Math.max((now - lastMoveT) / 1000, 0.001)
   lastX = e.clientX; lastMoveT = now
   if (Math.abs(e.clientX - downX) > DRAG_THRESH || Math.abs(e.clientY - downY) > DRAG_THRESH) {
+    if (!didDrag) { paused = false; pendingConfirmIdx = null; notifyRingDrag(true) }
     didDrag = true
     angle += dx * SENS
     trackedVel = trackedVel * 0.6 + (dx / dtm) * 0.4
   }
 })
 renderer.domElement.addEventListener('pointerup', () => {
+  clearHeldTrace()
   if (isMobile || !dragging) return
+  if (didDrag) notifyRingDrag(false)
   dragging = false
   if (!didDrag) {
     clickPointer.x = (downX / innerWidth) * 2 - 1
     clickPointer.y = -((downY / innerHeight) * 2 - 1)
     raycaster.setFromCamera(clickPointer, camera)
-    const hits = raycaster.intersectObjects(panels)
-    if (hits.length > 0 && window !== window.top) {
-      window.parent.postMessage({ type: 'portalClick', idx: hits[0].object.userData.panelIdx }, '*')
-    }
+    const hits = raycaster.intersectObjects(panels, false)
+    // Entry state: the only live controls are ON / OFF / Begin on the WELCOME card.
+    if (welcomeActive) { handleWelcomeClick(hits); return }
+    if (hits.length > 0) { paused = true; handlePanelClick(frontPanelIdx()) }
   } else {
     const av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS
     angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av))
   }
 })
+renderer.domElement.addEventListener('pointerleave', clearHeldTrace)
+renderer.domElement.addEventListener('pointercancel', clearHeldTrace)
 
-// Mobile touch — horizontal swipe
-let touchId = null, touchLastX = 0, touchLastT = 0, touchVel = 0
+// Mobile touch — vertical swipe (ring spins on the vertical axis on mobile)
+let touchId = null, touchLastY = 0, touchLastT = 0, touchVel = 0
 let mobHSwiping = false, touchStartX = 0, touchStartY = 0
 
 renderer.domElement.addEventListener('touchstart', (e) => {
-  if (!isMobile) return
+  if (!isMobile || storyOpen) return
   e.preventDefault()
   const t = e.touches[0]
   touchId = t.identifier
-  touchStartX = touchLastX = t.clientX
-  touchStartY = t.clientY
+  touchStartX = t.clientX
+  touchStartY = touchLastY = t.clientY
   touchLastT = performance.now()
   touchVel = 0; mobHSwiping = false
+  dragging = true
+  clickPointer.x = (t.clientX / innerWidth) * 2 - 1
+  clickPointer.y = -((t.clientY / viewportH()) * 2 - 1)
+  raycaster.setFromCamera(clickPointer, camera)
+  const holdHits = raycaster.intersectObjects(panels, false)
+  if (holdHits.length > 0) setHeldTrace(frontPanelIdx())
 }, { passive: false })
 renderer.domElement.addEventListener('touchmove', (e) => {
-  if (!isMobile) return
+  if (!isMobile || welcomeActive) return
   e.preventDefault()
   const t = Array.from(e.touches).find(x => x.identifier === touchId)
   if (!t) return
   const now = performance.now()
-  const dx  = t.clientX - touchLastX
+  const dy  = t.clientY - touchLastY
   const dtm = Math.max((now - touchLastT) / 1000, 0.016)
-  if (!mobHSwiping && Math.abs(t.clientX - touchStartX) > 8) mobHSwiping = true
+  if (!mobHSwiping && Math.abs(t.clientY - touchStartY) > 8) { mobHSwiping = true; paused = false; pendingConfirmIdx = null; notifyRingDrag(true) }
   if (mobHSwiping) {
-    angle += dx * 0.004
-    touchVel = touchVel * 0.6 + (dx / dtm) * 0.4
+    angle += dy * MOB_TOUCH_SENS
+    touchVel = touchVel * 0.6 + (dy / dtm) * 0.4
   }
-  touchLastX = t.clientX; touchLastT = now
+  touchLastY = t.clientY; touchLastT = now
 }, { passive: false })
 renderer.domElement.addEventListener('touchend', (e) => {
-  if (!isMobile) return
+  clearHeldTrace()
+  if (!isMobile || storyOpen) return
+  if (mobHSwiping) notifyRingDrag(false)
+  dragging = false
   if (!mobHSwiping) {
     const t = e.changedTouches[0]
     clickPointer.x = (t.clientX / innerWidth) * 2 - 1
-    clickPointer.y = -((t.clientY / innerHeight) * 2 - 1)
+    clickPointer.y = -((t.clientY / viewportH()) * 2 - 1)
     raycaster.setFromCamera(clickPointer, camera)
-    const hits = raycaster.intersectObjects(panels)
-    if (hits.length > 0 && window !== window.top) {
-      window.parent.postMessage({ type: 'portalClick', idx: hits[0].object.userData.panelIdx }, '*')
-    }
+    const hits = raycaster.intersectObjects(panels, false)
+    if (welcomeActive) { handleWelcomeClick(hits); touchId = null; return }
+    if (hits.length > 0) { paused = true; handlePanelClick(frontPanelIdx()) }
   } else {
-    angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, touchVel * 0.004))
+    angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, touchVel * MOB_TOUCH_SENS))
   }
   touchId = null
 }, { passive: true })
+renderer.domElement.addEventListener('touchcancel', clearHeldTrace, { passive: true })
 
+// Wheel events fire continuously through a scroll gesture with no natural
+// start/end like pointerdown/up — debounce so the piano gets one "started"
+// per burst and one "stopped" after scrolling actually pauses.
+let wheelDragTimeout = null
 window.addEventListener('wheel', (e) => {
+  if (storyOpen || welcomeActive) return
   e.preventDefault()
   angle -= e.deltaY * 0.0008
   angVel = 0
+  if (!wheelDragTimeout) notifyRingDrag(true)
+  clearTimeout(wheelDragTimeout)
+  wheelDragTimeout = setTimeout(() => { notifyRingDrag(false); wheelDragTimeout = null }, 220)
 }, { passive: false })
 
 window.addEventListener('keydown', (e) => {
+  if (storyOpen || welcomeActive) return
   if (e.key === 'ArrowLeft')       angVel = Math.min(MAX_VEL, angVel + 1.8)
   else if (e.key === 'ArrowRight') angVel = Math.max(-MAX_VEL, angVel - 1.8)
 })
 window.addEventListener('message', (e) => {
+  if (storyOpen || welcomeActive) return
   if (!e.data || e.data.type !== 'key') return
   if (e.data.key === 'ArrowLeft')       angVel = Math.min(MAX_VEL, angVel + 1.8)
   else if (e.data.key === 'ArrowRight') angVel = Math.max(-MAX_VEL, angVel - 1.8)
 })
 
 window.addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight
+  camera.aspect = innerWidth / viewportH()
   camera.updateProjectionMatrix()
-  renderer.setSize(innerWidth, innerHeight)
+  renderer.setSize(innerWidth, viewportH())
+  updateStoryRect()
 })
 
 // ── Render loop ───────────────────────────────────────────────────────────────
@@ -350,27 +1496,87 @@ function render(now) {
   let dt = (now - last) / 1000; last = now
   if (dt > 0.05) dt = 0.05
 
-  if (!dragging) {
-    const target = AUTO_SPEED
-    angVel = target + (angVel - target) * Math.exp(-FRICTION * dt)
+  if (movingImagesFaceTex && swimImg.complete && swimImg.naturalWidth) {
+    swimScroll += SWIM_SCROLL_SPEED * dt
+    swimTime += dt
+    drawPortalCard(movingImagesFaceCtx, PORTALS[MOVING_IMAGES_INDEX], 600, 800, 54,
+      (ctx, W, H) => drawSwimTrace(ctx, W, H, PORTALS[MOVING_IMAGES_INDEX].bg, 1.0))
+    movingImagesFaceTex.needsUpdate = true
+  }
+
+  if (archiveFaceTex && archiveVideo.readyState >= 2) {
+    drawPortalCard(archiveFaceCtx, PORTALS[ARCHIVE_INDEX], 600, 800, 54,
+      (ctx, W, H) => drawArchiveVideo(ctx, W, H))
+    archiveFaceTex.needsUpdate = true
+  }
+
+  if (!dragging && !storyOpen && !welcomeActive) {
+    if (!paused) {
+      const target = AUTO_SPEED
+      angVel = target + (angVel - target) * Math.exp(-FRICTION * dt)
+    } else {
+      angVel *= Math.exp(-FRICTION * dt)
+    }
     angle += angVel * dt
   }
 
-  orbitEuler.set(0, angle, 0, 'XYZ')
-  orbitQuat.setFromEuler(orbitEuler)
+  // While the pointer is down (holding or dragging), keep the front-most panel
+  // fully opaque so it stays solid as you spin through the ring; released → revert.
+  if (dragging) setHeldTrace(frontPanelIdx())
 
-  for (let i = 0; i < COUNT; i++) {
-    orbitPos.copy(homePositions[i]).applyQuaternion(orbitQuat)
-    panels[i].position.set(orbitPos.x * SPREAD, 0, orbitPos.z)
-    panels[i].rotation.set(0, Math.atan2(orbitPos.x, orbitPos.z), 0)
+  if (isMobile) {
+    orbitEuler.set(angle, 0, 0, 'XYZ')
+    orbitQuat.setFromEuler(orbitEuler)
 
-    const norm = Math.min(1, Math.max(0, (orbitPos.z + RADIUS) / (2 * RADIUS)))
-    faceMats[i].opacity  = FRONT_OPACITY * (0.5 + 0.5 * norm)
-    glassMats[i].opacity = BACK_OPACITY  * (0.3 + 0.7 * norm)
-    sideMats[i].opacity  = 0.65 * (0.22 + 0.45 * norm)
-    backMats[i].opacity  = 0.72
-    panels[i].renderOrder = Math.round(orbitPos.z * 1000)
+    for (let i = 0; i < COUNT; i++) {
+      orbitPos.copy(homePositions[i]).applyQuaternion(orbitQuat)
+      panels[i].position.set(0, orbitPos.y * SPREAD, orbitPos.z)
+      panels[i].rotation.set(Math.atan2(-orbitPos.y, orbitPos.z), 0, 0)
+
+      const norm = Math.min(1, Math.max(0, (orbitPos.z + MOB_RADIUS) / (2 * MOB_RADIUS)))
+      faceMats[i].opacity  = FRONT_OPACITY * (0.5 + 0.5 * norm)
+      glassMats[i].opacity = BACK_OPACITY  * (0.3 + 0.7 * norm)
+      sideMats[i].opacity  = 0.65 * (0.22 + 0.45 * norm)
+      backMats[i].opacity  = 0.72
+      // Held card (Detroit/Postcards full-colour reveal) goes fully solid —
+      // no glass/back translucency, so nothing behind it reads through.
+      if (i === heldTraceIdx) {
+        faceMats[i].opacity = 1; glassMats[i].opacity = 1
+        sideMats[i].opacity = 1; backMats[i].opacity = 1
+      }
+      if (welcomeActive && i === WELCOME_INDEX) {
+        faceMats[i].opacity = 1; glassMats[i].opacity = 1
+        sideMats[i].opacity = 1; backMats[i].opacity = 1
+      }
+      panels[i].renderOrder = Math.round(orbitPos.z * 1000)
+    }
+  } else {
+    orbitEuler.set(0, angle, 0, 'XYZ')
+    orbitQuat.setFromEuler(orbitEuler)
+
+    for (let i = 0; i < COUNT; i++) {
+      orbitPos.copy(homePositions[i]).applyQuaternion(orbitQuat)
+      panels[i].position.set(orbitPos.x * SPREAD, 0, orbitPos.z)
+      panels[i].rotation.set(0, Math.atan2(orbitPos.x, orbitPos.z), 0)
+
+      const norm = Math.min(1, Math.max(0, (orbitPos.z + RADIUS) / (2 * RADIUS)))
+      faceMats[i].opacity  = FRONT_OPACITY * (0.5 + 0.5 * norm)
+      glassMats[i].opacity = BACK_OPACITY  * (0.3 + 0.7 * norm)
+      sideMats[i].opacity  = 0.65 * (0.22 + 0.45 * norm)
+      backMats[i].opacity  = 0.72
+      if (i === heldTraceIdx) {
+        faceMats[i].opacity = 1; glassMats[i].opacity = 1
+        sideMats[i].opacity = 1; backMats[i].opacity = 1
+      }
+      if (welcomeActive && i === WELCOME_INDEX) {
+        faceMats[i].opacity = 1; glassMats[i].opacity = 1
+        sideMats[i].opacity = 1; backMats[i].opacity = 1
+      }
+      panels[i].renderOrder = Math.round(orbitPos.z * 1000)
+    }
   }
+
+  if (storyOpen) updateStoryRect()
 
   renderer.render(scene, camera)
 }

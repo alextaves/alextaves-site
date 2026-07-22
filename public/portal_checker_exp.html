@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>portal — checker experiment</title>
+<style>
+  :root {
+    --bg-color: hsl(78, 69%, 24%);
+    --check-color: hsl(225, 61%, 38%);
+  }
+  html, body {
+    margin: 0; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, Helvetica, Arial, sans-serif;
+  }
+  .portal {
+    position: relative;
+    height: 70vh;
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+  }
+  .checker {
+    position: absolute;
+    top: 50%; left: 50%;
+    background-image:
+      linear-gradient(45deg, var(--check-color) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--check-color) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--check-color) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--check-color) 75%);
+  }
+
+  .panel {
+    position: fixed; top: 16px; left: 16px;
+    background: rgba(20, 20, 20, 0.85); color: #eee;
+    padding: 14px 16px; border-radius: 8px;
+    font-size: 12px; line-height: 1.4;
+    display: grid; gap: 10px;
+    min-width: 200px;
+  }
+  .panel h3 { margin: 0 0 2px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #999; }
+  .panel label { display: grid; grid-template-columns: 44px 1fr 34px; align-items: center; gap: 6px; }
+  .panel input[type="range"] { width: 100%; }
+  .panel output { text-align: right; font-variant-numeric: tabular-nums; }
+  .group { display: grid; gap: 4px; }
+</style>
+</head>
+<body>
+  <div class="portal" id="portal">
+    <div class="checker" id="checker"></div>
+  </div>
+
+  <div class="panel">
+    <div class="group">
+      <h3>Background color</h3>
+      <label>H <input type="range" id="bgH" min="0" max="360" value="78"><output id="bgHval">78</output></label>
+      <label>S <input type="range" id="bgS" min="0" max="100" value="69"><output id="bgSval">69</output></label>
+      <label>L <input type="range" id="bgL" min="0" max="100" value="24"><output id="bgLval">24</output></label>
+    </div>
+    <div class="group">
+      <h3>Checker color</h3>
+      <label>H <input type="range" id="ckH" min="0" max="360" value="225"><output id="ckHval">225</output></label>
+      <label>S <input type="range" id="ckS" min="0" max="100" value="61"><output id="ckSval">61</output></label>
+      <label>L <input type="range" id="ckL" min="0" max="100" value="38"><output id="ckLval">38</output></label>
+    </div>
+    <div class="group">
+      <h3>Pattern</h3>
+      <label>Scale <input type="range" id="scale" min="2" max="24" step="0.5" value="7"><output id="scaleVal">7</output></label>
+      <label>Rot <input type="range" id="rot" min="0" max="180" value="0"><output id="rotVal">0</output></label>
+    </div>
+  </div>
+
+<script>
+  const portal = document.getElementById('portal')
+  const checker = document.getElementById('checker')
+
+  const controls = {
+    bgH: document.getElementById('bgH'), bgS: document.getElementById('bgS'), bgL: document.getElementById('bgL'),
+    ckH: document.getElementById('ckH'), ckS: document.getElementById('ckS'), ckL: document.getElementById('ckL'),
+    scale: document.getElementById('scale'), rot: document.getElementById('rot'),
+  }
+  const outputs = {
+    bgH: document.getElementById('bgHval'), bgS: document.getElementById('bgSval'), bgL: document.getElementById('bgLval'),
+    ckH: document.getElementById('ckHval'), ckS: document.getElementById('ckSval'), ckL: document.getElementById('ckLval'),
+    scale: document.getElementById('scaleVal'), rot: document.getElementById('rotVal'),
+  }
+
+  let sq = 0, tile = 0, off = 0
+  const SPEED = 0.15 // squares per second — slow drift right to left
+  const ROT_SPEED = 4 // degrees per second — slow continuous tumble
+  let animX = 0
+  let rotAnim = 0
+
+  function computeStatic() {
+    const rect = portal.getBoundingClientRect()
+    const squaresTall = parseFloat(controls.scale.value)
+    sq = rect.height / squaresTall
+    tile = sq * 2
+
+    // oversize the checker layer so it fully covers the portal at any rotation
+    const diag = Math.sqrt(rect.width ** 2 + rect.height ** 2) + tile * 2
+    checker.style.width = diag + 'px'
+    checker.style.height = diag + 'px'
+    checker.style.backgroundSize = `${tile}px ${tile}px`
+
+    // center the tile grid on the checker layer's own (square) box
+    off = (diag % tile) / 2
+  }
+
+  function render(dt) {
+    animX -= sq * SPEED * dt
+    animX = ((animX % tile) + tile) % tile // wrap — pattern repeats every tile, so this stays seamless
+    const x = off + animX
+    checker.style.backgroundPosition =
+      `${x}px ${off}px, ${x}px ${off + sq}px, ${x + sq}px ${off - sq}px, ${x - sq}px ${off}px`
+
+    rotAnim = (rotAnim + ROT_SPEED * dt) % 360
+    const rot = parseFloat(controls.rot.value) + rotAnim
+    checker.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`
+  }
+
+  function updateColors() {
+    document.documentElement.style.setProperty(
+      '--bg-color', `hsl(${controls.bgH.value}, ${controls.bgS.value}%, ${controls.bgL.value}%)`
+    )
+    document.documentElement.style.setProperty(
+      '--check-color', `hsl(${controls.ckH.value}, ${controls.ckS.value}%, ${controls.ckL.value}%)`
+    )
+  }
+
+  Object.keys(controls).forEach((key) => {
+    controls[key].addEventListener('input', () => {
+      outputs[key].textContent = controls[key].value
+      updateColors()
+      computeStatic()
+    })
+  })
+
+  updateColors()
+  computeStatic()
+  window.addEventListener('resize', computeStatic)
+
+  let lastT = null
+  function frame(now) {
+    const dt = lastT === null ? 0 : (now - lastT) / 1000
+    lastT = now
+    render(dt)
+    requestAnimationFrame(frame)
+  }
+  requestAnimationFrame(frame)
+</script>
+</body>
+</html>

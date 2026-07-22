@@ -4,10 +4,30 @@ import VideoStripWallStreet2 from './components/VideoStripWallStreet2'
 import VideoStripPreRaceCrossBlueGlass from './components/VideoStripPreRaceCrossBlueGlass'
 import VideoStripHurdlesReverse from './components/VideoStripHurdlesReverse'
 import VideoPlayback from './components/VideoPlayback'
+import WaterMarquee from './components/WaterMarquee'
 import TypewriterText from './components/TypewriterText'
 import UnfilteredIdeasPage from './UnfilteredIdeasPage'
+import { setPianoAudioEnabled, startDragging, stopDragging, onSwellChange, FADE_IN_S, FADE_OUT_S } from './schoenbergPiano'
 
 const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif"
+
+// Background track (intro_mix.mp3) volume swell, mirroring the schoenberg
+// piano's own idle/active levels so both rise and fall together on scroll/drag.
+const BG_IDLE_VOL   = 0.3
+const BG_ACTIVE_VOL = 0.7
+
+function rampAudioVolume(audio, target, seconds) {
+  cancelAnimationFrame(audio._rampRaf)
+  const start = audio.volume
+  const startTime = performance.now()
+  const duration = seconds * 1000
+  const step = (now) => {
+    const t = Math.min(1, (now - startTime) / duration)
+    audio.volume = start + (target - start) * t
+    if (t < 1) audio._rampRaf = requestAnimationFrame(step)
+  }
+  audio._rampRaf = requestAnimationFrame(step)
+}
 
 function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
@@ -289,10 +309,10 @@ export default function App() {
   const REVEAL_MS = 360
 
   const [scene, setScene] = useState(1)
-  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum'
+  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum' | 'detroit' | 'postcards'
   const [tPhase, setTPhase] = useState('idle')   // 'idle' | 'covering' | 'revealing'
   const [carouselKey, setCarouselKey] = useState(0)
-  const [showIntro, setShowIntro] = useState(true)
+  const [showIntro, setShowIntro] = useState(false)   // entry is now the WELCOME portal in the carousel
   const [audioOn, setAudioOn] = useState(false)
   const audioRef = useRef(null)
   const transitioning = useRef(false)
@@ -313,9 +333,9 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const audio = new Audio('/lawerence_loop.mp3')
+    const audio = new Audio('/intro_mix.mp3')
     audio.loop = true
-    audio.volume = 0.7
+    audio.volume = BG_IDLE_VOL
     audioRef.current = audio
     return () => { audio.pause(); audio.src = '' }
   }, [])
@@ -325,9 +345,9 @@ export default function App() {
     // iOS Safari requires Audio to be created inside a user gesture if it was
     // never successfully unlocked — recreate it here as a fallback
     if (!audio) {
-      audio = new Audio('/lawerence_loop.mp3')
+      audio = new Audio('/intro_mix.mp3')
       audio.loop = true
-      audio.volume = 0.7
+      audio.volume = BG_IDLE_VOL
       audioRef.current = audio
     }
     if (audioOn) {
@@ -338,14 +358,28 @@ export default function App() {
         setAudioOn(true)
       }).catch(() => {
         // Recreate and retry once — covers iOS context suspension
-        const fresh = new Audio('/lawerence_loop.mp3')
+        const fresh = new Audio('/intro_mix.mp3')
         fresh.loop = true
-        fresh.volume = 0.7
+        fresh.volume = BG_IDLE_VOL
         audioRef.current = fresh
         fresh.play().then(() => setAudioOn(true)).catch(() => {})
       })
     }
   }
+
+  // Keeps the ambient drag-piano's own mute state in sync with the site's
+  // audio toggle, same as the intro track.
+  useEffect(() => { setPianoAudioEnabled(audioOn) }, [audioOn])
+
+  // Background track rises and falls in lockstep with the piano's own
+  // drag/scroll swell (schoenbergPiano notifies on every start/stop).
+  useEffect(() => {
+    return onSwellChange((active) => {
+      const audio = audioRef.current
+      if (!audio) return
+      rampAudioVolume(audio, active ? BG_ACTIVE_VOL : BG_IDLE_VOL, active ? FADE_IN_S : FADE_OUT_S)
+    })
+  }, [])
 
   useEffect(() => {
     const onMsg = (e) => {
@@ -354,11 +388,29 @@ export default function App() {
         setTimeout(() => setPhase('site'), 700)
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'carousel') {
-        if (e.data.idx === 7) doTransition('journal')
+        if (e.data.idx === 6) doTransition('journal')
         if (e.data.idx === 3) doTransition('fiction')
+        if (e.data.idx === 7) doTransition('detroit')
+        if (e.data.idx === 8) doTransition('postcards')
+        if (e.data.idx === 1) { setPhase('fading'); setTimeout(() => setPhase('site'), 700) }
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'fiction') {
         if (e.data.idx === 0) doTransition('hum')
+      }
+      // WELCOME entry portal (in the carousel iframe): audio preference + Begin.
+      if (e.data && typeof e.data === 'object' && e.data.type === 'welcomeAudio') {
+        setAudioOn(e.data.on)
+      }
+      if (e.data && typeof e.data === 'object' && e.data.type === 'welcomeBegin') {
+        if (e.data.on) audioRef.current?.play().then(() => setAudioOn(true)).catch(() => {})
+        else setAudioOn(false)
+      }
+      // Any ring (main carousel, fiction, detroit) reports its own drag
+      // state — the piano itself lives here, one continuous layer, so it
+      // stays fluid across page/phase transitions instead of restarting.
+      if (e.data && typeof e.data === 'object' && e.data.type === 'ringDrag') {
+        if (e.data.dragging) startDragging()
+        else stopDragging()
       }
     }
     window.addEventListener('message', onMsg)
@@ -425,6 +477,30 @@ export default function App() {
           <BackButton onClick={() => doTransition('fiction')} />
         </>
       )}
+      {phase === 'detroit' && (
+        <>
+          <iframe
+            src="/detroit_dark.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('carousel')} />
+        </>
+      )}
+      {phase === 'postcards' && (
+        <>
+          <iframe
+            src="/postcards.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('carousel')} />
+        </>
+      )}
       {phase === 'site' && (
         <>
           {scene === 1 && <VideoDiver6 />}
@@ -432,12 +508,13 @@ export default function App() {
           {scene === 3 && <VideoStripPreRaceCrossBlueGlass />}
           {scene === 4 && <VideoStripHurdlesReverse />}
           {scene === 5 && <VideoPlayback />}
+          {scene === 6 && <WaterMarquee controls={false} />}
           <TypewriterText scene={scene} onSceneChange={setScene} onGoHome={goHome} audioOn={audioOn} onToggleAudio={toggleAudio} />
           <SceneHint scene={scene} />
-          <FullscreenButton />
           <InstallPrompt />
         </>
       )}
+      {!showIntro && <FullscreenButton />}
       {tPhase !== 'idle' && (
         <TransitionOverlay phase={tPhase} />
       )}

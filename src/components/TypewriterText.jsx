@@ -132,7 +132,7 @@ export default function TypewriterText({ scene, onSceneChange, onGoHome, audioOn
 
         {/* Scene numbers */}
         <div style={{ marginTop: 16, display: 'flex', gap: 16, pointerEvents: 'all', alignItems: 'baseline' }}>
-          {[1, 2, 3, 4, 5].map(n => (
+          {[1, 2, 3, 4, 5, 6].map(n => (
             <button key={n} onClick={() => onSceneChange(n)} style={{
               ...btnStyle,
               fontSize: 10 * s,

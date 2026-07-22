@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { pulseScroll } from '../schoenbergPiano'
 
 export default function VideoPlayback() {
   const videoRef = useRef()
@@ -8,6 +9,7 @@ export default function VideoPlayback() {
   useEffect(() => {
     const onWheel = (e) => {
       targetRate.current = Math.max(0.1, Math.min(2, targetRate.current - e.deltaY * 0.005))
+      pulseScroll()
     }
     let lastY = 0
     const onTouchStart = (e) => { lastY = e.touches[0].clientY }

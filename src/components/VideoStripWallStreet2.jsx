@@ -1,6 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useRef, useEffect, useState, useMemo } from 'react'
 import * as THREE from 'three'
+import { pulseScroll } from '../schoenbergPiano'
 
 const HALF_COUNT = 8
 const FRAME_H = 2 * Math.tan((60 / 2) * (Math.PI / 180)) * 4
@@ -104,6 +105,7 @@ function Scene() {
         0,
         BASE_SPEED * 1.5
       )
+      pulseScroll()
     }
     let lastY = 0
     const onTouchStart = (e) => { lastY = e.touches[0].clientY }
