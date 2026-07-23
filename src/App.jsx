@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import VideoDiver6 from './components/VideoDiver6'
 import VideoStripWallStreet2 from './components/VideoStripWallStreet2'
 import VideoStripPreRaceCrossBlueGlass from './components/VideoStripPreRaceCrossBlueGlass'
@@ -316,6 +316,10 @@ export default function App() {
   const [audioOn, setAudioOn] = useState(false)
   const audioRef = useRef(null)
   const transitioning = useRef(false)
+  // Whether the WELCOME entry has been begun this page-load. Lives in a ref (not
+  // sessionStorage) so it resets on a full refresh — the entry shows again — but
+  // persists across in-app portal returns that re-mount the carousel iframe.
+  const begunRef = useRef(false)
 
   const doTransition = useCallback((to) => {
     if (transitioning.current) return
@@ -402,6 +406,7 @@ export default function App() {
         setAudioOn(e.data.on)
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'welcomeBegin') {
+        begunRef.current = true   // skip the entry on in-app portal returns (not on full reload)
         if (e.data.on) audioRef.current?.play().then(() => setAudioOn(true)).catch(() => {})
         else setAudioOn(false)
       }
@@ -435,12 +440,21 @@ export default function App() {
     setPhase('carousel')
   }
 
+  // Recomputed only when the carousel actually re-mounts (carouselKey bump), so
+  // pressing Begin — which flips begunRef and re-renders — doesn't reload the
+  // iframe. A portal return bumps carouselKey and picks up ?begun=1 (skip entry);
+  // a full page reload resets begunRef so the entry shows again.
+  const carouselSrc = useMemo(
+    () => `/portals.html${begunRef.current ? '?begun=1' : ''}`,
+    [carouselKey]
+  )
+
   return (
     <>
       {(phase === 'carousel' || phase === 'fading') && (
         <iframe
           key={carouselKey}
-          src="/portals.html"
+          src={carouselSrc}
           style={{
             position: 'fixed', inset: 0, width: '100%', height: '100%',
             border: 'none', zIndex: 10,

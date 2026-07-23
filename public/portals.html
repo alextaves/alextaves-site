@@ -171,12 +171,13 @@ const PORTALS = [
   { title: 'DETROIT',          sub: 'faces',                                   bg: '#A1A1A1', light: false },
   { title: 'POSTCARDS',        sub: '2016',                                    bg: '#A69A8C', light: false },
 ]
-// The WELCOME entry portal exists only on first arrival this session. Once you
-// press Begin it's remembered (sessionStorage), so returning from a portal —
-// which reloads this iframe — lands you in the normal rotating carousel rather
-// than back at the frozen entry screen.
+// The WELCOME entry portal shows on every fresh page load. Whether it's already
+// been begun is driven by the parent app via a ?begun=1 URL param (NOT
+// sessionStorage — that survived refreshes and hid the entry permanently). The
+// parent sets begun=1 only when it re-mounts this iframe after a portal return,
+// so backing out of a portal skips the entry, but a full refresh shows it again.
 let welcomeBegun = false
-try { welcomeBegun = sessionStorage.getItem('welcomeBegun') === '1' } catch (e) {}
+try { welcomeBegun = new URLSearchParams(location.search).get('begun') === '1' } catch (e) {}
 if (!welcomeBegun) {
   PORTALS.push({ title: 'WELCOME', sub: 'recommended to have audio on', bg: '#001ABE', light: true, welcome: true })
 }
@@ -835,8 +836,9 @@ function setWelcomeAudio(on) {
 function beginSite() {
   if (!welcomeActive) return
   welcomeActive = false
-  try { sessionStorage.setItem('welcomeBegun', '1') } catch (e) {}   // don't show entry again this session
   angVel = AUTO_SPEED   // kick the ring into its idle auto-rotation
+  // Tell the parent we've begun; it remembers this for in-app portal returns
+  // (adds ?begun=1 when it re-mounts this iframe), but forgets on a full reload.
   if (window !== window.top) window.parent.postMessage({ type: 'welcomeBegin', on: welcomeAudioOn }, '*')
 }
 // Route a click on the (frozen, front-centre) WELCOME card to ON / OFF / Begin.
