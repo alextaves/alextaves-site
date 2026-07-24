@@ -620,15 +620,16 @@ function drawWelcomeCard(ctx, W, H, portal, lm) {
   wrapText(ctx, 'this is a slow web experience — the sound will follow you', W - lm * 2)
     .forEach((ln) => { ctx.fillText(ln, lm, iy); iy += 24 })
 
-  // ON / OFF — dulled label reflects the current state (audio on → ON dulled)
+  // ON / OFF — the selected state is the lit (ink) one, the other is dulled
+  // (audio on → ON lit), so the highlight matches what you actually hear.
   ctx.textBaseline = 'alphabetic'
   ctx.font = "700 34px 'Helvetica Neue', Helvetica, Arial, sans-serif"; ctx.letterSpacing = '0.03em'
   const rowY = 384
-  ctx.fillStyle = welcomeAudioOn ? dull : ink
+  ctx.fillStyle = welcomeAudioOn ? ink : dull
   ctx.fillText('ON', lm, rowY)
   const onW = ctx.measureText('ON').width
   const offX = lm + onW + 34
-  ctx.fillStyle = welcomeAudioOn ? ink : dull
+  ctx.fillStyle = welcomeAudioOn ? dull : ink
   ctx.fillText('OFF', offX, rowY)
   const offW = ctx.measureText('OFF').width
 

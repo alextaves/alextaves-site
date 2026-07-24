@@ -13,8 +13,14 @@ const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 
 // Background track (intro_mix.mp3) volume swell, mirroring the schoenberg
 // piano's own idle/active levels so both rise and fall together on scroll/drag.
-const BG_IDLE_VOL   = 0.3
-const BG_ACTIVE_VOL = 0.7
+const BG_IDLE_VOL   = 0.85
+const BG_ACTIVE_VOL = 1.0
+
+// Crowd walla (crowd-walla.mp3, from oswin-redo) — always faintly present as an
+// ambient bed while audio is on, then swells up whenever a ring is being
+// dragged/scrolled, riding the same onSwellChange signal as everything else.
+const CROWD_IDLE_VOL   = 0.06
+const CROWD_ACTIVE_VOL = 0.3
 
 function rampAudioVolume(audio, target, seconds) {
   cancelAnimationFrame(audio._rampRaf)
@@ -23,7 +29,9 @@ function rampAudioVolume(audio, target, seconds) {
   const duration = seconds * 1000
   const step = (now) => {
     const t = Math.min(1, (now - startTime) / duration)
-    audio.volume = start + (target - start) * t
+    // Clamp — float error can nudge this a hair outside [0,1] (e.g. when
+    // fading to exactly 0), which HTMLMediaElement.volume rejects by throwing.
+    audio.volume = Math.max(0, Math.min(1, start + (target - start) * t))
     if (t < 1) audio._rampRaf = requestAnimationFrame(step)
   }
   audio._rampRaf = requestAnimationFrame(step)
@@ -315,6 +323,7 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(false)   // entry is now the WELCOME portal in the carousel
   const [audioOn, setAudioOn] = useState(false)
   const audioRef = useRef(null)
+  const crowdRef = useRef(null)
   const transitioning = useRef(false)
   // Whether the WELCOME entry has been begun this page-load. Lives in a ref (not
   // sessionStorage) so it resets on a full refresh — the entry shows again — but
@@ -341,47 +350,51 @@ export default function App() {
     audio.loop = true
     audio.volume = BG_IDLE_VOL
     audioRef.current = audio
-    return () => { audio.pause(); audio.src = '' }
+
+    const crowd = new Audio('/crowd-walla.mp3')
+    crowd.loop = true
+    crowd.volume = CROWD_IDLE_VOL
+    crowdRef.current = crowd
+
+    return () => { audio.pause(); audio.src = ''; crowd.pause(); crowd.src = '' }
   }, [])
 
-  const toggleAudio = () => {
-    let audio = audioRef.current
-    // iOS Safari requires Audio to be created inside a user gesture if it was
-    // never successfully unlocked — recreate it here as a fallback
-    if (!audio) {
-      audio = new Audio('/intro_mix.mp3')
-      audio.loop = true
-      audio.volume = BG_IDLE_VOL
-      audioRef.current = audio
-    }
-    if (audioOn) {
-      audio.pause()
-      setAudioOn(false)
-    } else {
-      audio.play().then(() => {
-        setAudioOn(true)
-      }).catch(() => {
-        // Recreate and retry once — covers iOS context suspension
-        const fresh = new Audio('/intro_mix.mp3')
-        fresh.loop = true
-        fresh.volume = BG_IDLE_VOL
-        audioRef.current = fresh
-        fresh.play().then(() => setAudioOn(true)).catch(() => {})
-      })
-    }
-  }
+  // The audio toggle (WELCOME ON/OFF and the in-site button) is a single
+  // source of truth: it just flips audioOn, and the effect below starts or
+  // stops all three ambient layers together.
+  const toggleAudio = () => setAudioOn((on) => !on)
 
-  // Keeps the ambient drag-piano's own mute state in sync with the site's
-  // audio toggle, same as the intro track.
-  useEffect(() => { setPianoAudioEnabled(audioOn) }, [audioOn])
+  // One clean toggle for the whole ambient bed. intro_mix, the crowd, and the
+  // Tone.js piano all start and stop off this single audioOn flag — fading in
+  // together on ON and out together on OFF — instead of each reacting on its
+  // own (which made OFF leave the piano ringing while the crowd hard-cut, and
+  // kept intro_mix silent until Begin). audioOn only ever flips true from
+  // inside a user gesture, so the HTMLAudio play() calls stay unlocked.
+  useEffect(() => {
+    const bg = audioRef.current
+    const crowd = crowdRef.current
+    setPianoAudioEnabled(audioOn)
+    if (audioOn) {
+      if (bg)    { bg.play().catch(() => {});    rampAudioVolume(bg, BG_IDLE_VOL, FADE_IN_S) }
+      if (crowd) { crowd.play().catch(() => {}); rampAudioVolume(crowd, CROWD_IDLE_VOL, FADE_IN_S) }
+    } else {
+      if (bg)    rampAudioVolume(bg, 0, FADE_OUT_S)
+      if (crowd) rampAudioVolume(crowd, 0, FADE_OUT_S)
+      // Fade to silence first, then pause — so OFF is one smooth fade-out
+      // (matching the piano's own fade) rather than a hard cut.
+      const t = setTimeout(() => { bg?.pause(); crowd?.pause() }, FADE_OUT_S * 1000)
+      return () => clearTimeout(t)
+    }
+  }, [audioOn])
 
   // Background track rises and falls in lockstep with the piano's own
   // drag/scroll swell (schoenbergPiano notifies on every start/stop).
   useEffect(() => {
     return onSwellChange((active) => {
       const audio = audioRef.current
-      if (!audio) return
-      rampAudioVolume(audio, active ? BG_ACTIVE_VOL : BG_IDLE_VOL, active ? FADE_IN_S : FADE_OUT_S)
+      if (audio) rampAudioVolume(audio, active ? BG_ACTIVE_VOL : BG_IDLE_VOL, active ? FADE_IN_S : FADE_OUT_S)
+      const crowd = crowdRef.current
+      if (crowd) rampAudioVolume(crowd, active ? CROWD_ACTIVE_VOL : CROWD_IDLE_VOL, active ? FADE_IN_S : FADE_OUT_S)
     })
   }, [])
 
@@ -407,8 +420,7 @@ export default function App() {
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'welcomeBegin') {
         begunRef.current = true   // skip the entry on in-app portal returns (not on full reload)
-        if (e.data.on) audioRef.current?.play().then(() => setAudioOn(true)).catch(() => {})
-        else setAudioOn(false)
+        setAudioOn(e.data.on)     // the audioOn effect starts/stops all three layers
       }
       // Any ring (main carousel, fiction, detroit) reports its own drag
       // state — the piano itself lives here, one continuous layer, so it
@@ -423,7 +435,12 @@ export default function App() {
   }, [phase, doTransition])
 
   useEffect(() => {
-    if (phase !== 'carousel' && phase !== 'fiction') return
+    // Every iframe experience listens for both native keydown (needs iframe
+    // focus) and a forwarded postMessage. The parent holds focus after a SPA
+    // transition, so we must forward for ALL iframe phases — not just carousel
+    // and fiction — or arrow keys silently do nothing in detroit/postcards/hum.
+    const IFRAME_PHASES = new Set(['carousel', 'fiction', 'hum', 'detroit', 'postcards'])
+    if (!IFRAME_PHASES.has(phase)) return
     const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '])
     const onKey = (e) => {
       if (!ARROWS.has(e.key)) return

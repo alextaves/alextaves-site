@@ -16,7 +16,8 @@ export const FADE_IN_S  = 1.2   // ramps up quickly once you start moving a card
 export const FADE_OUT_S = 2.5   // lingers a bit after you let go, rather than cutting off
 const OFF_DB    = -60    // true mute floor, used only when the site's audio toggle is off
 const IDLE_DB   = -40    // barely-there ambient bed — the payoff is the swell on drag/scroll
-const ACTIVE_DB = -6     // noticeably louder while a ring is being dragged/scrolled
+const ACTIVE_DB = -12    // half its former drag volume (-6 → -12dB): on drag the piano
+                         // steps back so the crowd swell (in App.jsx) can come forward
 
 let masterVol = null
 let buildPromise = null
