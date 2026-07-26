@@ -297,7 +297,7 @@ export default function VideoDiver6() {
   }, [])
 
   return (
-    <div ref={containerRef} style={{ width: '100vw', height: '100vh', background: '#000', position: 'relative' }}>
+    <div ref={containerRef} style={{ width: '100vw', height: '100dvh', background: '#000', position: 'relative' }}>
       <div style={{ width: '100%', height: '100%', filter: 'saturate(2.2) brightness(0.75)' }}>
         <Canvas camera={{ position: [0, 0, 4], fov: 60 }} scene={{ background: new THREE.Color('#000') }}>
           <Scene textures={textures} videos={videosRef.current} velocityRef={velocityRef} />

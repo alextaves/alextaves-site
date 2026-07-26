@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import MobilePlaceholder from './components/MobilePlaceholder.jsx'
 import WaterMarquee from './components/WaterMarquee.jsx'
 import WaterLines from './components/WaterLines.jsx'
 import FaceLines from './components/FaceLines.jsx'
@@ -15,9 +16,21 @@ import FaceBurst from './components/FaceBurst.jsx'
 // synchronous path and make the whole site feel choppy — so it's intentionally
 // left to CSS.
 
-const preview = new URLSearchParams(window.location.search).get('preview')
+const params = new URLSearchParams(window.location.search)
+const preview = params.get('preview')
+
+// Phones get the mobile stand-in (endless Detroit scroll) instead of the heavy
+// WebGL carousel, which isn't ready for mobile. `?desktop` forces the real site.
+function isPhone() {
+  if (params.has('desktop')) return false
+  const ua = /Android|iPhone|iPod|Windows Phone|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const coarseSmall = window.matchMedia('(pointer: coarse)').matches
+    && Math.min(window.innerWidth, window.innerHeight) < 600
+  return ua || coarseSmall
+}
 
 function Root() {
+  if (params.has('mobile') || isPhone()) return <MobilePlaceholder />   // ?mobile previews it on desktop
   if (preview === 'water') return <WaterMarquee />
   if (preview === 'lines') return <WaterLines />
   if (preview === 'facelines') return <FaceLines />

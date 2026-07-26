@@ -13,8 +13,12 @@ const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 
 // Background track (intro_mix.mp3) volume swell, mirroring the schoenberg
 // piano's own idle/active levels so both rise and fall together on scroll/drag.
-const BG_IDLE_VOL   = 0.85
-const BG_ACTIVE_VOL = 1.0
+// NB: intro_mix.mp3 was normalized +25dB (was a very quiet -45.6 LUFS render,
+// now -20.8) so the mobile gate could actually hear it. These desktop levels
+// are pulled down ~25dB (x0.056) to keep the original desktop balance against
+// the piano/crowd. Old values were 0.85 / 1.0 against the un-boosted file.
+const BG_IDLE_VOL   = 0.05
+const BG_ACTIVE_VOL = 0.06
 
 // Crowd walla (crowd-walla.mp3, from oswin-redo) — always faintly present as an
 // ambient bed while audio is on, then swells up whenever a ring is being
