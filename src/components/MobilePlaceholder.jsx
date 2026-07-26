@@ -152,6 +152,73 @@ function WelcomeGate({ audioOn, onToggleAudio, onEnter }) {
 }
 
 
+// Wraps the diver with a tap-to-reveal close control. On Android the ENTER tap
+// put us in real fullscreen (no browser chrome), so there's no system way back
+// out — this X gives one. It only exists while actually fullscreen (so it never
+// shows on iPhone, which never enters fullscreen), appears on a tap, and
+// auto-hides after a few seconds so it stays out of the experience.
+function EnteredDiver() {
+  const [isFs, setIsFs] = useState(false)
+  const [showX, setShowX] = useState(false)
+  const hideTimer = useRef(null)
+
+  useEffect(() => {
+    const onFsChange = () => setIsFs(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFsChange)
+    onFsChange()
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
+  // A tap (touch that didn't turn into a scroll/swipe) reveals the X. The
+  // diver's own scroll/color-invert gestures are drags, so they don't trigger it.
+  useEffect(() => {
+    let sx = 0, sy = 0, moved = false
+    const onStart = (e) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; moved = false }
+    const onMove = (e) => {
+      const t = e.touches[0]
+      if (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10) moved = true
+    }
+    const onEnd = () => {
+      if (moved) return
+      setShowX(true)
+      clearTimeout(hideTimer.current)
+      hideTimer.current = setTimeout(() => setShowX(false), 3200)
+    }
+    window.addEventListener('touchstart', onStart, { passive: true })
+    window.addEventListener('touchmove', onMove, { passive: true })
+    window.addEventListener('touchend', onEnd, { passive: true })
+    return () => {
+      window.removeEventListener('touchstart', onStart)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onEnd)
+      clearTimeout(hideTimer.current)
+    }
+  }, [])
+
+  const exit = () => { document.exitFullscreen?.().catch(() => {}) }
+
+  return (
+    <>
+      <VideoDiver6 />
+      {isFs && showX && (
+        <button onClick={exit} aria-label="Exit fullscreen" style={{
+          position: 'fixed', zIndex: 50,
+          top: 'calc(14px + env(safe-area-inset-top))', right: 14,
+          width: 44, height: 44, padding: 0, borderRadius: '50%',
+          border: 'none', background: 'rgba(0,0,0,0.4)', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          WebkitTapHighlightColor: 'transparent',
+        }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
+            stroke="#fff" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 4 L16 16 M16 4 L4 16" />
+          </svg>
+        </button>
+      )}
+    </>
+  )
+}
+
 export default function MobilePlaceholder() {
   const [audioOn, setAudioOn] = useState(false)
   const [entered, setEntered] = useState(false)
@@ -194,7 +261,7 @@ export default function MobilePlaceholder() {
   // (video-tile strip cycling diver4 -> diver2, color-invert-on-scroll shader,
   // particle field, glass blur), not a flat video. The ambient bed keeps
   // playing over it.
-  if (entered) return <VideoDiver6 />
+  if (entered) return <EnteredDiver />
   // ENTER runs inside the tap (a user gesture), so this is where a real
   // Fullscreen request is allowed. Works on Android Chrome; iOS Safari has no
   // Fullscreen API for non-video elements, so it silently no-ops there and we
