@@ -160,7 +160,29 @@
 </div>
 <script src="/vendor/three.min.js"></script>
 <script>
-const PORTALS = [
+// ── Nested ring ───────────────────────────────────────────────────────────────
+// ?ring=detroit renders the Detroit set through this same file. Duplicating the
+// ring into a second page was the alternative, and it would have drifted from
+// this one the first time either was touched; the cards are data, so only the
+// data changes. The index constants below are the main ring's special cases —
+// they are set to -1 here so no Detroit card can match one and inherit its
+// behaviour (PORTALS[-1] is undefined, which no real portal equals).
+const RING = (() => { try { return new URLSearchParams(location.search).get('ring') || 'main' } catch (e) { return 'main' } })()
+const DETROIT_RING = [
+  { title: 'THE FACES',   sub: 'as they were drawn',        bg: '#A1A1A1', light: false, href: '/detroit_dark.html' },
+  { title: 'QUARTERS',    sub: 'cut in four',               bg: '#7C8496', light: true,  href: '/detroit_remix.html' },
+  { title: 'NINE',        sub: 'cut into thirds',           bg: '#5E6472', light: true,  href: '/detroit_remix_2.html' },
+  { title: 'GRID',        sub: 'thirty-five pieces',        bg: '#474C58', light: true,  href: '/detroit_remix_3.html' },
+  { title: 'BLUE',        sub: 'on blue ground',            bg: '#1E2BFF', light: true,  href: '/detroit_remix_4.html' },
+  { title: 'FLOOD',       sub: 'dissolved to fields',       bg: '#2530C4', light: true,  href: '/detroit_remix_5.html' },
+  { title: 'BLACK',       sub: 'on black ground',           bg: '#0B0B0B', light: true,  href: '/detroit_remix_6.html' },
+  { title: 'HALVES',      sub: 'cut once, top and bottom',  bg: '#171717', light: true,  href: '/detroit_remix_7.html' },
+  { title: 'CAMO',        sub: 'cut by pattern, not by grid', bg: '#3F4A2E', light: true,  href: '/detroit_remix_8.html' },
+  { title: 'ONE FACE',    sub: 'thirty-nine cuts of a single portrait', bg: '#2A2F4A', light: true, href: '/detroit_remix_9.html' },
+]
+
+
+let PORTALS = [
   { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#FFFFFF', light: false },
   { title: 'MOVING IMAGES',    sub: 'immersive exploration',                   bg: '#C4C4C4', light: false },
   { title: 'ARCHIVE',          sub: 'the previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
@@ -168,9 +190,12 @@ const PORTALS = [
   { title: 'ALEX TAVES',       sub: 'a bit about me',                         bg: '#FFFFFF', light: false },
   { title: 'ENQUIRIES',        sub: 'get in touch · looking for like minded',  bg: '#00C2A8', light: false },
   { title: 'UNFILTERED IDEAS', sub: 'a journal',                               bg: '#D9D02F', light: false },
-  { title: 'DETROIT',          sub: 'faces',                                   bg: '#A1A1A1', light: false },
+  { title: 'DETROIT',          sub: 'split in four',                           bg: '#A1A1A1', light: false,
+    body: '2,313,441 recombinations of thirty-nine faces. you are unlikely to see the same work twice.' },
   { title: 'POSTCARDS',        sub: '2016',                                    bg: '#A69A8C', light: false },
 ]
+if (RING === 'detroit') PORTALS = DETROIT_RING
+
 // The WELCOME entry portal shows on every fresh page load. Whether it's already
 // been begun is driven by the parent app via a ?begun=1 URL param (NOT
 // sessionStorage — that survived refreshes and hid the entry permanently). The
@@ -178,23 +203,45 @@ const PORTALS = [
 // so backing out of a portal skips the entry, but a full refresh shows it again.
 let welcomeBegun = false
 try { welcomeBegun = new URLSearchParams(location.search).get('begun') === '1' } catch (e) {}
-if (!welcomeBegun) {
+if (!welcomeBegun && RING !== 'detroit') {
   PORTALS.push({ title: 'WELCOME', sub: 'recommended to have audio on', bg: '#001ABE', light: true, welcome: true })
 }
+
+
 const COUNT = PORTALS.length
-const UNFILTERED_INDEX = 6
-const ENQUIRIES_INDEX = 5
-const OSWIN_INDEX = 0
-const MOVING_IMAGES_INDEX = 1
-const ALEX_TAVES_INDEX = 4
-const DETROIT_INDEX = 7
-const POSTCARDS_INDEX = 8
+const MAIN = RING === 'main'   // -1 disables a special case on the nested ring
+// Comparisons against PORTALS[-1] are safe (undefined equals no real portal),
+// but the four places that DEREFERENCE one of these indices are not — two run
+// at load time and threw the whole script, which is why the ring came up black.
+// Those four use optional chaining.
+const UNFILTERED_INDEX = MAIN ? 6 : -1
+const ENQUIRIES_INDEX = MAIN ? 5 : -1
+const OSWIN_INDEX = MAIN ? 0 : -1
+const MOVING_IMAGES_INDEX = MAIN ? 1 : -1
+const ALEX_TAVES_INDEX = MAIN ? 4 : -1
+const DETROIT_INDEX = MAIN ? 7 : -1
+const POSTCARDS_INDEX = MAIN ? 8 : -1
+// Appended AFTER postcards, so every existing index is unmoved and
+// WELCOME_INDEX (COUNT - 1) still lands on the welcome card.
+const DETROIT_REMIX_INDEX = 9
+const DETROIT_NINE_INDEX = 10
+const DETROIT_GRID_INDEX = 11
+const DETROIT_BLUE_INDEX = 12
+const DETROIT_FLOOD_INDEX = 13
+const DETROIT_BLACK_INDEX = 14
+const DETROIT_HALVES_INDEX = 15
 const ARCHIVE_INDEX = 2   // was STILL IMAGES — now the archive showreel, links to /archive
 const ARCHIVE_URL = '/archive/index.html'   // explicit file → works in dev & prod; /archive also serves it via _redirects
-const WELCOME_INDEX = welcomeBegun ? -1 : (COUNT - 1)   // last portal, or none once begun
+// -1 on the nested ring too: with no welcome card appended there, COUNT - 1
+// pointed at the last Detroit card and would have taken its click as the
+// welcome control instead of opening the page.
+const WELCOME_INDEX = (welcomeBegun || !MAIN) ? -1 : (COUNT - 1)   // last portal, or none once begun
 
 // Entry state: ring is static until Begin is pressed; audio preference starts ON.
-let welcomeActive = !welcomeBegun
+// The nested ring has no welcome card, so it must never start in the entry
+// state — it would sit locked and unlit waiting for a Begin press that has
+// nothing to press, and the angle below would seek WELCOME_INDEX = -1.
+let welcomeActive = MAIN && !welcomeBegun
 let welcomeAudioOn = true
 let welcomeRegions = null   // {on,off,begin} hit rects in 600×800 card pixels
 
@@ -720,6 +767,15 @@ function drawPortalCard(ctx, portal, W, H, lm, drawTrace) {
   ctx.textBaseline = 'top'
   ctx.fillStyle = inkSub
   ctx.fillText(portal.sub, lm, t.subTop)
+
+  // Optional description, wrapped, beneath the subtitle — for a card that has
+  // to say what is behind it rather than just name it.
+  if (portal.body) {
+    ctx.font = "300 16px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    ctx.letterSpacing = '0.02em'
+    let by = t.subTop + 34
+    wrapText(ctx, portal.body, W - lm * 2).forEach((ln) => { ctx.fillText(ln, lm, by); by += 24 })
+  }
 }
 
 function makePortalTex(portal, drawTrace) {
@@ -1109,7 +1165,7 @@ const STORIES = {
   [UNFILTERED_INDEX]: {
     coverLines: ['UNFILTERED', 'IDEAS'],
     coverTypeOpts: { typeDur: 1600, backspaceDur: 1600, cycle: 6200 },
-    bg: PORTALS[UNFILTERED_INDEX].bg,
+    bg: PORTALS[UNFILTERED_INDEX]?.bg,
     reverseReveal: true,
     paragraphs: [
       { date: "JANUARY 6, 2026", text: "The band site should be two things at once. A front door that works like the industry expects, tour dates, links, photos. Then you go inside and the music plays and the site becomes atmosphere. Landing page outside, installation inside. This is the offer." },
@@ -1158,7 +1214,7 @@ const STORIES = {
   [ALEX_TAVES_INDEX]: {
     coverLines: ['ALEX', 'TAVES'],
     coverTypeOpts: { typeDur: 1600, backspaceDur: 1600, cycle: 6200 },
-    bg: PORTALS[ALEX_TAVES_INDEX].bg,
+    bg: PORTALS[ALEX_TAVES_INDEX]?.bg,
     paragraphs: [
       "Alex Taves builds rooms on the internet, part of what he calls the Slow Web, and his gut says the web is only beginning. He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario. It took off, earned a nod from The New York Times, then crashed. The crash mattered: it opened a whole new world. Out of desperation he learned to code, and React, the framework Netflix runs on, became an obsession. It seemed wildly untapped as a medium for art.",
       "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
@@ -1329,7 +1385,7 @@ function openStory(idx) {
   storyPanelIdx = idx
   angVel = 0
   if (idx === ENQUIRIES_INDEX) {
-    setStoryBg(PORTALS[ENQUIRIES_INDEX].bg)
+    setStoryBg(PORTALS[ENQUIRIES_INDEX]?.bg)
     storyText.style.display = 'none'
     enquiryForm.style.display = 'block'
     enquiryFormEl.reset()
@@ -1392,7 +1448,7 @@ function handlePanelClick(idx) {
     return
   }
   if (window !== window.top) {
-    window.parent.postMessage({ type: 'portalClick', idx }, '*')
+    window.parent.postMessage({ type: 'portalClick', idx, ring: RING }, '*')
   }
 }
 
@@ -1595,7 +1651,7 @@ function render(now) {
     swimTime += dt
     if (miVisible) {
       drawPortalCard(movingImagesFaceCtx, PORTALS[MOVING_IMAGES_INDEX], 600, 800, 54,
-        (ctx, W, H) => drawSwimTrace(ctx, W, H, PORTALS[MOVING_IMAGES_INDEX].bg, 1.0))
+        (ctx, W, H) => drawSwimTrace(ctx, W, H, PORTALS[MOVING_IMAGES_INDEX]?.bg, 1.0))
       movingImagesFaceTex.needsUpdate = true
     }
   }

@@ -321,7 +321,7 @@ export default function App() {
   const REVEAL_MS = 360
 
   const [scene, setScene] = useState(1)
-  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum' | 'detroit' | 'postcards'
+  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum' | 'detroit' | 'detroitRemix' | 'detroitNine' | 'detroitGrid' | 'detroitBlue' | 'detroitFlood' | 'detroitBlack' | 'detroitHalves' | 'detroitFaces' | 'detroitCamo' | 'detroitOneFace' | 'postcards'
   const [tPhase, setTPhase] = useState('idle')   // 'idle' | 'covering' | 'revealing'
   const [carouselKey, setCarouselKey] = useState(0)
   const [showIntro, setShowIntro] = useState(false)   // entry is now the WELCOME portal in the carousel
@@ -415,6 +415,16 @@ export default function App() {
         if (e.data.idx === 8) doTransition('postcards')
         if (e.data.idx === 1) { setPhase('fading'); setTimeout(() => setPhase('site'), 700) }
       }
+      // The Detroit ring is the same portals file with ?ring=detroit, so its
+      // clicks arrive as portalClick too — the ring tag is what separates them
+      // from the home ring's, whose indices they would otherwise collide with.
+      if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick'
+          && e.data.ring === 'detroit' && phase === 'detroit') {
+        const to = ['detroitFaces', 'detroitRemix', 'detroitNine', 'detroitGrid',
+                    'detroitBlue', 'detroitFlood', 'detroitBlack', 'detroitHalves',
+                    'detroitCamo', 'detroitOneFace'][e.data.idx]
+        if (to) doTransition(to)
+      }
       if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'fiction') {
         if (e.data.idx === 0) doTransition('hum')
       }
@@ -443,7 +453,7 @@ export default function App() {
     // focus) and a forwarded postMessage. The parent holds focus after a SPA
     // transition, so we must forward for ALL iframe phases — not just carousel
     // and fiction — or arrow keys silently do nothing in detroit/postcards/hum.
-    const IFRAME_PHASES = new Set(['carousel', 'fiction', 'hum', 'detroit', 'postcards'])
+    const IFRAME_PHASES = new Set(['carousel', 'fiction', 'hum', 'detroit', 'detroitRemix', 'detroitNine', 'detroitGrid', 'detroitBlue', 'detroitFlood', 'detroitBlack', 'detroitHalves', 'detroitFaces', 'detroitCamo', 'detroitOneFace', 'postcards'])
     if (!IFRAME_PHASES.has(phase)) return
     const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '])
     const onKey = (e) => {
@@ -515,13 +525,134 @@ export default function App() {
       {phase === 'detroit' && (
         <>
           <iframe
-            src="/detroit_dark.html"
+            src="/portals.html?ring=detroit"
             style={{
               position: 'fixed', inset: 0, width: '100%', height: '100%',
               border: 'none', zIndex: 10,
             }}
           />
           <BackButton onClick={() => doTransition('carousel')} />
+        </>
+      )}
+      {phase === 'detroitOneFace' && (
+        <>
+          <iframe
+            src="/detroit_remix_9.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+      {phase === 'detroitCamo' && (
+        <>
+          <iframe
+            src="/detroit_remix_8.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+      {phase === 'detroitFaces' && (
+        <>
+          <iframe
+            src="/detroit_dark.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+      {phase === 'detroitRemix' && (
+        <>
+          <iframe
+            src="/detroit_remix.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+      {phase === 'detroitNine' && (
+        <>
+          <iframe
+            src="/detroit_remix_2.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+      {phase === 'detroitGrid' && (
+        <>
+          <iframe
+            src="/detroit_remix_3.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+      {phase === 'detroitBlue' && (
+        <>
+          <iframe
+            src="/detroit_remix_4.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+      {phase === 'detroitFlood' && (
+        <>
+          <iframe
+            src="/detroit_remix_5.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+      {phase === 'detroitBlack' && (
+        <>
+          <iframe
+            src="/detroit_remix_6.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
+        </>
+      )}
+
+      {phase === 'detroitHalves' && (
+        <>
+          <iframe
+            src="/detroit_remix_7.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
         </>
       )}
       {phase === 'postcards' && (
