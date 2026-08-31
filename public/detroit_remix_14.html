@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>detroit — run</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden;
+               overscroll-behavior: none; }
+  #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; image-rendering: auto; box-shadow: 0 30px 90px rgba(0,0,0,0.6); }
+  #freeze {
+    position: fixed; left: 28px; bottom: 28px; z-index: 20;
+    font: 500 15px/1 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    letter-spacing: 0.34em; text-transform: uppercase;
+    padding: 15px 26px; background: none; cursor: pointer;
+    color: #FF2D95; border: 1px solid #FF2D95;
+    text-shadow: 0 0 10px #FF2D95; box-shadow: 0 0 14px rgba(255,45,149,0.5), inset 0 0 14px rgba(255,45,149,0.18);
+  }
+  #freeze.go { color: #2BFF88; border-color: #2BFF88;
+    text-shadow: 0 0 10px #2BFF88; box-shadow: 0 0 14px rgba(43,255,136,0.5), inset 0 0 14px rgba(43,255,136,0.18); }
+  #hud {
+    position: fixed; left: 28px; bottom: 82px; z-index: 20;
+    font: 400 11px/1.7 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    letter-spacing: 0.2em; color: rgba(255,255,255,0.55); pointer-events: none;
+  }
+  #rate {
+    position: fixed; right: 28px; bottom: 28px; z-index: 20; display: flex; gap: 10px;
+  }
+  #rate button {
+    font: 500 11px/1 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    letter-spacing: 0.2em; text-transform: uppercase; padding: 10px 14px;
+    background: none; border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.55); cursor: pointer;
+  }
+  #rate button.on { color: #FAFF00; border-color: #FAFF00; text-shadow: 0 0 8px #FAFF00; }
+  #begin {
+    position: fixed; inset: 0; z-index: 40; background: #0c0806;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #begin button {
+    font: 500 14px/1 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    letter-spacing: 0.34em; text-transform: uppercase; color: rgba(255,200,140,0.85);
+    padding: 16px 34px; border: 1px solid rgba(255,200,140,0.28); background: none; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+<div id="hud"></div>
+<button id="freeze">Freeze</button>
+<div id="rate">
+  <button data-ms="420">Slow</button>
+  <button data-ms="240" class="on">Fluid</button>
+  <button data-ms="120">Fast</button>
+  <button data-ms="60">Flicker</button>
+</div>
+<div id="begin"><button>Run</button></div>
+<script>
+// One card, all hundred arrangements, running.
+//
+// The ring cuts between arrangements: it bakes each one and cross-dissolves,
+// which is right there because every card is showing a different picture. On a
+// single card that same cut reads as a flicker book — the squares are only ever
+// 15px from where they were, so jumping between offsets looks like vibration
+// rather than movement.
+//
+// So this INTERPOLATES instead. A square's colour never changes between
+// versions, only its position does, which means the whole animation can be
+// expressed as each square gliding from its offset in one arrangement to its
+// offset in the next. Eased, at a few hundred milliseconds a step, 192 squares
+// drift continuously and the eye reads motion rather than a sequence of stills.
+// That is what makes it fluid, and it is why there are no fades here: a fade
+// between two nearly-identical frames just looks like a smear, while actual
+// movement between them reads as one thing moving.
+//
+//   ?src=/detroit/32.webp   the source
+//   ?chunk=25     square size in composite pixels
+//   ?shift=0.05   how far a square can travel, as a fraction of the frame
+//   ?versions=100 how many arrangements in the loop
+//   ?ms=240       milliseconds per arrangement
+//   ?flat=0       keep each square's real pixels instead of its one colour
+//   ?ease=0       linear instead of eased, for constant-speed drift
+//   ?seed=123     reproduce a particular run
+
+const q = new URLSearchParams(location.search);
+const num = (k, d) => { const v = parseFloat(q.get(k)); return Number.isFinite(v) ? v : d; };
+
+const SRC      = q.get('src') || '/detroit/32.webp';
+const RW = 300, RH = 388;
+const CHUNK    = Math.max(4, Math.round(num('chunk', 25)));
+const SHIFT    = num('shift', 0.05);
+const VERSIONS = Math.max(2, Math.round(num('versions', 100)));
+const FLAT     = q.get('flat') !== '0';
+const EASE     = q.get('ease') !== '0';
+const SEED     = (() => { const v = parseInt(q.get('seed'), 10);
+                          return Number.isFinite(v) ? v : (Math.random() * 1e9) | 0; })();
+let STEP_MS    = Math.max(16, num('ms', 240));
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const hud = document.getElementById('hud');
+
+// ── the picture, its squares, and their colours ───────────────────────────────
+let STILL = null, CELLS = [], OFFSETS = [];
+
+function drawCover(x, img, W, H) {
+  const s = Math.max(W / img.width, H / img.height);
+  const dw = img.width * s, dh = img.height * s;
+  x.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+}
+
+// Quantised to 5 bits a channel before counting: an exact mode on a photograph
+// is almost always a stray pixel, and bucketing near shades finds the colour a
+// viewer would actually name.
+function dominantColour(d, W, sx, sy, sw, sh) {
+  const bins = new Map();
+  let best = 0, bestKey = -1;
+  for (let y = sy; y < sy + sh; y++) {
+    let i = (y * W + sx) * 4;
+    for (let x = 0; x < sw; x++, i += 4) {
+      const key = ((d[i] >> 3) << 10) | ((d[i + 1] >> 3) << 5) | (d[i + 2] >> 3);
+      const n = (bins.get(key) || 0) + 1;
+      bins.set(key, n);
+      if (n > best) { best = n; bestKey = key; }
+    }
+  }
+  if (bestKey < 0) return '#000';
+  return 'rgb(' + (((bestKey >> 10) & 31) << 3) + ',' + (((bestKey >> 5) & 31) << 3)
+                + ',' + ((bestKey & 31) << 3) + ')';
+}
+
+function buildSquares() {
+  const d = STILL.getContext('2d').getImageData(0, 0, RW, RH).data;
+  const cols = Math.ceil(RW / CHUNK), rows = Math.ceil(RH / CHUNK);
+  CELLS = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const sx = c * CHUNK, sy = r * CHUNK;
+    const sw = Math.min(CHUNK, RW - sx), sh = Math.min(CHUNK, RH - sy);
+    if (sw > 0 && sh > 0) CELLS.push({ sx, sy, sw, sh, css: dominantColour(d, RW, sx, sy, sw, sh) });
+  }
+  // Every arrangement precomputed. A hundred lists of 192 small integers is
+  // nothing to hold, and it means the animation loop never allocates.
+  OFFSETS = [];
+  for (let v = 0; v < VERSIONS; v++) {
+    let st = ((SEED ^ (v * 2654435761)) >>> 0) || 1;
+    const rand = () => { st ^= st << 13; st >>>= 0; st ^= st >> 17; st ^= st << 5; st >>>= 0;
+                         return st / 4294967296; };
+    const mx = RW * SHIFT, my = RH * SHIFT;
+    OFFSETS.push(CELLS.map(() => ({ dx: (rand() * 2 - 1) * mx, dy: (rand() * 2 - 1) * my })));
+  }
+}
+
+// ── layout ────────────────────────────────────────────────────────────────────
+let DPR = 1, VW = RW, VH = RH;
+function fit() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const pad = 0.86;
+  const s = Math.min(innerWidth * pad / RW, innerHeight * pad / RH);
+  VW = Math.round(RW * s); VH = Math.round(RH * s);
+  cv.style.width = VW + 'px'; cv.style.height = VH + 'px';
+  cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
+}
+addEventListener('resize', fit);
+
+// ── run ───────────────────────────────────────────────────────────────────────
+let frozen = false, t0 = 0, cursor = 0, running = false;
+const smooth = (t) => t * t * (3 - 2 * t);
+
+function draw(mix, a, b) {
+  const sx = (VW * DPR) / RW, sy = (VH * DPR) / RH;
+  ctx.setTransform(sx, 0, 0, sy, 0, 0);
+  ctx.clearRect(0, 0, RW, RH);
+  ctx.drawImage(STILL, 0, 0, RW, RH);
+  const A = OFFSETS[a], B = OFFSETS[b];
+  for (let i = 0; i < CELLS.length; i++) {
+    const c = CELLS[i];
+    const dx = A[i].dx + (B[i].dx - A[i].dx) * mix;
+    const dy = A[i].dy + (B[i].dy - A[i].dy) * mix;
+    if (FLAT) { ctx.fillStyle = c.css; ctx.fillRect(c.sx + dx, c.sy + dy, c.sw, c.sh); }
+    else ctx.drawImage(STILL, c.sx, c.sy, c.sw, c.sh, c.sx + dx, c.sy + dy, c.sw, c.sh);
+  }
+}
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (!running) return;
+  if (frozen) { t0 = now - held; }
+  const elapsed = now - t0;
+  const steps = elapsed / STEP_MS;
+  cursor = Math.floor(steps) % VERSIONS;
+  let mix = steps - Math.floor(steps);
+  if (EASE) mix = smooth(mix);
+  draw(mix, cursor, (cursor + 1) % VERSIONS);
+  hud.textContent = String(cursor + 1).padStart(3, '0') + ' / ' + VERSIONS
+                  + '   ·   ' + Math.round(STEP_MS) + 'MS';
+}
+let held = 0;
+
+// ── controls ──────────────────────────────────────────────────────────────────
+const freezeBtn = document.getElementById('freeze');
+freezeBtn.addEventListener('click', () => {
+  frozen = !frozen;
+  freezeBtn.textContent = frozen ? 'Go' : 'Freeze';
+  freezeBtn.classList.toggle('go', frozen);
+  if (frozen) held = performance.now() - t0;
+});
+document.querySelectorAll('#rate button').forEach((b) => {
+  b.addEventListener('click', () => {
+    // Rebase the clock on the CURRENT position, or changing speed jumps the
+    // animation to wherever the new rate says it should have been by now.
+    const now = performance.now();
+    const elapsed = now - t0;
+    const steps = elapsed / STEP_MS;
+    STEP_MS = parseFloat(b.dataset.ms);
+    t0 = now - steps * STEP_MS;
+    document.querySelectorAll('#rate button').forEach((o) => o.classList.remove('on'));
+    b.classList.add('on');
+  });
+});
+
+// ── boot ──────────────────────────────────────────────────────────────────────
+const img = new Image();
+img.onload = () => {
+  STILL = document.createElement('canvas');
+  STILL.width = RW; STILL.height = RH;
+  drawCover(STILL.getContext('2d'), img, RW, RH);
+  buildSquares();
+  fit();
+  requestAnimationFrame(frame);
+};
+img.src = SRC;
+
+document.querySelector('#begin button').addEventListener('click', () => {
+  document.getElementById('begin').style.display = 'none';
+  t0 = performance.now();
+  running = true;
+});
+</script>
+</body>
+</html>
