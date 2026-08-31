@@ -1,0 +1,2723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>detroit — shuffle</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; }
+  canvas { display: block; cursor: grab; touch-action: none; }
+  canvas:active { cursor: grabbing; }
+  #begin {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px;
+    background: #0c0806; z-index: 10;
+    font-family: ui-monospace, monospace; color: rgba(255,210,160,0.45); letter-spacing: 0.3em;
+    text-transform: uppercase; font-size: 13px;
+  }
+  #begin button {
+    padding: 14px 28px; border: 1px solid rgba(255,200,140,0.2); background: none; cursor: pointer;
+    font-family: ui-monospace, monospace; font-size: 13px; letter-spacing: 0.3em;
+    text-transform: uppercase; color: rgba(255,210,160,0.45); opacity: 0.7; transition: opacity 0.3s;
+  }
+  #begin button:hover { opacity: 1; }
+  #loader {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 1px;
+    z-index: 20; pointer-events: none;
+    transition: opacity 0.8s ease;
+  }
+  #loader-bar {
+    height: 100%; width: 0%;
+    background: rgba(255,210,160,0.4);
+    transition: width 0.3s ease;
+  }
+
+  /* ── Write Me overlay ── */
+  #write-overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(12,8,6,0.65);
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  #write-overlay.open { display: flex; }
+  #write-card {
+    background: #ffffff; position: relative;
+    width: min(420px, 88vw); padding: 48px 52px 52px;
+  }
+  #write-close {
+    position: absolute; top: 20px; right: 24px;
+    background: none; border: none; cursor: pointer; padding: 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 18px; color: rgba(0,0,0,0.25); line-height: 1;
+    transition: color 0.2s;
+  }
+  #write-close:hover { color: rgba(0,0,0,0.7); }
+  #write-card-label {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11px; font-weight: 300; letter-spacing: 0.26em; color: #000;
+    margin-bottom: 14px;
+  }
+  #write-card-rule { height: 0.5px; background: #000; margin-bottom: 42px; }
+  .write-field { margin-bottom: 34px; }
+  .write-field textarea, .write-field input {
+    width: 100%; box-sizing: border-box; display: block;
+    border: none; border-bottom: 0.5px solid rgba(0,0,0,0.18);
+    background: rgba(0,0,0,0.04); outline: none; resize: none;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 13px; font-weight: 300; letter-spacing: 0.06em;
+    color: #000; padding: 10px 12px;
+  }
+  .write-field textarea { min-height: 96px; line-height: 1.7; }
+  .write-field textarea::placeholder, .write-field input::placeholder {
+    color: rgba(0,0,0,0.25); letter-spacing: 0.14em;
+  }
+  #write-send {
+    background: none; border: none; cursor: pointer; padding: 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11px; font-weight: 300; letter-spacing: 0.26em;
+    color: #000; display: flex; align-items: center; gap: 8px;
+    transition: opacity 0.2s;
+  }
+  #write-send:hover { opacity: 0.45; }
+  #write-sent {
+    display: none; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11px; font-weight: 300; letter-spacing: 0.22em; color: rgba(0,0,0,0.45);
+  }
+
+
+  /* ── Freeze / Go ──────────────────────────────────────────────────────────
+     Big enough to hit without aiming, bottom left, out of the way of the
+     ring's own drag. Pink holds everything still; green lets it run. */
+  /* Both buttons live in one bottom-left stack, so adding a control above
+     never means recomputing anyone's offset. */
+  #controls {
+    position: fixed; left: 28px; bottom: 28px; z-index: 45;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 14px;
+  }
+  /* Small, but with enough weight and tracking to stay readable over the ring. */
+  #counter {
+    font-family: ui-monospace, monospace; font-size: 10px; line-height: 1.7;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(255,255,255,0.62); user-select: none; pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  }
+  #counter { color: rgba(255,255,255,0.82); font-size: 11px; letter-spacing: 0.2em; }
+  #freeze, #drawBtn {
+    padding: 20px 42px; border: 2px solid currentColor; border-radius: 2px;
+    background: rgba(12,8,6,0.55); cursor: pointer;
+    font-family: ui-monospace, monospace; font-size: 22px; font-weight: 700;
+    letter-spacing: 0.34em; text-transform: uppercase;
+    color: #FF2D95;
+    text-shadow: 0 0 8px currentColor, 0 0 22px currentColor;
+    box-shadow: 0 0 14px rgba(255,45,149,0.55), inset 0 0 14px rgba(255,45,149,0.22);
+    transition: color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #freeze:hover, #drawBtn:hover { transform: translateY(-2px); }
+  #freeze:active, #drawBtn:active { transform: translateY(0); }
+
+  /* ── Draw ─────────────────────────────────────────────────────────────── */
+  /* Draw is only offered once the world is stopped — it is the thing you do to
+     a still ring, not to a turning one. */
+  #drawBtn { display: none; }
+  #drawBtn.available { display: block; }
+  #drawBtn {
+    color: #FAFF00;
+    box-shadow: 0 0 14px rgba(250,255,0,0.5), inset 0 0 14px rgba(250,255,0,0.2);
+  }
+  #drawBtn.on {
+    background: rgba(250,255,0,0.14);
+    box-shadow: 0 0 26px rgba(250,255,0,0.9), inset 0 0 20px rgba(250,255,0,0.35);
+  }
+  #tools {
+    display: none; flex-direction: column; gap: 12px;
+    padding: 14px 16px; border: 1px solid rgba(255,255,255,0.14); border-radius: 2px;
+    background: rgba(12,8,6,0.72);
+  }
+  #tools.on { display: flex; }
+  #tools .row { display: flex; align-items: center; gap: 12px; }
+  #tools .sw {
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.25); padding: 0;
+    transition: transform 140ms ease, box-shadow 140ms ease;
+  }
+  #tools .sw:hover { transform: scale(1.12); }
+  #tools .sw.on {
+    border-color: #fff; transform: scale(1.12);
+    /* Outer ring as well as the glow: black cannot light up and white cannot
+       be told apart by a white border, so selection is carried by the ring. */
+    box-shadow: 0 0 12px currentColor, 0 0 0 2px rgba(255,45,149,0.9);
+  }
+  /* The brush is one circle; these set how big it is, drawn at true relative
+     scale so the control looks like what it does. */
+  #tools .sz {
+    width: 30px; height: 30px; display: grid; place-items: center; cursor: pointer;
+    background: none; border: none; padding: 0;
+  }
+  #tools .sz i { display: block; border-radius: 50%; background: rgba(255,255,255,0.5); }
+  #tools .sz.on i { background: #FAFF00; box-shadow: 0 0 10px #FAFF00; }
+  /* The eraser sits in the swatch row because it IS a brush — same circle, same
+     sizes — it just takes ink away instead of laying it down. Hollow, so it
+     never looks like a sixth colour. */
+  #tools .sw.eraser {
+    position: relative; background: transparent !important;
+    border-style: dashed; border-color: rgba(255,255,255,0.55);
+  }
+  #tools .sw.eraser::after {
+    content: ''; position: absolute; left: 50%; top: 2px; bottom: 2px;
+    width: 2px; margin-left: -1px; background: rgba(255,255,255,0.7);
+    transform: rotate(45deg);
+  }
+  #tools .sw.eraser.on { border-style: solid; }
+  /* Save — sits above the palette, because what it saves is the thing the
+     palette made. */
+  #shot {
+    flex: 0 0 auto; display: grid; place-items: center;
+    width: 40px; height: 40px; padding: 0; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.22); border-radius: 2px;
+    background: none; color: rgba(255,255,255,0.62);
+    transition: color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+  #shotRow { display: flex; align-items: center; gap: 10px; }
+  #shotNote {
+    font-family: ui-monospace, monospace; font-size: 9px; line-height: 1.5;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(255,255,255,0.34); max-width: 150px; user-select: none;
+  }
+  #shot:hover { color: #FAFF00; border-color: #FAFF00; box-shadow: 0 0 12px rgba(250,255,0,0.45); }
+  #shot.flash { color: #FAFF00; border-color: #FAFF00; box-shadow: 0 0 26px rgba(250,255,0,0.95); }
+  #tools .clear {
+    background: none; border: none; cursor: pointer; padding: 2px 0;
+    font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.24em;
+    text-transform: uppercase; color: rgba(255,255,255,0.4);
+  }
+  #tools .clear:hover { color: #FF2D95; }
+
+  /* ── Step arrows ──────────────────────────────────────────────────────────
+     Positioned each frame from the front card's own projected edges, so they
+     hug whatever is centred rather than sitting at fixed screen offsets.
+     Shown only in draw mode — they pick the card you are working on. */
+  .stepArrow {
+    position: fixed; z-index: 46; transform: translate(-50%, -50%);
+    width: 74px; height: 74px; padding: 0;
+    border: 2px solid currentColor; border-radius: 50%;
+    background: rgba(12,8,6,0.5); cursor: pointer;
+    font-family: ui-monospace, monospace; font-size: 38px; line-height: 0;
+    color: #FF2D95;
+    text-shadow: 0 0 10px currentColor;
+    box-shadow: 0 0 16px rgba(255,45,149,0.6), inset 0 0 14px rgba(255,45,149,0.22);
+    transition: opacity 220ms ease, transform 120ms ease, box-shadow 180ms ease;
+    opacity: 0;
+  }
+  .stepArrow { pointer-events: none; }
+  .stepArrow.on { opacity: 1; pointer-events: auto; }
+  .stepArrow:hover { box-shadow: 0 0 28px rgba(255,45,149,0.95), inset 0 0 18px rgba(255,45,149,0.35); }
+  .stepArrow:active { transform: translate(-50%, -50%) scale(0.92); }
+  @media (max-width: 700px) { .stepArrow { width: 54px; height: 54px; font-size: 28px; } }
+
+  /* Sits under the buttons, over the ring. */
+  #drawLayer {
+    position: fixed; inset: 0; z-index: 44; pointer-events: none;
+  }
+  #drawLayer.on { pointer-events: auto; cursor: crosshair; }
+  #freeze.frozen {
+    color: #39FF14;
+    box-shadow: 0 0 14px rgba(57,255,20,0.6), inset 0 0 14px rgba(57,255,20,0.22);
+    animation: freezePulse 1.4s ease-in-out infinite;
+  }
+  @keyframes freezePulse {
+    0%, 100% { box-shadow: 0 0 14px rgba(57,255,20,0.6), inset 0 0 14px rgba(57,255,20,0.22); }
+    50%      { box-shadow: 0 0 26px rgba(57,255,20,0.95), inset 0 0 20px rgba(57,255,20,0.35); }
+  }
+  @media (max-width: 700px) {
+    #controls { left: 16px; bottom: 16px; gap: 10px; }
+    #freeze, #drawBtn { padding: 15px 26px; font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="drawLayer"></canvas>
+<button class="stepArrow" id="stepPrev" aria-label="Previous">&#8249;</button>
+<button class="stepArrow" id="stepNext" aria-label="Next">&#8250;</button>
+<div id="controls">
+  <div id="counter"></div>
+  <div id="tools">
+    <div class="row" id="shotRow">
+    <button id="shot" aria-label="Save this card">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.1-1.8A1 1 0 0 1 8.7 4.7h6.6a1 1 0 0 1 .9.5L17.3 7h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/>
+        <circle cx="12" cy="13" r="3.6"/>
+      </svg>
+    </button>
+    <span id="shotNote">Alex reserves the right<br>to use screengrabs</span>
+    </div>
+    <div class="row" id="swatches"></div>
+    <div class="row" id="sizes"></div>
+    <button class="clear" id="clearDraw">Clear</button>
+  </div>
+  <button id="drawBtn" aria-pressed="false">Draw</button>
+  <button id="freeze" aria-pressed="false">Freeze</button>
+</div>
+<div id="loader"><div id="loader-bar"></div></div>
+<div id="begin">
+  <button id="btn-audio-on">audio on</button>
+  <button id="btn-audio-off">audio off</button>
+</div>
+
+<div id="write-overlay">
+  <div id="write-card">
+    <button id="write-close" onclick="closeWriteMe()">&#x2715;</button>
+    <div id="write-card-label">WRITE ME</div>
+    <div id="write-card-rule"></div>
+    <form id="write-form" onsubmit="submitWriteMe(event)">
+      <div class="write-field">
+        <textarea id="write-msg" placeholder="message"></textarea>
+      </div>
+      <div class="write-field">
+        <input id="write-email" type="email" placeholder="email" required>
+      </div>
+      <button type="submit" id="write-send">SEND &rsaquo;</button>
+      <div id="write-sent">sent &mdash; thank you</div>
+    </form>
+  </div>
+</div>
+
+<script src="/vendor/three.min.js"></script>
+<script src="/vendor/FontLoader.js"></script>
+<script src="/vendor/TextGeometry.js"></script>
+<script>
+
+// ── Detroit images ────────────────────────────────────────────────────────────
+const DETROIT_IMAGES = [
+  '/detroit/01.webp','/detroit/02.webp','/detroit/03.webp','/detroit/04.webp',
+  '__text__','/detroit/06.webp','/detroit/07.webp','/detroit/08.webp',
+  '/detroit/09.webp','/detroit/10.webp','/detroit/11.webp','/detroit/12.webp',
+  '/detroit/13.webp','/detroit/14.webp','/detroit/16.webp','/detroit/17.webp',
+  '/detroit/18.webp','/detroit/19.webp','/detroit/20.webp','/detroit/21.webp',
+  '/detroit/22.webp','/detroit/23.webp','/detroit/24.webp','/detroit/25.webp',
+  '/detroit/27.webp','/detroit/28.webp','/detroit/29.webp',
+  '/detroit/30.webp','__text__','/detroit/32.webp','/detroit/33.webp',
+  '/detroit/34.webp','/detroit/35.webp','/detroit/36.webp','/detroit/37.webp',
+  '/detroit/38.webp','__text__',
+  '/detroit/face1.jpg','/detroit/face2.jpg','__text__',
+  '/detroit/face5.jpg','/detroit/face6.jpg','/detroit/face16.jpg',
+];
+const DETROIT_COUNT = DETROIT_IMAGES.length;
+const isDetroitText = (i) => DETROIT_IMAGES[i] === '__text__';
+
+// ── Scene ────────────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+function sweepTexture() {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0, '#16110d'); g.addColorStop(1, '#0a0704');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 512);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+}
+scene.background = sweepTexture();
+scene.fog = new THREE.Fog('#0e0b08', 9, 110);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 0, 28);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+// ── PMREM environment ────────────────────────────────────────────────────────
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color('#0e0b08');
+function softbox(x, y, z, w, h, b, col) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ color: col || new THREE.Color().setScalar(b) }));
+  m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m);
+}
+softbox(0, 8, 0, 8, 8, 1.6);
+softbox(6, 2, 0, 4, 8, 0, new THREE.Color('#3d2010'));
+softbox(-6, 2, 0, 4, 8, 0.02);
+softbox(0, -6, 0, 12, 12, 0.0);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(envScene, 0, 0.1, 200).texture;
+
+scene.add(new THREE.HemisphereLight('#2a1a0a', '#0e0806', 0.15));
+const key = new THREE.DirectionalLight('#ffffff', 1.1); key.position.set(4, 6, 5);
+const rim = new THREE.DirectionalLight('#ffcf90', 0.5); rim.position.set(-5, 2, -4);
+scene.add(key, rim);
+
+// ── Panel geometry ────────────────────────────────────────────────────────────
+const RADIUS = 24, CAM_Z = 28;
+const SENS = 0.005, FRICTION = 2.5, MAX_VEL = 6.0, DRAG_THRESH = 6;
+const FRONT_OPACITY = 0.92, BACK_OPACITY = 0.42;
+const REFL_FRAC = 0.4;
+const FOG_FLOOR = 0.4, FOG_MAX = 1.2, FOG_EASE = 4;
+let SPREAD = 1.0, AUTO_SPEED = 0.0375;
+
+const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth < 1024;
+
+if (isMobile) { SPREAD = 0.7; AUTO_SPEED = 0.01875; }
+const MOB_CAM_Z = RADIUS - 6; // 18 — inside ring, comfortable viewing distance
+if (isMobile) camera.position.set(0, 0, MOB_CAM_Z);
+
+const nearDist = CAM_Z - RADIUS;
+const vFOV = (camera.fov * Math.PI) / 180;
+let panelW, panelH;
+if (isMobile) {
+  const hFOVhalf = Math.atan(Math.tan(vFOV / 2) * camera.aspect);
+  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.88;
+  panelH = panelW * (4 / 3);
+} else {
+  panelH = 0.9 * 2 * nearDist * Math.tan(vFOV / 2);
+  panelW = panelH * (3 / 4);
+}
+const THICK = 0.16;
+const panelGeo = new THREE.BoxGeometry(panelW, panelH, THICK);
+
+// Shared reflection alpha map: overhead centred light — pools below panel centre, dims at edges
+const reflAlphaMap = (() => {
+  const W = 128, H = Math.round(W * REFL_FRAC * panelH / panelW);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const vGrad = ctx.createLinearGradient(0, 0, 0, H);
+  vGrad.addColorStop(0, 'rgba(255,255,255,0.82)');
+  vGrad.addColorStop(0.5, 'rgba(255,255,255,0.32)');
+  vGrad.addColorStop(1, 'rgba(255,255,255,0.0)');
+  ctx.fillStyle = vGrad; ctx.fillRect(0, 0, W, H);
+  const rGrad = ctx.createRadialGradient(W/2, 0, 0, W/2, 0, W * 0.72);
+  rGrad.addColorStop(0, 'rgba(0,0,0,0.0)');
+  rGrad.addColorStop(1, 'rgba(0,0,0,0.62)');
+  ctx.fillStyle = rGrad; ctx.fillRect(0, 0, W, H);
+  const tex = new THREE.CanvasTexture(c); return tex;
+})();
+
+// Shared alpha map: very slightly rounded, softly feathered corners
+const roundedAlphaMap = (() => {
+  const W = 128, H = Math.round(W * panelH / panelW);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const r = 5;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  ctx.filter = 'blur(2.5px)';
+  ctx.beginPath();
+  ctx.moveTo(r, 0); ctx.lineTo(W - r, 0);
+  ctx.arcTo(W, 0, W, r, r); ctx.lineTo(W, H - r);
+  ctx.arcTo(W, H, W - r, H, r); ctx.lineTo(r, H);
+  ctx.arcTo(0, H, 0, H - r, r); ctx.lineTo(0, r);
+  ctx.arcTo(0, 0, r, 0, r); ctx.closePath();
+  ctx.fillStyle = '#fff'; ctx.fill();
+  const tex = new THREE.CanvasTexture(c); return tex;
+})();
+const reflH = panelH * REFL_FRAC;
+const reflGeo = new THREE.PlaneGeometry(panelW, reflH);
+
+// ── Floor system ─────────────────────────────────────────────────────────────
+const LEVEL_GAP = panelH * 2.5;
+const FLOOR_UPPER = 0, FLOOR_DETROIT = 1, FLOOR_DIVER = 2;
+const FLOOR_Y = [LEVEL_GAP, 0, -LEVEL_GAP];
+
+// Camera Z per floor: each floor's radius + nearDist(4) keeps panels at same apparent scale
+const FLOOR_CAM_Z = [4.0 + nearDist, isMobile ? MOB_CAM_Z : CAM_Z, 6.0 + nearDist];
+
+let currentFloor = FLOOR_DETROIT;
+let camY = 0, camYTarget = 0;
+let camZ = isMobile ? MOB_CAM_Z : CAM_Z;
+let floorCooldown = 0;
+const FLOOR_COOLDOWN_MS = 1200;
+const floors = [null, null, null];
+
+// Scroll/swipe/arrow-key navigation to FLOOR_UPPER and FLOOR_DIVER is
+// disabled for now — entering via the portal should land on a single
+// self-contained scene, not open a path into the other floors (which also
+// haven't been vetted on mobile). The floor setup code itself is untouched;
+// flip this back on to restore navigation between all three.
+const FLOOR_NAV_ENABLED = false
+
+function goToFloor(idx) {
+  if (!FLOOR_NAV_ENABLED) return;
+  if (idx < 0 || idx > 2) return;
+  if (performance.now() - floorCooldown < FLOOR_COOLDOWN_MS) return;
+  currentFloor = idx;
+  camYTarget = FLOOR_Y[idx];
+  floorCooldown = performance.now();
+  if (isMobile && mobileState !== 'roaming') { mobileState = 'roaming'; paused = false; }
+}
+
+// ── Video — one element + texture set per diver panel ────────────────────────
+const DIVER_SRCS = [
+  '/videos/diver4.mp4',
+  '/videos/diver4_rev.mp4',
+  '/videos/newyork_panel1.mp4',
+  '/videos/newyork_panel2.mp4',
+  '/videos/newyork_panel3.mp4',
+  '/videos/wallstreetwalking_panel1.mp4',
+  '/videos/desktop_preRace2.mp4',
+  '/videos/desktop_hurdles.mp4',
+  '/videos/showreel2_3.mp4',
+];
+const DIVER_COUNT = DIVER_SRCS.length; // 11
+
+let diverVideosLoaded = false;
+const vidEls = DIVER_SRCS.map(() => {
+  const el = document.createElement('video');
+  // src set lazily when diver floor first becomes active
+  el.muted = true; el.loop = true; el.playsInline = true; el.preload = 'none';
+  el.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0';
+  document.body.appendChild(el);
+  return el;
+});
+
+const vidTexs = vidEls.map(el => {
+  const t = new THREE.VideoTexture(el); t.encoding = THREE.sRGBEncoding; return t;
+});
+
+// diver4.mp4 loads immediately — visible in Detroit ring text panels from the start
+vidEls[0].src = DIVER_SRCS[0];
+vidEls[0].load();
+let detroitDiverMats = [];
+const vidReflTexs = vidEls.map(el => {
+  const t = new THREE.VideoTexture(el);
+  t.encoding = THREE.sRGBEncoding;
+  t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(1, -REFL_FRAC); t.offset.set(0, REFL_FRAC);
+  return t;
+});
+
+// Per-panel blurred back canvases
+const blurCanvases = DIVER_SRCS.map(() => {
+  const c = document.createElement('canvas'); c.width = 320; c.height = 180; return c;
+});
+const blurCtxs  = blurCanvases.map(c => c.getContext('2d'));
+const blurTexs  = blurCanvases.map(c => {
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding;
+  t.wrapS = THREE.RepeatWrapping;
+  t.repeat.set(-1, 1); t.offset.set(1, 0);
+  return t;
+});
+
+// Per-video cover UV crop params (computed on loadedmetadata)
+const vidCropParams = new Array(DIVER_COUNT).fill(null);
+function applyVideoUVs(i) {
+  const el = vidEls[i];
+  const VA = el.videoWidth / el.videoHeight;
+  const PA = panelW / panelH;
+  let rx, ry, ox, oy;
+  if (VA >= PA) { ry = 1; rx = PA / VA; ox = (1 - rx) / 2; oy = 0; }
+  else           { rx = 1; ry = VA / PA; ox = 0; oy = (1 - ry) / 2; }
+  vidTexs[i].repeat.set(rx, ry); vidTexs[i].offset.set(ox, oy);
+  const rRy = -(REFL_FRAC * ry);
+  const rOy = oy + ry;
+  vidReflTexs[i].repeat.set(rx, rRy); vidReflTexs[i].offset.set(ox, rOy);
+  vidCropParams[i] = { VA, PA, rx, ry, ox, oy };
+}
+vidEls.forEach((el, i) => el.addEventListener('loadedmetadata', () => applyVideoUVs(i)));
+
+// ── Image helpers ─────────────────────────────────────────────────────────────
+function makeEnhancedCanvas(img) {
+  const scale = 0.5;
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  const id = ctx.getImageData(0, 0, c.width, c.height);
+  const px = id.data;
+  for (let j = 0; j < px.length; j += 4) {
+    let r = px[j]/255, g = px[j+1]/255, b = px[j+2]/255;
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    let h = 0, s = 0, l = (max+min)/2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+      if (max===r) h = ((g-b)/d + (g<b?6:0))/6;
+      else if (max===g) h = ((b-r)/d + 2)/6;
+      else h = ((r-g)/d + 4)/6;
+    }
+    const hd = h * 360;
+    if (l < 0.25) l *= 0.7;
+    if (hd >= 38 && hd <= 72) s = Math.min(1, s * 1.7);
+    if (hd <= 22 || hd >= 338) s = Math.min(1, s * 1.6);
+    if (hd >= 195 && hd <= 265) s = Math.min(1, s * 1.55);
+    if (s === 0) { r = g = b = l; } else {
+      const q = l < 0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
+      const h2r = (p,q,t) => { if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<0.5)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p; };
+      r = h2r(p,q,h+1/3); g = h2r(p,q,h); b = h2r(p,q,h-1/3);
+    }
+    px[j]=Math.round(r*255); px[j+1]=Math.round(g*255); px[j+2]=Math.round(b*255);
+  }
+  ctx.putImageData(id, 0, 0);
+  return c;
+}
+// The colour pass is a per-pixel HSL walk — far too slow to run on a composite
+// every frame. Enhancing each SOURCE once and cutting quarters out of the
+// results gives the same look for four drawImage calls instead.
+function makeEnhancedTex(img) {
+  const tex = new THREE.CanvasTexture(makeEnhancedCanvas(img));
+  tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+function sampleColor(img) {
+  const c = document.createElement('canvas'); c.width = 1; c.height = 1;
+  const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, 1, 1);
+  const d = ctx.getImageData(0, 0, 1, 1).data;
+  return new THREE.Color(d[0]/255, d[1]/255, d[2]/255);
+}
+
+function makeBlurTex(img) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width/4); c.height = Math.round(img.height/4);
+  const ctx = c.getContext('2d'); ctx.filter = 'blur(8px)';
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+function makeReflTex(img, mobile) {
+  const srcH = Math.round(img.height * REFL_FRAC);
+  const tmp = document.createElement('canvas'); tmp.width = img.width; tmp.height = srcH;
+  const tc = tmp.getContext('2d'); tc.translate(0, srcH); tc.scale(1, -1);
+  tc.drawImage(img, 0, img.height - srcH, img.width, srcH, 0, 0, img.width, srcH);
+  const c = document.createElement('canvas'); c.width = img.width; c.height = srcH;
+  const ctx = c.getContext('2d'); ctx.filter = 'blur(5px) brightness(0.85)';
+  ctx.drawImage(tmp, 0, 0); ctx.filter = 'none';
+  // Vertical fade — bright at panel base, disappears below
+  const vGrad = ctx.createLinearGradient(0, 0, 0, srcH);
+  if (mobile) {
+    vGrad.addColorStop(0, 'rgba(14,11,8,0.0)'); vGrad.addColorStop(0.25, 'rgba(14,11,8,0.88)'); vGrad.addColorStop(1, 'rgba(14,11,8,1.0)');
+  } else {
+    vGrad.addColorStop(0, 'rgba(14,11,8,0.0)'); vGrad.addColorStop(0.55, 'rgba(14,11,8,0.60)'); vGrad.addColorStop(1, 'rgba(14,11,8,0.97)');
+  }
+  ctx.fillStyle = vGrad; ctx.fillRect(0, 0, c.width, srcH);
+  // Radial vignette — overhead centred light pools below the panel centre, dims at edges
+  const cx = c.width / 2;
+  const rGrad = ctx.createRadialGradient(cx, 0, 0, cx, 0, c.width * 0.72);
+  rGrad.addColorStop(0, 'rgba(14,11,8,0.0)');
+  rGrad.addColorStop(1, 'rgba(14,11,8,0.62)');
+  ctx.fillStyle = rGrad; ctx.fillRect(0, 0, c.width, srcH);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+function makeFlippedTex(canvas) {
+  const c = document.createElement('canvas');
+  c.width = canvas.width; c.height = canvas.height;
+  const ctx = c.getContext('2d');
+  ctx.translate(c.width, 0); ctx.scale(-1, 1);
+  ctx.drawImage(canvas, 0, 0);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+// ── Text panel (detroit) ──────────────────────────────────────────────────────
+function makeDetroitTextTex() {
+  const W = 600, H = 776;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  const lm = 54;
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  // Primary title — bold, anchored high
+  ctx.font = "700 74px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '-0.01em';
+  ctx.fillText('DETROIT', lm, 132);
+  // Hairline rule
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 152); ctx.lineTo(W - lm, 152); ctx.stroke();
+  // Date — light, tracked
+  ctx.font = "300 12px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.28em';
+  ctx.fillText('1993 — 1997', lm, 186);
+  // Caption — lighter, smaller tracking
+  ctx.font = "300 10px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.18em';
+  ctx.fillText('COMING SOON TO OSWIN JOURNAL', lm, 224);
+  // Remainder of canvas is intentional white space
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+// ── Upper floor helpers ───────────────────────────────────────────────────────
+const UPPER_LABELS = ['SHORT STORIES', 'WRITE ME', 'LISTENS', 'ABOUT', 'OSWIN JOURNAL', 'ARCHIVE'];
+// ── Upper floor slideshow panels ──────────────────────────────────────────────
+const SLIDE_CFG = {
+  0: { label: 'SHORT STORIES', srcs: ['/images/casual.png','/images/slam.png','/images/sotherby.png','/images/elon.png'] },
+  2: { label: 'LISTENS',       srcs: ['/images/thinking_ambient.png','/images/sit_down_house.png','/images/thinking_upbeat.png','/images/oddities.png'] },
+};
+Object.values(SLIDE_CFG).forEach(sp => {
+  sp.imgIdx = 0; sp.imgs = new Array(sp.srcs.length).fill(null);
+  sp.canvas = document.createElement('canvas'); sp.canvas.width = 600; sp.canvas.height = 800;
+  sp.tex = null;
+});
+
+function drawSlidePanel(sp) {
+  const W = 600, H = 800, lm = 54;
+  const iW = W - lm * 2, iH = iW; // square, same width as rule
+  const iX = lm, iY = 152;
+  const ctx = sp.canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  // Header
+  ctx.fillStyle = '#000000'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText(sp.label, lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(W - lm, 130); ctx.stroke();
+  // Image — square cover-fit
+  const img = sp.imgs[sp.imgIdx];
+  if (img) {
+    const iA = img.naturalWidth / img.naturalHeight;
+    let sx, sy, sw, sh;
+    if (iA > 1) { sh = img.naturalHeight; sw = sh; sx = (img.naturalWidth - sw) / 2; sy = 0; }
+    else         { sw = img.naturalWidth; sh = sw; sx = 0; sy = (img.naturalHeight - sh) / 2; }
+    ctx.drawImage(img, sx, sy, sw, sh, iX, iY, iW, iH);
+  }
+  // Apple chevron
+  const arrowY = iY + iH + 46, sz = 7;
+  ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = 1.1; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(W/2 - sz * 0.5, arrowY - sz);
+  ctx.lineTo(W/2 + sz * 0.5, arrowY);
+  ctx.lineTo(W/2 - sz * 0.5, arrowY + sz);
+  ctx.stroke(); ctx.restore();
+  // Pagination dots
+  const dotY = arrowY + 26, dotR = 2.2, dotGap = 11;
+  const dotsX = W/2 - ((sp.srcs.length - 1) * dotGap) / 2;
+  for (let d = 0; d < sp.srcs.length; d++) {
+    ctx.beginPath(); ctx.arc(dotsX + d * dotGap, dotY, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = d === sp.imgIdx ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.18)'; ctx.fill();
+  }
+  if (sp.tex) sp.tex.needsUpdate = true;
+  if (sp.backTex) sp.backTex.needsUpdate = true;
+}
+
+// Load images for all slide panels
+Object.values(SLIDE_CFG).forEach(sp => {
+  sp.srcs.forEach((src, i) => {
+    const img = new Image();
+    img.onload = () => { sp.imgs[i] = img; if (i === sp.imgIdx) drawSlidePanel(sp); };
+    img.src = src;
+  });
+});
+
+// ── About panel ───────────────────────────────────────────────────────────────
+const ABOUT_PANEL_IDX = 3;
+const ARCHIVE_PANEL_IDX = 5;
+const ABOUT_SLIDES = [
+  'Alex Taves is a creative director and web artist based in Melbourne. He spent a decade as Art Director at Joe Fresh in Toronto, helping build the brand from an 11-person startup into a national retailer, then founded Oswald Gallery in Hamilton, which earned New York Times coverage within six months of opening.',
+  'These days he builds websites the way he used to hang shows. His independent publication, Oswin Journal, pairs ambient music, video art and short fiction in immersive browser environments, each issue made in collaboration with a single artist.',
+  'He came to code late and fell hard for React. What changed everything was Claude Code: it collapsed the distance between imagining something and standing inside it. Ideas that once needed a dev team, a budget and a six-week sprint now get built in a morning. The browser stopped being a place to put a portfolio and became the gallery itself, and for the first time, one person with taste and a terminal can build the whole room.',
+  'He works with musicians, labels and artists who want a web presence that feels like their work, not a template wearing their name.',
+];
+const aboutCanvas = document.createElement('canvas');
+aboutCanvas.width = 600; aboutCanvas.height = 800;
+let aboutTex = null, aboutBackTex = null;
+
+function wrapText(ctx, text, x, y, maxW, lh) {
+  const words = text.split(' ');
+  let line = '', cy = y;
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line, x, cy); line = w; cy += lh;
+    } else { line = test; }
+  }
+  if (line) ctx.fillText(line, x, cy);
+  return cy + lh;
+}
+
+function drawAboutPanel() {
+  const W = 600, H = 800, lm = 54;
+  const ctx = aboutCanvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  // Header
+  ctx.fillStyle = '#000000'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('ABOUT', lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(W - lm, 130); ctx.stroke();
+  // All paragraphs
+  ctx.letterSpacing = '0.02em';
+  ctx.font = "300 12px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.fillStyle = 'rgba(0,0,0,0.82)';
+  let cy = 166;
+  for (const para of ABOUT_SLIDES) {
+    cy = wrapText(ctx, para, lm, cy, W - lm * 2, 20);
+    cy += 16;
+  }
+  if (aboutTex) aboutTex.needsUpdate = true;
+  if (aboutBackTex) aboutBackTex.needsUpdate = true;
+}
+
+function makeWriteMeTex() {
+  const W = 600, H = 800, lm = 54, fw = W - lm * 2;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#000000'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('WRITE ME', lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(W - lm, 130); ctx.stroke();
+
+  const fieldFont = "300 12px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+
+  // Message field
+  const msgY = 168, msgH = 148;
+  ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(lm, msgY, fw, msgH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(lm, msgY, fw, msgH);
+  ctx.font = fieldFont; ctx.letterSpacing = '0.14em';
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillText('message', lm + 14, msgY + 28);
+
+  // Email field
+  const emailY = msgY + msgH + 18, emailH = 46;
+  ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(lm, emailY, fw, emailH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(lm, emailY, fw, emailH);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillText('email', lm + 14, emailY + 28);
+
+  // Send
+  const sendY = emailY + emailH + 36;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.font = "300 11px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('SEND', lm, sendY);
+  const sw = ctx.measureText('SEND  ').width;
+  ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 0.9;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const sz = 4.5, ax = lm + sw + 2;
+  ctx.beginPath(); ctx.moveTo(ax, sendY - sz * 0.75); ctx.lineTo(ax + sz, sendY); ctx.lineTo(ax, sendY + sz * 0.75); ctx.stroke();
+  ctx.restore();
+
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+// ── Write Me overlay ──────────────────────────────────────────────────────────
+function openWriteMe() {
+  document.getElementById('write-overlay').classList.add('open');
+  document.getElementById('write-sent').style.display = 'none';
+  document.getElementById('write-send').style.display = 'flex';
+}
+function closeWriteMe() {
+  document.getElementById('write-overlay').classList.remove('open');
+}
+function submitWriteMe(e) {
+  e.preventDefault();
+  const msg   = document.getElementById('write-msg').value;
+  const email = document.getElementById('write-email').value;
+  window.open(`mailto:alextaves@gmail.com?subject=Message from ${encodeURIComponent(email)}&body=${encodeURIComponent(msg)}`);
+  document.getElementById('write-send').style.display = 'none';
+  document.getElementById('write-sent').style.display = 'block';
+  setTimeout(closeWriteMe, 1800);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeWriteMe(); });
+document.getElementById('write-overlay').addEventListener('click', e => { if (e.target.id === 'write-overlay') closeWriteMe(); });
+
+function makeTextPanelTex(label) {
+  const c = document.createElement('canvas'); c.width = 600; c.height = 800;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 800);
+  const lm = 54;
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText(label, lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(600 - lm, 130); ctx.stroke();
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+function makeOswinJournalTex() {
+  const c = document.createElement('canvas'); c.width = 600; c.height = 800;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 800);
+  const lm = 54;
+  ctx.fillStyle = '#000000'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('OSWIN JOURNAL', lm, 110);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(600 - lm, 130); ctx.stroke();
+  ctx.fillStyle = '#000000';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.fillText('issue', lm, 162);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+function makeWhiteReflTex() {
+  const W = 128, H = 64;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  // Vertical fade
+  const vGrad = ctx.createLinearGradient(0, 0, 0, H);
+  vGrad.addColorStop(0, 'rgba(200,200,200,0.42)');
+  vGrad.addColorStop(1, 'rgba(200,200,200,0.0)');
+  ctx.fillStyle = vGrad; ctx.fillRect(0, 0, W, H);
+  // Radial — overhead centred pool
+  const rGrad = ctx.createRadialGradient(W/2, 0, 0, W/2, 0, W * 0.72);
+  rGrad.addColorStop(0, 'rgba(200,200,200,0.0)');
+  rGrad.addColorStop(1, 'rgba(200,200,200,0.38)');
+  ctx.fillStyle = rGrad; ctx.fillRect(0, 0, W, H);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex;
+}
+
+// ── Build upper floor ─────────────────────────────────────────────────────────
+function buildUpperFloor() {
+  const COUNT = 6;
+  const R = 4.0; // arc-length match: 4.19 * 6 / (2π)
+  const white = new THREE.Color(0xf0f0f0);
+  const f = {
+    floorIdx: FLOOR_UPPER, baseY: FLOOR_Y[FLOOR_UPPER], count: COUNT, radius: R,
+    angle: 0, angVel: 0, floorAmt: 0,
+    panels: [], home: [], tilt: [],
+    faceMats: [], glassMats: [], backMats: [], sideMats: [], reflMats: [],
+  };
+  for (let i = 0; i < COUNT; i++) {
+    const a = (i / COUNT) * Math.PI * 2;
+    const sp = SLIDE_CFG[i];
+    let faceTex;
+    if (sp) {
+      drawSlidePanel(sp);
+      sp.tex = new THREE.CanvasTexture(sp.canvas);
+      sp.tex.encoding = THREE.sRGBEncoding;
+      faceTex = sp.tex;
+    } else if (i === ABOUT_PANEL_IDX) {
+      drawAboutPanel();
+      aboutTex = new THREE.CanvasTexture(aboutCanvas);
+      aboutTex.encoding = THREE.sRGBEncoding;
+      faceTex = aboutTex;
+    } else if (i === 1) {
+      faceTex = makeWriteMeTex();
+    } else if (i === 4) {
+      oswinCanvas = document.createElement('canvas');
+      oswinCanvas.width = 600; oswinCanvas.height = 800;
+      drawOswinPanel(performance.now());
+      oswinTex = new THREE.CanvasTexture(oswinCanvas);
+      oswinTex.encoding = THREE.sRGBEncoding;
+      faceTex = oswinTex;
+    } else if (i === ARCHIVE_PANEL_IDX) {
+      faceTex = makeTextPanelTex('ARCHIVE');
+    } else {
+      faceTex = makeTextPanelTex(UPPER_LABELS[i]);
+    }
+    // Mirrored back texture — same canvas, flipped horizontally
+    const backTex = new THREE.CanvasTexture(faceTex.image);
+    backTex.encoding = THREE.sRGBEncoding;
+    backTex.wrapS = THREE.RepeatWrapping;
+    backTex.repeat.set(-1, 1); backTex.offset.set(1, 0);
+    if (sp) sp.backTex = backTex;
+    else if (i === ABOUT_PANEL_IDX) aboutBackTex = backTex;
+    else if (i === 4) oswinBackTex = backTex;
+    const faceMat = new THREE.MeshPhysicalMaterial({
+      map: faceTex, transparent: true, opacity: FRONT_OPACITY, side: THREE.FrontSide,
+      roughness: 0.55, metalness: 0.0, clearcoat: 0.0,
+      envMapIntensity: 0.12, color: white,
+    });
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: white, transparent: true, opacity: BACK_OPACITY,
+      roughness: 0.6, metalness: 0.0, envMapIntensity: 0.1,
+    });
+    const backMat = new THREE.MeshPhysicalMaterial({
+      map: backTex, transparent: true, opacity: 0.72,
+      roughness: 0.6, metalness: 0.0,
+    });
+    const sideMat = new THREE.MeshStandardMaterial({
+      color: white, transparent: true, opacity: 0.65,
+      roughness: 0.6, metalness: 0.0, envMapIntensity: 0.1,
+    });
+    const reflMat = new THREE.MeshBasicMaterial({
+      map: makeWhiteReflTex(), transparent: true, opacity: isMobile ? 0.15 : 0.45,
+    });
+    const panel = new THREE.Mesh(panelGeo, [sideMat, sideMat, glassMat, glassMat, faceMat, backMat]);
+    panel.frustumCulled = false;
+    panel.userData = { floorIdx: FLOOR_UPPER, panelIdx: i };
+    const reflMesh = new THREE.Mesh(reflGeo, reflMat);
+    reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
+    reflMesh.frustumCulled = false;
+    panel.add(reflMesh);
+    // Archive panel: video overlay — rule at canvas y=130, gap=22px, video y=152→778 (626px tall)
+    if (i === ARCHIVE_PANEL_IDX) {
+      const vW = (492 / 600) * panelW;
+      const vH = (626 / 800) * panelH;
+      // Canvas centre of video area: y = 152 + 626/2 = 465 → world y offset
+      const vY = (0.5 - 465 / 800) * panelH;
+      // UV center-crop so 1920×980 fills the plane without stretching
+      const videoAspect = 1920 / 980;
+      const planeAspect = vW / vH;
+      archiveVideoTex.wrapS = THREE.RepeatWrapping;
+      archiveVideoTex.wrapT = THREE.RepeatWrapping;
+      if (videoAspect > planeAspect) {
+        const rx = planeAspect / videoAspect;
+        archiveVideoTex.repeat.set(rx, 1);
+        archiveVideoTex.offset.set((1 - rx) / 2, 0);
+      } else {
+        const ry = videoAspect / planeAspect;
+        archiveVideoTex.repeat.set(1, ry);
+        archiveVideoTex.offset.set(0, (1 - ry) / 2);
+      }
+      archiveVideoMat = new THREE.MeshBasicMaterial({
+        map: archiveVideoTex, transparent: true, opacity: 1.0,
+        depthTest: false, depthWrite: false, fog: false,
+      });
+      archiveVideoMesh = new THREE.Mesh(new THREE.PlaneGeometry(vW, vH), archiveVideoMat);
+      archiveVideoMesh.position.set(0, vY, THICK / 2 + 0.02);
+      archiveVideoMesh.frustumCulled = false;
+      panel.add(archiveVideoMesh);
+    }
+    scene.add(panel);
+    f.panels.push(panel); f.home.push(new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R));
+    f.tilt.push(0); f.faceMats.push(faceMat); f.glassMats.push(glassMat);
+    f.backMats.push(backMat); f.sideMats.push(sideMat); f.reflMats.push(reflMat);
+  }
+  floors[FLOOR_UPPER] = f;
+}
+
+// ── Build diver floor ─────────────────────────────────────────────────────────
+function buildDiverFloor() {
+  const COUNT = DIVER_COUNT; // 11 — one panel per video
+  const R = 6.0;
+  const f = {
+    floorIdx: FLOOR_DIVER, baseY: FLOOR_Y[FLOOR_DIVER], count: COUNT, radius: R,
+    angle: 0, angVel: 0, floorAmt: 0,
+    panels: [], home: [], tilt: [],
+    faceMats: [], glassMats: [], backMats: [], sideMats: [], reflMats: [],
+    videoMats: [], videoBackMats: [], videoReflMats: [], videoMeshes: [], videoBackMeshes: [],
+  };
+  for (let i = 0; i < COUNT; i++) {
+    const a = (i / COUNT) * Math.PI * 2;
+    const faceMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#050302'), transparent: true, opacity: FRONT_OPACITY, side: THREE.FrontSide,
+      roughness: 0.02, metalness: 0.05, clearcoat: 1.0, clearcoatRoughness: 0.01, envMapIntensity: 1.6,
+    });
+    const glassMat = new THREE.MeshStandardMaterial({
+      transparent: true, opacity: BACK_OPACITY, roughness: 0.05, metalness: 0.2, envMapIntensity: 2.5,
+    });
+    const backMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#050302'), transparent: true, opacity: 0.72, roughness: 0.3, metalness: 0.0,
+    });
+    const sideMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#d4d0cb').multiplyScalar(1.25), transparent: true, opacity: 0.65,
+      roughness: 0.05, metalness: 0.3, envMapIntensity: 3.0,
+    });
+    const reflMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#050302'), transparent: true, opacity: 0,
+    });
+    const panel = new THREE.Mesh(panelGeo, [sideMat, sideMat, glassMat, glassMat, faceMat, backMat]);
+    panel.frustumCulled = false;
+    panel.userData = { floorIdx: FLOOR_DIVER, panelIdx: i };
+    const reflMesh = new THREE.Mesh(reflGeo, reflMat);
+    reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
+    reflMesh.frustumCulled = false;
+    panel.add(reflMesh);
+
+    const videoMat = new THREE.MeshBasicMaterial({
+      map: vidTexs[i], alphaMap: roundedAlphaMap, transparent: true, opacity: 0, depthTest: true, depthWrite: false, fog: false,
+    });
+    const videoMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), videoMat);
+    videoMesh.position.set(0, 0, THICK / 2 + 0.015); videoMesh.frustumCulled = false;
+    panel.add(videoMesh);
+
+    const videoBackMat = new THREE.MeshBasicMaterial({
+      map: blurTexs[i], alphaMap: roundedAlphaMap, transparent: true, opacity: 0, depthTest: true, depthWrite: false, fog: false,
+    });
+    const videoBackMesh = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), videoBackMat);
+    videoBackMesh.position.set(0, 0, -(THICK / 2 + 0.015));
+    videoBackMesh.rotation.y = Math.PI; videoBackMesh.frustumCulled = false;
+    panel.add(videoBackMesh);
+
+    const videoReflMat = new THREE.MeshBasicMaterial({
+      map: vidReflTexs[i], alphaMap: reflAlphaMap, transparent: true, opacity: 0, depthWrite: false, fog: false,
+    });
+    const videoReflMesh = new THREE.Mesh(reflGeo, videoReflMat);
+    videoReflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.003);
+    videoReflMesh.frustumCulled = false;
+    panel.add(videoReflMesh);
+
+    scene.add(panel);
+    f.panels.push(panel); f.home.push(new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R));
+    f.tilt.push(0); f.faceMats.push(faceMat); f.glassMats.push(glassMat);
+    f.backMats.push(backMat); f.sideMats.push(sideMat); f.reflMats.push(reflMat);
+    f.videoMats.push(videoMat); f.videoBackMats.push(videoBackMat); f.videoReflMats.push(videoReflMat);
+    f.videoMeshes.push(videoMesh); f.videoBackMeshes.push(videoBackMesh);
+  }
+  floors[FLOOR_DIVER] = f;
+}
+
+// ── Archive showreel video ────────────────────────────────────────────────────
+let archiveVideoLoaded = false;
+const archiveVideoEl = document.createElement('video');
+// src set lazily when upper floor first becomes active
+archiveVideoEl.loop = true; archiveVideoEl.muted = true; archiveVideoEl.playsInline = true; archiveVideoEl.preload = 'none';
+const archiveVideoTex = new THREE.VideoTexture(archiveVideoEl);
+archiveVideoTex.encoding = THREE.sRGBEncoding;
+let archiveVideoMat = null;
+let archiveVideoMesh = null;
+
+// ── Oswin Journal panel — animated piano bars over flexing guy ────────────────
+let oswinCanvas = null, oswinTex = null, oswinBackTex = null;
+const oswinGlows = [];
+let oswinNextGlow = 0;
+const oswinImg = new Image();
+oswinImg.src = '/images/giftshop-red.jpg';
+
+const PIANO_BAR_COLORS = [
+  'rgba(4,4,3,0.06)',       'rgba(18,18,16,0.05)',
+  'rgba(42,42,40,0.04)',    'rgba(75,75,72,0.04)',
+  'rgba(115,115,110,0.03)', 'rgba(155,155,150,0.03)',
+  'rgba(195,195,190,0.02)', 'rgba(232,232,228,0.02)',
+];
+const PIANO_BLOOM = 'rgba(255,255,240,0.72)';
+
+function drawOswinPanel(now) {
+  if (!oswinCanvas || !oswinImg.complete) return;
+  const W = 600, H = 800, lm = 54;
+  const iX = lm, iY = 152, iW = W - lm * 2, iH = 626;
+  const ctx = oswinCanvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+
+  // Header
+  ctx.fillStyle = '#000000'; ctx.textBaseline = 'alphabetic';
+  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.26em';
+  ctx.textAlign = 'left';
+  ctx.fillText('OSWIN JOURNAL', lm, 110);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = oswinListenActive ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.35)';
+  ctx.font = "300 11px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  ctx.letterSpacing = '0.22em';
+  ctx.fillText(oswinListenActive ? 'LISTENING' : 'LISTEN', W - lm, 110);
+  ctx.textAlign = 'left';
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(lm, 130); ctx.lineTo(W - lm, 130); ctx.stroke();
+
+  // Flexing guy — cover-fit into content area
+  const imgA = oswinImg.naturalWidth / oswinImg.naturalHeight;
+  const areaA = iW / iH;
+  let sx, sy, sw, sh;
+  if (imgA > areaA) { sh = oswinImg.naturalHeight; sw = sh * areaA; sx = (oswinImg.naturalWidth - sw) / 2; sy = 0; }
+  else              { sw = oswinImg.naturalWidth; sh = sw / areaA; sx = 0; sy = (oswinImg.naturalHeight - sh) / 2; }
+  ctx.drawImage(oswinImg, sx, sy, sw, sh, iX, iY, iW, iH);
+
+  // Piano bars — horizontal rows
+  const nBars = 8, barH = iH / nBars;
+  for (let b = 0; b < nBars; b++) {
+    const by = iY + b * barH;
+    ctx.fillStyle = PIANO_BAR_COLORS[b];
+    ctx.fillRect(iX, by, iW, barH);
+    let glowAmt = 0;
+    for (const g of oswinGlows) {
+      if (g.barIdx !== b) continue;
+      const e = now - g.startTime;
+      glowAmt = Math.max(glowAmt, e < 380 ? 1.0 : Math.max(0, 1.0 - (e - 380) / 2800));
+    }
+    if (glowAmt > 0) {
+      ctx.globalAlpha = glowAmt;
+      ctx.fillStyle = PIANO_BLOOM;
+      ctx.fillRect(iX, by, iW, barH);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Cull expired glows and schedule next
+  for (let i = oswinGlows.length - 1; i >= 0; i--) {
+    if (now - oswinGlows[i].startTime > 3180) oswinGlows.splice(i, 1);
+  }
+  if (now >= oswinNextGlow) {
+    oswinGlows.push({ barIdx: Math.floor(Math.random() * nBars), startTime: now });
+    oswinNextGlow = now + 150 + Math.random() * 400;
+  }
+
+  if (oswinTex) oswinTex.needsUpdate = true;
+  if (oswinBackTex) oswinBackTex.needsUpdate = true;
+}
+
+// ── Build detroit floor ───────────────────────────────────────────────────────
+const aniso = renderer.capabilities.getMaxAnisotropy();
+
+function buildDetroitFloor(textures) {
+  const f = {
+    floorIdx: FLOOR_DETROIT, baseY: FLOOR_Y[FLOOR_DETROIT], count: DETROIT_COUNT, radius: RADIUS,
+    snapTo: null, litAmt: new Array(DETROIT_COUNT).fill(1),
+    angle: 0, angVel: 0, floorAmt: 1,
+    panels: [], home: [], tilt: [],
+    faceMats: [], glassMats: [], backMats: [], sideMats: [], reflMats: [],
+  };
+  for (let i = 0; i < DETROIT_COUNT; i++) {
+    const a = (i / DETROIT_COUNT) * Math.PI * 2;
+    textures[i].encoding = THREE.sRGBEncoding;
+    if (!isDetroitText(i)) textures[i].anisotropy = aniso;
+    const isText = isDetroitText(i);
+    const avgCol = isText ? new THREE.Color(0xffffff) : sampleColor(textures[i].image);
+    const faceMat = new THREE.MeshPhysicalMaterial({
+      map: isText ? textures[i] : makeEnhancedTex(textures[i].image),
+      transparent: true, opacity: FRONT_OPACITY, side: THREE.FrontSide,
+      roughness: isText ? 0.55 : 0.02, metalness: isText ? 0.0 : 0.05,
+      clearcoat: isText ? 0.0 : 1.0, clearcoatRoughness: 0.01,
+      envMapIntensity: isText ? 0.15 : 1.6,
+      emissive: isText ? new THREE.Color(0x000000) : avgCol, emissiveIntensity: 0.0,
+      alphaMap: roundedAlphaMap,
+    });
+    const white = new THREE.Color(0xffffff);
+    const sideMat = new THREE.MeshStandardMaterial({
+      color: isText ? white : new THREE.Color('#d4d0cb').multiplyScalar(1.25),
+      transparent: true, opacity: 0.65,
+      roughness: isText ? 0.6 : 0.05, metalness: isText ? 0.0 : 0.3,
+      envMapIntensity: isText ? 0.1 : 3.0,
+    });
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: isText ? white : new THREE.Color(0xffffff),
+      transparent: true, opacity: BACK_OPACITY,
+      roughness: isText ? 0.6 : 0.05, metalness: isText ? 0.0 : 0.2,
+      envMapIntensity: isText ? 0.1 : 2.5,
+    });
+    const backMat = new THREE.MeshPhysicalMaterial({
+      map: isDetroitText(i) ? makeFlippedTex(textures[i].image) : makeBlurTex(textures[i].image), transparent: true, opacity: 0.72,
+      roughness: 0.3, metalness: 0.0, envMapIntensity: 0.3,
+      emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0.0,
+      alphaMap: roundedAlphaMap,
+    });
+    const reflMat = new THREE.MeshBasicMaterial({
+      map: isDetroitText(i) ? makeWhiteReflTex() : makeReflTex(textures[i].image, isMobile),
+      transparent: true, opacity: isMobile ? 0.2 : 0.66,
+    });
+    const panel = new THREE.Mesh(panelGeo,
+      isMobile
+        ? [sideMat, sideMat, glassMat, glassMat, backMat, faceMat]
+        : [sideMat, sideMat, glassMat, glassMat, faceMat, backMat]
+    );
+    panel.frustumCulled = false;
+    panel.userData = { floorIdx: FLOOR_DETROIT, panelIdx: i };
+    const reflMesh = new THREE.Mesh(reflGeo, reflMat);
+    reflMesh.position.set(0, -(panelH + reflH) / 2, THICK / 2 + 0.002);
+    reflMesh.frustumCulled = false;
+    panel.add(reflMesh);
+    // Text panels: overlay diver4.mp4 — clicking enters the immersive site
+    if (isDetroitText(i)) {
+      const dm = new THREE.MeshBasicMaterial({
+        map: vidTexs[0], transparent: true, opacity: 0,
+        depthTest: true, depthWrite: false, fog: false,
+      });
+      const dv = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), dm);
+      dv.position.set(0, 0, THICK / 2 + 0.015);
+      dv.frustumCulled = false;
+      panel.add(dv);
+      detroitDiverMats.push(dm);
+    }
+    scene.add(panel);
+    f.panels.push(panel); f.home.push(new THREE.Vector3(Math.cos(a) * RADIUS, 0, Math.sin(a) * RADIUS));
+    f.tilt.push(0); f.faceMats.push(faceMat); f.glassMats.push(glassMat);
+    f.backMats.push(backMat); f.sideMats.push(sideMat); f.reflMats.push(reflMat);
+  }
+  floors[FLOOR_DETROIT] = f;
+}
+
+// ── Load assets ───────────────────────────────────────────────────────────────
+buildUpperFloor();
+buildDiverFloor();
+
+
+let loadedCount = 0;
+const textures = new Array(DETROIT_COUNT);
+const loader = new THREE.TextureLoader();
+const loaderBar = document.getElementById('loader-bar');
+const loaderEl  = document.getElementById('loader');
+
+// ── Ground remix ────────────────────────────────────────────────────────────────
+// A restart. One source, 32, and nothing is borrowed from another picture —
+// this rearranges the image with itself.
+//
+// The frame is divided into SQUARES. Each square is reduced to the single colour
+// that most of it already is, then laid back down shifted by up to five per cent
+// of the frame. The untouched original sits underneath, so a square that moves
+// away does not leave a hole: it reveals the picture it came from.
+//
+// Squares are true squares, not grid cells. The composite is 300x388, so a
+// column count that divides the width leaves the last row short rather than
+// stretching every square into a rectangle — the short row is clipped instead.
+//
+// A hundred arrangements. Every card takes a different one and they all advance
+// together, so the ring reads as one image being reshuffled rather than as
+// thirty-nine unrelated pictures.
+//
+//   ?src=/detroit/32.webp   the source
+//   ?chunk=25     square size in composite pixels
+//   ?shift=0.05   how far a square can travel, as a fraction of the frame
+//   ?versions=100 how many arrangements before it repeats
+//   ?flat=1       0 keeps each square's real pixels instead of its one colour
+//   ?seed=123     reproduce a particular run
+//   ?every=3000 ms between re-rolls   ?xfade=1100 ms of dissolve
+
+const _rq = new URLSearchParams(location.search);
+const _rnum = (k, d) => { const v = parseFloat(_rq.get(k)); return Number.isFinite(v) ? v : d; };
+const REMIX_ON = _rq.get('remix') !== '0';
+const REMIX_SEED = (() => {
+  const v = parseInt(new URLSearchParams(location.search).get('seed'), 10);
+  return Number.isFinite(v) ? v : (Math.random() * 1e9) | 0;
+})();
+
+// Small deterministic RNG so a seed reproduces a mix exactly — Math.random gives
+// a different face on every reload, which makes a look impossible to keep.
+let _rngState = REMIX_SEED >>> 0;
+function rnd() {
+  _rngState ^= _rngState << 13; _rngState >>>= 0;
+  _rngState ^= _rngState >> 17;
+  _rngState ^= _rngState << 5;  _rngState >>>= 0;
+  return _rngState / 4294967296;
+}
+
+// Draw ONE quarter of a source into the same quarter of the destination. The
+// source is cover-fitted to the full destination first and then clipped to the
+// quarter, so quarters taken from the 1920x2485 jpgs line up with quarters from
+// the 600x776 webps instead of being cropped differently.
+function drawQuadrant(ctx, img, q, W, H) {
+  const sc = Math.max(W / img.width, H / img.height);
+  const dw = img.width * sc, dh = img.height * sc;
+  const dx = (W - dw) / 2, dy = (H - dh) / 2;
+  const cw = W / COLS, ch = H / ROWS;
+  const col = q % COLS, row = (q / COLS) | 0;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(col * cw, row * ch, cw, ch); ctx.clip();
+  ctx.drawImage(img, dx, dy, dw, dh);
+  ctx.restore();
+}
+
+// Every REMIX_EVERY ms all nine cells of every card cross-dissolve to nine
+// freshly chosen cells. The composite is only 300x388 — the size the face
+// texture has always been — so a quarter is 150x194 and redrawing eight of them
+// per card per frame is nothing.
+const REMIX_EVERY = _rnum('every', 3000);
+const REMIX_FADE  = _rnum('xfade', 1100);
+
+const RW = 300, RH = 388;
+// How far the cut is softened, in composite pixels, spread evenly either side of
+// the seam. 0 restores the hard edges.
+// Declared here rather than beside pick4: seamStencils is built further down at
+// load time and reads CELLS, and leaving these below put them in the temporal
+// dead zone — the script threw on the way past and nothing after it existed.
+const SRC = _rq.get('src') || '/detroit/32.webp';
+const CHUNK    = Math.max(4, Math.round(_rnum('chunk', 25)));
+const SHIFT    = _rnum('shift', 0.05);
+const VERSIONS = Math.max(1, Math.round(_rnum('versions', 100)));
+const FLAT     = _rq.get('flat') !== '0';
+const BLUE = (() => {
+  const hex = (_rq.get('ground') || _rq.get('blue') || '000000').replace('#', '');
+  const n = parseInt(hex.slice(0, 6), 16);
+  return Number.isFinite(n) ? { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+                            : { r: 0, g: 0, b: 0 };
+})();
+const VARIANTS      = Math.max(2, Math.round(_rnum('variants', 39)));
+const HUE_ON        = _rq.get('hue') !== '0';
+const CAMO_REGIONS  = Math.max(2, Math.round(_rnum('regions', 5)));
+const CAMO_PATTERNS = Math.max(1, Math.round(_rnum('patterns', 100)));
+const CAMO_WARP     = _rnum('warp', 0.18);
+const CAMO_SCALE    = Math.max(2, Math.round(_rnum('scale', 5)));
+// COLS/ROWS survive only because drawQuadrant still speaks in cells; a camo
+// region is not a rectangle, so the grid is 1x1 and the masks do the cutting.
+const COLS = 1, ROWS = 1;
+const CELLS = CAMO_REGIONS;
+
+// Softening around a blob edge, kept to a single pixel. Tried at 6 first and it
+// was wrong: five soft-edged regions overlapping turned the card to mush and
+// read as a double exposure rather than a cut. Camo has hard edges — the
+// irregular outline is what does the work, so the seam only needs to take the
+// stair-stepping off it.
+const SEAM = _rnum('seam', 1);
+
+// Cover-fit: the sources are not all the same aspect, and letterboxing one into
+// the composite would put the card's ground inside the still.
+function drawCover(ctx, img, W, H) {
+  const s = Math.max(W / img.width, H / img.height);
+  const dw = img.width * s, dh = img.height * s;
+  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+}
+
+// ── Squares ──────────────────────────────────────────────────────────────────
+// The grid, and the one colour each square mostly is. Both are computed once
+// from the source: only the positions change between arrangements.
+let SQ = null;          // { cols, rows, cells:[{sx,sy,sw,sh,css}] }
+let STILL = null;       // the untouched original, drawn underneath every version
+
+// The colour that most of a square already is. Channels are quantised to 5 bits
+// before counting, so near-identical shades fall in the same bucket instead of
+// each being their own with a count of one — on a photograph an exact mode is
+// almost always some stray pixel.
+function dominantColour(d, W, sx, sy, sw, sh) {
+  const bins = new Map();
+  let best = 0, bestKey = -1;
+  for (let y = sy; y < sy + sh; y++) {
+    let i = (y * W + sx) * 4;
+    for (let x = 0; x < sw; x++, i += 4) {
+      const key = ((d[i] >> 3) << 10) | ((d[i + 1] >> 3) << 5) | (d[i + 2] >> 3);
+      const n = (bins.get(key) || 0) + 1;
+      bins.set(key, n);
+      if (n > best) { best = n; bestKey = key; }
+    }
+  }
+  if (bestKey < 0) return '#000';
+  const r = ((bestKey >> 10) & 31) << 3, g = ((bestKey >> 5) & 31) << 3, b = (bestKey & 31) << 3;
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+function buildSquares(base) {
+  const d = base.getContext('2d').getImageData(0, 0, RW, RH).data;
+  const cols = Math.ceil(RW / CHUNK), rows = Math.ceil(RH / CHUNK);
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const sx = c * CHUNK, sy = r * CHUNK;
+      const sw = Math.min(CHUNK, RW - sx), sh = Math.min(CHUNK, RH - sy);
+      if (sw <= 0 || sh <= 0) continue;
+      cells.push({ sx, sy, sw, sh, css: dominantColour(d, RW, sx, sy, sw, sh) });
+    }
+  }
+  SQ = { cols, rows, cells };
+}
+
+// A version is nothing but a list of offsets — one per square, at most SHIFT of
+// the frame in each direction. Deterministic from the version number, so a
+// version looks the same every time it comes round.
+function offsetsFor(version) {
+  let st = ((REMIX_SEED ^ (version * 2654435761)) >>> 0) || 1;
+  const rand = () => { st ^= st << 13; st >>>= 0; st ^= st >> 17; st ^= st << 5; st >>>= 0;
+                       return st / 4294967296; };
+  const mx = RW * SHIFT, my = RH * SHIFT;
+  return SQ.cells.map(() => ({ dx: Math.round((rand() * 2 - 1) * mx),
+                               dy: Math.round((rand() * 2 - 1) * my) }));
+}
+
+let ePool = [];              // each source, colour-enhanced once
+const remixCards = [];       // { i, comp, ctx, cur:[4], next:[4] }
+
+// A card's state is now just which arrangement it is showing.
+let versionCursor = 0;
+const pick4 = () => (versionCursor++) % VERSIONS;
+
+// Bake one arrangement: the still first, then every square dropped back at its
+// offset. The still is what makes "no holes" true — a square that moves away
+// uncovers the original rather than the card's ground.
+function bakeCells(version) {
+  const c = document.createElement('canvas');
+  c.width = RW; c.height = RH;
+  const x = c.getContext('2d');
+  if (STILL) x.drawImage(STILL, 0, 0);
+  if (!SQ) return c;
+  const offs = offsetsFor(version);
+  for (let i = 0; i < SQ.cells.length; i++) {
+    const q = SQ.cells[i], o = offs[i];
+    if (FLAT) {
+      x.fillStyle = q.css;
+      x.fillRect(q.sx + o.dx, q.sy + o.dy, q.sw, q.sh);
+    } else {
+      x.drawImage(STILL, q.sx, q.sy, q.sw, q.sh, q.sx + o.dx, q.sy + o.dy, q.sw, q.sh);
+    }
+  }
+  return c;
+}
+
+function paintComposite(rc, t) {
+  const ctx = rc.ctx;
+  ctx.clearRect(0, 0, RW, RH);
+
+  if (t > 0) {
+    // Mid-dissolve, NEITHER arrangement changes — only the blend between them.
+    // Rebuilding both cell by cell every frame was 9 x 2 x 4 = 72 full-canvas
+    // ops per card, and across 25 visible cards that is 1800 a frame: measured,
+    // it halved the framerate for the length of every dissolve. Baked once each,
+    // the per-frame cost is two drawImages.
+    // Normally both are ready before the dissolve starts; this covers a card
+    // that rotated into view late or a first cycle that ran out of hold.
+    if (!rc.bakeA) rc.bakeA = bakeCells(rc.cur);
+    if (!rc.bakeB) rc.bakeB = bakeCells(rc.next);
+    ctx.drawImage(rc.bakeA, 0, 0);
+    ctx.save(); ctx.globalAlpha = t; ctx.drawImage(rc.bakeB, 0, 0); ctx.restore();
+  } else if (rc.bakeA) {
+    ctx.drawImage(rc.bakeA, 0, 0);        // already baked: one op, not 140
+  } else {
+    ctx.drawImage(bakeCells(rc.cur), 0, 0);   // not baked yet: build it now
+  }
+
+  // Marks ride ON the card, over the cells — so they survive every re-roll,
+  // travel with the card as the ring turns, and are clipped by its edges without
+  // any masking. A screen overlay could do none of those.
+  if (rc.ink) ctx.drawImage(rc.ink, 0, 0);
+  rc.t = t;
+  if (rc.tex) rc.tex.needsUpdate = true;
+}
+
+function repaintCard(rc) { paintComposite(rc, rc.t || 0); }
+
+// ── Painted ground ───────────────────────────────────────────────────────────────
+// Flood inward from the borders and repaint whatever the background happens to
+// be — black on one portrait, green or white on the next.
+//
+// Compared against the BORDER'S OWN colour, not against each pixel's neighbour.
+// Neighbour-matching is region growing, and on artwork with gradients it drifts:
+// every step is within tolerance of the last, so the flood walks the length of
+// the image and eats the figure. Measured, that version came back 99.9% blue —
+// the whole card, face and all. Anchoring to a fixed reference stops the walk.
+//
+// Flooding only from the border is also what protects the whites INSIDE the
+// picture — an eye, a collar — that a plain colour key would punch through.
+const GROUND = (() => {
+  const hex = (_rq.get('ground') || '000000').replace('#', '');
+  const n = parseInt(hex.length === 3
+    ? hex.split('').map(c => c + c).join('') : hex.slice(0, 6), 16);
+  return Number.isFinite(n)
+    ? { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+    : { r: 0, g: 0, b: 0 };
+})();
+const GROUND_TOL = _rnum('tol', 38);
+const GROUND_MAX = _rnum('groundmax', 0.82);   // leak guard
+
+function paintGround(c) {
+  const w = c.width, h = c.height;
+  const x = c.getContext('2d');
+  const img = x.getImageData(0, 0, w, h);
+  const d = img.data;
+  const seen = new Uint8Array(w * h);
+  const tol2 = GROUND_TOL * GROUND_TOL * 3;
+  const hit = [];
+
+  // Every border pixel can start its own flood, carrying ITS OWN colour as the
+  // reference for that region. One average across the whole border was the
+  // mistake: a portrait black along the top and figure along the bottom averages
+  // to something matching neither, and 13 of 39 backgrounds were left untouched
+  // — which is what showed as a lattice of blue cells against unpainted ones.
+  const flood = (start) => {
+    const si = start * 4;
+    const sr = d[si], sg = d[si + 1], sb = d[si + 2];
+    const stack = [start];
+    while (stack.length) {
+      const p = stack.pop();
+      if (seen[p]) continue;
+      seen[p] = 1;
+      const i = p * 4;
+      const dr = d[i] - sr, dg = d[i + 1] - sg, db = d[i + 2] - sb;
+      if (dr * dr + dg * dg + db * db > tol2) continue;
+      hit.push(i);
+      const px = p % w, py = (p / w) | 0;
+      if (px > 0) stack.push(p - 1);
+      if (px < w - 1) stack.push(p + 1);
+      if (py > 0) stack.push(p - w);
+      if (py < h - 1) stack.push(p + w);
+    }
+  };
+
+  for (let i = 0; i < w; i++) { if (!seen[i]) flood(i);
+                                const q = (h - 1) * w + i; if (!seen[q]) flood(q); }
+  for (let j = 0; j < h; j++) { const l = j * w, r = l + w - 1;
+                                if (!seen[l]) flood(l); if (!seen[r]) flood(r); }
+
+  // If it took nearly everything, the background was never distinct from the
+  // figure — leave that source alone rather than hand back a blue rectangle.
+  if (hit.length / (w * h) > GROUND_MAX) return c;
+
+  for (const i of hit) { d[i] = GROUND.r; d[i + 1] = GROUND.g; d[i + 2] = GROUND.b; }
+  x.putImageData(img, 0, 0);
+  return c;
+}
+
+// The ground of a given canvas. Same border flood as paintGround, but it hands
+// back the pixel list instead of filling it.
+//
+// Run PER VARIANT, after the transform, not once on the source. A single shared
+// mask was the first attempt and it was wrong: the variants mirror and drift, so
+// a mask cut from the untransformed source punched the original silhouette
+// through a figure that had moved, and the blue ate into the face. Flooding each
+// variant separately means every ground is correctly aligned to its own figure,
+// and because they are all filled with the SAME blue the background still reads
+// as one continuous field with no cut visible in it.
+function groundIndices(c) {
+  // Flood a downsampled copy. At CHUNK=8 the field is 38x49 rather than
+  // 300x388, so the edge it finds is quantised to eight-pixel blocks when it is
+  // scaled back up — loose and chunky instead of tracing every hair.
+  const w = Math.max(4, Math.ceil(c.width / CHUNK)), h = Math.max(4, Math.ceil(c.height / CHUNK));
+  const small = document.createElement('canvas'); small.width = w; small.height = h;
+  const sx = small.getContext('2d');
+  sx.imageSmoothingEnabled = true;
+  sx.drawImage(c, 0, 0, w, h);
+  const d = sx.getImageData(0, 0, w, h).data;
+  const seen = new Uint8Array(w * h);
+  const tol2 = GROUND_TOL * GROUND_TOL * 3;
+  const hit = [];
+  const flood = (start) => {
+    const si = start * 4, sr = d[si], sg = d[si + 1], sb = d[si + 2];
+    const stack = [start];
+    while (stack.length) {
+      const p = stack.pop();
+      if (seen[p]) continue;
+      seen[p] = 1;
+      const i = p * 4;
+      const dr = d[i] - sr, dg = d[i + 1] - sg, db = d[i + 2] - sb;
+      if (dr * dr + dg * dg + db * db > tol2) continue;
+      hit.push(p);
+      const px = p % w, py = (p / w) | 0;
+      if (px > 0) stack.push(p - 1);
+      if (px < w - 1) stack.push(p + 1);
+      if (py > 0) stack.push(p - w);
+      if (py < h - 1) stack.push(p + w);
+    }
+  };
+  for (let i = 0; i < w; i++) { if (!seen[i]) flood(i);
+                                const q = (h - 1) * w + i; if (!seen[q]) flood(q); }
+  for (let j = 0; j < h; j++) { const l = j * w, r = l + w - 1;
+                                if (!seen[l]) flood(l); if (!seen[r]) flood(r); }
+  // back up to full resolution: every block the flood took becomes a solid
+  // CHUNK x CHUNK square, which is what gives the edge its blockiness
+  const mask = new Uint8Array(w * h);
+  for (const p of hit) mask[p] = 1;
+  const out = [];
+  for (let y = 0; y < c.height; y++) {
+    const sy = Math.min(h - 1, (y / CHUNK) | 0);
+    for (let x = 0; x < c.width; x++) {
+      const sxi = Math.min(w - 1, (x / CHUNK) | 0);
+      if (mask[sy * w + sxi]) out.push(y * c.width + x);
+    }
+  }
+  return out;
+}
+
+// One transformed copy of the source, then the ground put back to the one blue.
+// The figure is free to mirror, drift and change hue; the field behind it is
+// identical in every variant, so the camo cut disappears out there and only
+// shows across the face.
+const HUE_STEPS = Math.max(2, Math.round(_rnum('hues', 8)));
+function makeVariant(base, k) {
+  const c = document.createElement('canvas'); c.width = RW; c.height = RH;
+  const x = c.getContext('2d');
+  if (k === 0) {
+    // still zoomed: the point of this ring is a bigger face, and leaving one
+    // variant at original scale left an obviously smaller head in the mix
+    x.save();
+    x.translate(RW / 2, RH / 2); x.scale(ZOOM, ZOOM);
+    x.drawImage(base, -RW / 2, -RH / 2, RW, RH);
+    x.restore();
+  } else {
+    // Registered, not scattered. Random zoom plus ten per cent drift put every
+    // variant's features in a different place, so a camo patch never lined up
+    // with its neighbour and the card came out as fragments rather than a face.
+    // Holding the scale constant and the drift to two per cent means the patches
+    // swap between the two portraits at MATCHING positions: the face stays
+    // readable and it is the skin, colour and detail that change across it.
+    const flip = rnd() < 0.5;
+    const sc   = ZOOM;
+    const dx   = (rnd() - 0.5) * RW * 0.02;
+    const dy   = (rnd() - 0.5) * RH * 0.02;
+    const hue  = Math.round((k % HUE_STEPS) * (360 / HUE_STEPS));
+    x.save();
+    if (HUE_ON && hue) x.filter = 'hue-rotate(' + hue + 'deg) saturate(1.08)';
+    x.translate(RW / 2 + dx, RH / 2 + dy);
+    if (flip) x.scale(-1, 1);
+    x.scale(sc, sc);
+    x.drawImage(base, -RW / 2, -RH / 2, RW, RH);
+    x.restore();
+  }
+  const gidx = groundIndices(c);
+  if (gidx.length) {
+    const id = x.getImageData(0, 0, RW, RH), d = id.data;
+    for (const p of gidx) {
+      const i = p * 4;
+      d[i] = BLUE.r; d[i + 1] = BLUE.g; d[i + 2] = BLUE.b; d[i + 3] = 255;
+    }
+    x.putImageData(id, 0, 0);
+  }
+  return c;
+}
+
+function remixQuadrants() {
+  if (!REMIX_ON) return;
+  const si = DETROIT_IMAGES.indexOf(SRC.trim());
+  const im = si >= 0 && textures[si] && textures[si].image;
+  if (!im || !im.width) return;
+
+  // The still is the source at composite size, cover-fitted. Not enhanced and
+  // not ground-painted: this ring is the picture rearranged with itself, so the
+  // thing underneath has to be the picture.
+  STILL = document.createElement('canvas');
+  STILL.width = RW; STILL.height = RH;
+  drawCover(STILL.getContext('2d'), im, RW, RH);
+  buildSquares(STILL);
+
+  for (let i = 0; i < DETROIT_COUNT; i++) {
+    if (isDetroitText(i)) continue;        // the text cards are not portraits
+    const comp = document.createElement('canvas');
+    comp.width = RW; comp.height = RH;
+    const ink = document.createElement('canvas');
+    ink.width = RW; ink.height = RH;
+    const ictx = ink.getContext('2d');
+    ictx.lineCap = 'round'; ictx.lineJoin = 'round';
+    const rc = { i, comp, ctx: comp.getContext('2d'), cur: pick4(), next: pick4(),
+                 tex: null, ink, ictx, t: 0, bakeA: null, bakeB: null };
+    rc.bakeA = bakeCells(rc.cur);
+    paintComposite(rc, 0);
+    remixCards.push(rc);
+    textures[i].image = comp;              // feeds sampleColor / blur / reflection
+  }
+}
+
+// buildDetroitFloor bakes the face from a snapshot; point it at the live
+// composite instead so the dissolve is actually visible. The blur and reflection
+// stay as baked — they are a soft smear under the card and never read as stale.
+function bindRemixFaces() {
+  if (!REMIX_ON) return;
+  const f = floors[FLOOR_DETROIT];
+  if (!f) return;
+  remixCards.forEach((rc) => {
+    const tex = new THREE.CanvasTexture(rc.comp);
+    tex.encoding = THREE.sRGBEncoding; tex.anisotropy = aniso;
+    const m = f.faceMats[rc.i];
+    if (m.map && m.map.dispose) m.map.dispose();
+    m.map = tex; m.needsUpdate = true;
+    rc.tex = tex;
+  });
+}
+
+let remixT = 0, remixFading = false, remixLast = 0;
+
+// Baking one arrangement is CELLS x 4 full-canvas ops — at 5x7 that is 140, and
+// doing it for every visible card the instant a dissolve begins would be about
+// 3400 in a single frame: one long hitch, every three seconds.
+//
+// So the incoming arrangement is prepared during the QUIET time instead. `next`
+// is chosen the moment a dissolve ends, and a few cards are baked per frame
+// across the hold, by which point everything is ready and the dissolve itself is
+// two drawImages a card. The outgoing bake is not rebuilt at all — it is simply
+// the previous incoming one, handed over.
+const BAKE_PER_FRAME = Math.max(1, Math.round(_rnum('bakerate', 3)));
+
+function ensureBakes(budget) {
+  let spent = 0;
+  for (const rc of remixCards) {
+    if (spent >= budget) break;
+    if (!rc.bakeB) { rc.bakeB = bakeCells(rc.next); spent++; }
+  }
+  return spent;
+}
+
+function remixTick(now) {
+  if (!REMIX_ON || !remixCards.length) return;
+  const dt = remixLast ? Math.min(100, now - remixLast) : 0;
+  remixLast = now;
+  remixT += dt;
+
+  const f = floors[FLOOR_DETROIT];
+
+  if (!remixFading) {
+    ensureBakes(BAKE_PER_FRAME);          // get ready while nothing is moving
+    if (remixT < REMIX_EVERY) return;
+    remixT = 0; remixFading = true;
+    return;
+  }
+
+  const k = Math.min(1, remixT / REMIX_FADE);
+  const e = k * k * (3 - 2 * k);
+
+  remixCards.forEach((rc) => {
+    // Only the cards actually facing the camera are redrawn mid-dissolve. One
+    // round the back gets its result at the end instead — it cannot be read from
+    // there, and painting all of them every frame is what would cost.
+    const p = f && f.panels[rc.i];
+    const visible = !p || (p.visible && p.position.z > -RADIUS * 0.25);
+    if (visible) paintComposite(rc, e);
+  });
+
+  if (k >= 1) {
+    remixFading = false; remixT = 0;
+    remixCards.forEach((rc) => {
+      rc.cur = rc.next;
+      rc.bakeA = rc.bakeB;      // the incoming bake becomes the outgoing one
+      rc.next = pick4();        // chosen NOW so the hold can bake it
+      rc.bakeB = null;
+      paintComposite(rc, 0);
+    });
+    bumpCounter();
+  }
+}
+
+function onTextureLoaded() {
+  ++loadedCount;
+  loaderBar.style.width = (loadedCount / DETROIT_COUNT * 100) + '%';
+  if (loadedCount === DETROIT_COUNT) {
+    remixQuadrants();
+    buildDetroitFloor(textures);
+    bindRemixFaces();
+    bumpCounter();
+    renderer.compile(scene, camera);
+    loaderEl.style.opacity = '0';
+  }
+}
+
+DETROIT_IMAGES.forEach((url, i) => {
+  if (isDetroitText(i)) {
+    textures[i] = makeDetroitTextTex();
+    onTextureLoaded();
+    return;
+  }
+  loader.load(url, (tex) => { textures[i] = tex; onTextureLoaded(); });
+});
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+const audio = new Audio('/lawerence_loop.mp3');
+audio.loop = true; audio.volume = 0.7;
+
+const schoenbergAudio = new Audio();
+schoenbergAudio.loop = false;
+let oswinListenActive = false;
+let audioFadeTimer = null;
+
+function fadeAudioTo(target, duration) {
+  if (audioFadeTimer) clearInterval(audioFadeTimer);
+  const start = audio.volume;
+  const steps = 30;
+  const stepTime = duration / steps;
+  let i = 0;
+  audioFadeTimer = setInterval(() => {
+    i++;
+    audio.volume = Math.max(0, Math.min(1, start + (target - start) * (i / steps)));
+    if (i >= steps) { clearInterval(audioFadeTimer); audioFadeTimer = null; }
+  }, stepTime);
+}
+
+function toggleSchoenberg() {
+  if (oswinListenActive) {
+    schoenbergAudio.pause();
+    schoenbergAudio.currentTime = 0;
+    oswinListenActive = false;
+    fadeAudioTo(0.7, 1200);
+  } else {
+    if (!schoenbergAudio.src) schoenbergAudio.src = '/schoenberg_red.mp3';
+    oswinListenActive = true;
+    fadeAudioTo(0.35, 800);
+    if (audio.paused) audio.play().catch(() => {});
+    schoenbergAudio.play().catch(() => {});
+  }
+}
+
+// ── Interaction ───────────────────────────────────────────────────────────────
+function diverClick() {
+  if (window !== window.top) window.parent.postMessage('diverClick', '*');
+  else window.open('https://alextaves.com', '_blank');
+}
+
+// The ambient piano lives in the parent app (one continuous layer across
+// every ring/page) — this just reports when the user is actively moving
+// this ring, not the constant idle auto-rotation. Separate from this file's
+// own toggleSchoenberg()/schoenberg_red.mp3 click feature above.
+function notifyRingDrag(dragging) {
+  if (window !== window.top) window.parent.postMessage({ type: 'ringDrag', dragging }, '*');
+}
+
+let started = false, paused = false;
+let dragging = false, didDrag = false, downOnPanel = false;
+let clickedFloor = -1, clickedPanelIdx = -1, autoDir = 1;
+let clickedUV = null;
+let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0, dragStartAngle = 0;
+let fog = 0, duck = 1;
+
+// ── Mobile state ──────────────────────────────────────────────────────────────
+let mobileState = 'roaming'; // 'roaming' | 'viewing' | 'returning'
+let mobViewIdx = -1;
+// (orbit angle removed — viewing mode uses fixed camera + ring rotation)
+let mobTouchId = null;
+let mobT0x = 0, mobT0y = 0, mobLastX = 0, mobLastY = 0, mobLastT = 0;
+let mobVel = 0, mobHSwiping = false, mobVSwiping = false;
+let lastTapT = 0;
+const MOB_SWIPE_THRESH = 10;
+const DBL_TAP_MS = 320;
+const MOB_VIEW_Z = RADIUS - 3; // 21 — close-up camera Z in viewing mode
+
+// Gyroscope look-around — use gamma (left/right tilt) which is reliable on all iOS
+let gyroYaw = 0;
+let gyroYawTarget = 0;
+let lastGamma = null;
+
+function initGyro() {
+  window.addEventListener('deviceorientation', (e) => {
+    if (!isMobile) return;
+    // gamma: left/right tilt, -90..+90, always non-null in portrait
+    // alpha: compass yaw, works when calibrated — use as primary if available
+    const gamma = e.gamma;
+    const alpha = e.alpha;
+    if (gamma == null) return;
+
+    if (alpha != null) {
+      // Compass-based turning: use alpha delta for yaw
+      if (lastGamma === null) { lastGamma = alpha; return; }
+      let d = alpha - lastGamma;
+      if (d > 180) d -= 360;
+      if (d < -180) d += 360;
+      gyroYawTarget -= d * Math.PI / 180;
+      lastGamma = alpha;
+    } else {
+      // Fallback: map gamma (-90..90 deg) directly to yaw (-π..π)
+      gyroYawTarget = -(gamma / 90) * Math.PI;
+    }
+  }, { passive: true });
+}
+
+function enterMobileViewing(idx) {
+  const f = floors[currentFloor]; if (!f) return;
+  mobViewIdx = idx;
+  mobileState = 'viewing';
+  paused = true;
+  f.angVel = 0;
+}
+
+function exitMobileViewing() {
+  mobileState = 'returning';
+  paused = false;
+}
+
+const pointer = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+const orbitQuat = new THREE.Quaternion();
+const orbitEuler = new THREE.Euler();
+const orbitPos = new THREE.Vector3();
+
+function getAllPanels() {
+  const out = [];
+  for (const f of floors) { if (f) out.push(...f.panels); }
+  return out;
+}
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (isMobile) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(getAllPanels());
+  if (hits.length > 0) {
+    downOnPanel = true;
+    clickedFloor = hits[0].object.userData.floorIdx;
+    clickedPanelIdx = hits[0].object.userData.panelIdx;
+    clickedUV = hits[0].uv ? { x: hits[0].uv.x, y: hits[0].uv.y } : null;
+  } else {
+    downOnPanel = false; clickedFloor = -1; clickedPanelIdx = -1; clickedUV = null;
+  }
+  dragging = true; didDrag = false;
+  downX = lastX = e.clientX; downY = e.clientY;
+  lastMoveT = performance.now(); trackedVel = 0;
+  dragStartAngle = floors[currentFloor] ? floors[currentFloor].angle : 0;
+});
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (isMobile || !dragging) return;
+  const now = performance.now();
+  const dx = e.clientX - lastX;
+  const dtm = Math.max((now - lastMoveT) / 1000, 0.001);
+  lastX = e.clientX; lastMoveT = now;
+  if (Math.abs(e.clientX - downX) > DRAG_THRESH || Math.abs(e.clientY - downY) > DRAG_THRESH) {
+    if (!didDrag) notifyRingDrag(true);
+    didDrag = true;
+    if (paused) paused = false;
+  }
+  if (didDrag && floors[currentFloor]) {
+    floors[currentFloor].angle += dx * SENS;
+    trackedVel = trackedVel * 0.6 + (dx / dtm) * 0.4;
+  }
+});
+
+renderer.domElement.addEventListener('pointerup', () => {
+  if (isMobile || !dragging) return;
+  if (didDrag) notifyRingDrag(false);
+  dragging = false;
+  if (!didDrag && currentFloor === FLOOR_DIVER) {
+    diverClick();
+  } else if (!didDrag && downOnPanel) {
+    if (clickedFloor === FLOOR_DIVER) {
+      diverClick();
+    } else if (clickedFloor === FLOOR_DETROIT && isDetroitText(clickedPanelIdx)) {
+      diverClick();
+    } else if (clickedFloor === FLOOR_UPPER && clickedPanelIdx === 1) {
+      openWriteMe();
+    } else if (clickedFloor === FLOOR_UPPER && SLIDE_CFG[clickedPanelIdx]) {
+      const sp = SLIDE_CFG[clickedPanelIdx];
+      sp.imgIdx = (sp.imgIdx + 1) % sp.srcs.length;
+      drawSlidePanel(sp);
+      paused = true;
+    } else if (clickedFloor === FLOOR_UPPER && clickedPanelIdx === 4) {
+      // LISTEN button: u ∈ [0.70, 0.95], v ∈ [0.83, 0.90]
+      if (clickedUV && clickedUV.x > 0.70 && clickedUV.x < 0.95 && clickedUV.y > 0.83 && clickedUV.y < 0.90) {
+        toggleSchoenberg();
+      } else {
+        paused = !paused;
+      }
+    } else {
+      paused = !paused;
+    }
+  }
+  const av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS;
+  const f = floors[currentFloor];
+  if (f) f.angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
+  if (didDrag && Math.abs(av) > 0.05) { autoDir = av < 0 ? -1 : 1; }
+});
+
+// ── Scroll / touch ────────────────────────────────────────────────────────────
+// deltaY > 0 = fingers UP on Mac (natural scroll) = go to upper floor
+let wheelDragTimeout = null;
+window.addEventListener('wheel', (e) => {
+  if (e.deltaY > 0) goToFloor(currentFloor - 1);
+  else if (e.deltaY < 0) goToFloor(currentFloor + 1);
+  if (!wheelDragTimeout) notifyRingDrag(true);
+  clearTimeout(wheelDragTimeout);
+  wheelDragTimeout = setTimeout(() => { notifyRingDrag(false); wheelDragTimeout = null; }, 220);
+}, { passive: true });
+
+let touchY0 = 0;
+window.addEventListener('touchstart', (e) => { if (isMobile) return; touchY0 = e.touches[0].clientY; }, { passive: true });
+window.addEventListener('touchmove', (e) => {
+  if (isMobile) return;
+  const dy = e.touches[0].clientY - touchY0;
+  touchY0 = e.touches[0].clientY;
+  if (dy < -8) goToFloor(currentFloor + 1);
+  else if (dy > 8) goToFloor(currentFloor - 1);
+}, { passive: true });
+
+// ── Mobile touch handlers ─────────────────────────────────────────────────────
+if (isMobile) {
+  renderer.domElement.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    mobTouchId = t.identifier;
+    mobT0x = mobLastX = t.clientX;
+    mobT0y = mobLastY = t.clientY;
+    mobLastT = performance.now();
+    mobVel = 0; mobHSwiping = false; mobVSwiping = false;
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const t = Array.from(e.touches).find(x => x.identifier === mobTouchId);
+    if (!t) return;
+    const now = performance.now();
+    const dx = t.clientX - mobLastX;
+    const dtm = Math.max((now - mobLastT) / 1000, 0.016); // floor at one 60fps frame
+    const totalDx = t.clientX - mobT0x;
+    const totalDy = t.clientY - mobT0y;
+    mobLastX = t.clientX; mobLastY = t.clientY; mobLastT = now;
+
+    if (!mobHSwiping && !mobVSwiping) {
+      if (Math.abs(totalDx) > MOB_SWIPE_THRESH) { mobHSwiping = true; notifyRingDrag(true); }
+      else if (Math.abs(totalDy) > MOB_SWIPE_THRESH) mobVSwiping = true;
+    }
+
+    if (mobHSwiping) {
+      // Both viewing and roaming: swipe spins the active ring
+      const f = floors[currentFloor];
+      if (f) { f.angle += dx * 0.004; mobVel = mobVel * 0.6 + (dx / dtm) * 0.4; }
+    }
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    const totalDx = mobLastX - mobT0x;
+    const totalDy = mobLastY - mobT0y;
+    const now = performance.now();
+    const isTap = Math.abs(totalDx) < 10 && Math.abs(totalDy) < 10;
+    const isDblTap = isTap && (now - lastTapT) < DBL_TAP_MS;
+    if (isTap) lastTapT = now;
+
+    if (mobVSwiping) {
+      if (totalDy < -MOB_SWIPE_THRESH) goToFloor(currentFloor + 1);
+      else if (totalDy > MOB_SWIPE_THRESH) goToFloor(currentFloor - 1);
+    } else if (mobHSwiping) {
+      // Fling the active ring
+      const f = floors[currentFloor];
+      if (f) {
+        const av = mobVel * 0.004;
+        f.angVel = Math.max(-MAX_VEL, Math.min(MAX_VEL, av));
+        if (mobileState === 'roaming' && Math.abs(av) > 0.05) { autoDir = av < 0 ? -1 : 1; }
+      }
+    } else if (isDblTap && mobileState === 'viewing') {
+      exitMobileViewing();
+    } else if (isTap && mobileState === 'roaming') {
+      if (currentFloor === FLOOR_DIVER) {
+        diverClick();
+      } else {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((mobT0x - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((mobT0y - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const f = floors[currentFloor];
+      if (f) {
+        const hits = raycaster.intersectObjects(f.panels);
+        if (hits.length > 0) {
+          const ud = hits[0].object.userData;
+          if (currentFloor === FLOOR_UPPER) {
+            if (ud.panelIdx === 1) {
+              openWriteMe();
+            } else if (ud.panelIdx === 4) {
+              const uv = hits[0].uv;
+              if (uv && uv.x > 0.70 && uv.x < 0.95 && uv.y > 0.83 && uv.y < 0.90) {
+                toggleSchoenberg();
+              } else {
+                paused = !paused;
+              }
+            } else if (SLIDE_CFG[ud.panelIdx]) {
+              const sp = SLIDE_CFG[ud.panelIdx];
+              sp.imgIdx = (sp.imgIdx + 1) % sp.srcs.length;
+              drawSlidePanel(sp);
+            } else {
+              paused = !paused;
+            }
+          } else {
+            // FLOOR_DETROIT — text panels enter the site, photos zoom in
+            if (ud.panelIdx !== undefined) {
+              if (isDetroitText(ud.panelIdx)) diverClick();
+              else enterMobileViewing(ud.panelIdx);
+            }
+          }
+        }
+      }
+      } // end else (not FLOOR_DIVER)
+    }
+
+    mobHSwiping = false; mobVSwiping = false; mobTouchId = null;
+  }, { passive: false });
+}
+
+// ── Render loop ───────────────────────────────────────────────────────────────
+let last = performance.now();
+
+// ── Step arrows ───────────────────────────────────────────────────────────────
+const stepPrev = document.getElementById('stepPrev');
+const stepNext = document.getElementById('stepNext');
+stepPrev.addEventListener('click', (e) => { e.stopPropagation(); stepRing(-1); });
+stepNext.addEventListener('click', (e) => { e.stopPropagation(); stepRing(1); });
+[stepPrev, stepNext].forEach(b => b.addEventListener('pointerdown', e => e.stopPropagation()));
+
+const _v = new THREE.Vector3();
+// Project the front card's own left and right edges and sit the arrows just
+// outside them, so they track the card through the step instead of being pinned
+// to the viewport.
+function placeArrows() {
+  const f = floors[FLOOR_DETROIT];
+  // Only in draw mode: the arrows are how you choose WHICH card to work on, so
+  // outside it they are chrome with nothing to do.
+  const showing = drawing && f && f.floorAmt > 0.5 && frontIdx >= 0 && f.panels[frontIdx];
+  stepPrev.classList.toggle('on', !!showing);
+  stepNext.classList.toggle('on', !!showing);
+  if (!showing) return;
+  const p = f.panels[frontIdx];
+  const place = (btn, sx) => {
+    _v.set(sx * (panelW / 2), 0, 0).applyMatrix4(p.matrixWorld).project(camera);
+    btn.style.left = ((_v.x * 0.5 + 0.5) * innerWidth + sx * 62) + 'px';
+    btn.style.top  = ((-_v.y * 0.5 + 0.5) * innerHeight) + 'px';
+  };
+  place(stepPrev, -1);
+  place(stepNext, 1);
+}
+
+// ── Drawing, on the lit card only ─────────────────────────────────────────────
+// Strokes are raycast onto the centred card and written in ITS texture space.
+// Two things fall out for free: a stroke that leaves the card simply stops
+// finding a surface, so it cuts off at the edge; and the marks belong to that
+// card, so they turn with it and survive every re-roll.
+const _ray = new THREE.Raycaster();
+const _ndc = new THREE.Vector2();
+let lastUV = null;
+
+function frontCard() {
+  // Work it out on demand if the loop has not set it. A backgrounded tab has its
+  // rAF throttled to a stop, so coming back to one and hitting save found this
+  // unset and did nothing at all — silently, which is the worst way to fail.
+  if (frontIdx < 0) {
+    const f = floors[FLOOR_DETROIT];
+    if (f) frontIdx = computeFrontIdx(f);
+  }
+  if (frontIdx < 0) return null;
+  return remixCards.find(rc => rc.i === frontIdx) || null;
+}
+
+function uvAt(clientX, clientY) {
+  const f = floors[FLOOR_DETROIT];
+  if (!f || frontIdx < 0) return null;
+  const p = f.panels[frontIdx];
+  if (!p) return null;
+  _ndc.x = (clientX / innerWidth) * 2 - 1;
+  _ndc.y = -((clientY / innerHeight) * 2 - 1);
+  _ray.setFromCamera(_ndc, camera);
+  const hit = _ray.intersectObject(p, false)[0];
+  if (!hit || !hit.uv) return null;
+  return { x: hit.uv.x * RW, y: (1 - hit.uv.y) * RH };
+}
+
+// ── Save the card ─────────────────────────────────────────────────────────────
+// Not a screen grab. A screen grab would carry the other cards, the ground and
+// this panel; what is wanted is the piece that was worked on. The card's own
+// composite already IS that image — quadrants plus the marks laid over them — so
+// it is written straight out at its native size. Nothing is upscaled: 300x388 is
+// the real resolution of the whole pipeline, and inventing pixels here would
+// only make the file bigger, not better.
+const shotBtn = document.getElementById('shot');
+
+// Capture the WHOLE VIEW as it stands: the ring, all three cards, the dimming
+// and the marks. The WebGL buffer is not preserved between frames, so it has to
+// be re-rendered and read in the SAME synchronous block — read it a tick later
+// and you get a blank canvas.
+function grabView() {
+  const gl = renderer.domElement;
+  renderer.render(scene, camera);
+  const out = document.createElement('canvas');
+  out.width = gl.width; out.height = gl.height;
+  const o = out.getContext('2d');
+  o.fillStyle = '#0c0806'; o.fillRect(0, 0, out.width, out.height);
+  o.drawImage(gl, 0, 0);
+  return out;
+}
+
+function saveCard() {
+  const out = grabView();
+
+  const rc = frontCard();
+  const q = rc ? 'v' + rc.cur : 'view';   // a card is one arrangement now, not a set
+  const name = `detroitshuffle_${rc ? String(rc.i).padStart(2, '0') : 'view'}_${q}.png`;
+
+  // Built synchronously: navigator.share needs the click's activation still to be
+  // live, and toBlob hands back on a later task by which time it has lapsed.
+  const dataUrl = out.toDataURL('image/png');
+  const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const blob = new Blob([bytes], { type: 'image/png' });
+
+  // The file lands FIRST, unconditionally. Sharing is offered on top of that,
+  // never instead of it — a share sheet can be dismissed, refused, or simply
+  // absent, and none of those should cost someone the picture they just made.
+  downloadBlob(blob, name);
+
+  const file = new File([blob], name, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: name }).catch(() => {});
+  }
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  flashShot();
+}
+
+function flashShot() {
+  shotBtn.classList.add('flash');
+  setTimeout(() => shotBtn.classList.remove('flash'), 260);
+}
+shotBtn.addEventListener('click', (e) => { e.stopPropagation(); saveCard(); });
+shotBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+// ── Counter ──────────────────────────────────────────────────────────────────
+// Just a number, counting DOWN from 2,313,441 — the size of the quadrant space,
+// 39 sources to the power of 4. Every switch changes the whole carousel at once,
+// so it comes off by however many cards there are, times four.
+//
+// It floors at zero rather than going negative: at 156 a switch it would take
+// about twelve hours of running to get there, but it will get there.
+const COUNT_FROM = _rnum('from', 2313441);
+const counterEl = document.getElementById('counter');
+let counted = COUNT_FROM;
+
+function bumpCounter() {
+  counted = Math.max(0, counted - remixCards.length * 4);
+  counterEl.textContent = counted.toLocaleString('en-US');
+}
+// ── Freeze / Go ───────────────────────────────────────────────────────────────
+// FROZEN zeroes the frame delta rather than short-circuiting the loop. Everything
+// that moves here — the ring's spin and momentum, the camera easing, the floor
+// transitions — is driven by dt, so one value stops all of it at once and there
+// is no list of animations to remember to gate. The scene still renders, so it
+// holds the exact frame you stopped on rather than going blank.
+let FROZEN = false;
+const freezeBtn = document.getElementById('freeze');
+
+function setFrozen(v) {
+  FROZEN = v;
+  drawBtn.classList.toggle('available', v);
+  // Letting it run again puts the pens away: drawing a still card is the whole
+  // premise, so draw mode cannot outlive the freeze that allowed it.
+  if (!v && drawing) setDrawing(false);
+  freezeBtn.textContent = v ? 'Go' : 'Freeze';
+  freezeBtn.classList.toggle('frozen', v);
+  freezeBtn.setAttribute('aria-pressed', v ? 'true' : 'false');
+  // Coming back, both clocks restart from now — otherwise the paused wall time
+  // is spent in one frame and the deal lurches forward on release.
+  if (!v) { last = performance.now(); remixLast = performance.now(); }
+}
+freezeBtn.addEventListener('click', (e) => { e.stopPropagation(); setFrozen(!FROZEN); });
+freezeBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+window.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); setFrozen(!FROZEN); } });
+
+// ── Draw ──────────────────────────────────────────────────────────────────────
+// One brush: a circle. Small it reads as a line, large it stamps a disc — the
+// same tool either end of the size control, which is why there is only one.
+// Round caps and joins are what make a dragged stroke a smooth line rather than
+// a row of separate dots, and they also make a single tap draw a clean circle.
+//
+// Five colours, all already on this page. Nothing new is introduced.
+const DRAW_COLOURS = [
+  { name: 'yellow', hex: '#FAFF00' },   // the Draw button
+  { name: 'white',  hex: '#FFFFFF' },   // the cut-paper grounds in the collages
+  { name: 'blue',   hex: '#1E2BFF' },   // the portraits' blue
+  { name: 'red',    hex: '#FF2E1F' },   // the marks over the mouths
+  { name: 'black',  hex: '#000000' },   // the scribbled hair, and the ground
+];
+const DRAW_SIZES = [4, 12, 34, 78];
+
+const drawLayer = document.getElementById('drawLayer');
+const dctx = drawLayer.getContext('2d');
+const drawBtn = document.getElementById('drawBtn');
+const tools = document.getElementById('tools');
+
+let drawing = false;          // mode on/off
+let strokeOn = false;         // pointer is down
+let colour = DRAW_COLOURS[0].hex;
+let size = DRAW_SIZES[1];
+let erasing = false;
+
+// Erasing is the same stroke with the composite flipped: destination-out takes
+// the layer's own pixels away. It only ever touches marks, never the ring —
+// that lives in WebGL below, on its own canvas.
+function inkMode(ctx) {
+  ctx.globalCompositeOperation = erasing ? 'destination-out' : 'source-over';
+}
+
+// The layer is sized in device pixels and scaled back, so strokes are crisp on
+// a retina display instead of being drawn at CSS resolution and upscaled.
+function sizeDrawLayer() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const keep = drawLayer.width ? document.createElement('canvas') : null;
+  if (keep) { keep.width = drawLayer.width; keep.height = drawLayer.height;
+              keep.getContext('2d').drawImage(drawLayer, 0, 0); }
+  drawLayer.width = Math.round(innerWidth * dpr);
+  drawLayer.height = Math.round(innerHeight * dpr);
+  drawLayer.style.width = innerWidth + 'px';
+  drawLayer.style.height = innerHeight + 'px';
+  dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  dctx.lineCap = 'round'; dctx.lineJoin = 'round';
+  dctx.globalCompositeOperation = 'source-over';
+  if (keep) dctx.drawImage(keep, 0, 0, innerWidth, innerHeight);   // keep the marks
+}
+sizeDrawLayer();
+addEventListener('resize', sizeDrawLayer);
+
+// Swatches
+DRAW_COLOURS.forEach((c, i) => {
+  const b = document.createElement('button');
+  b.className = 'sw' + (i === 0 ? ' on' : '');
+  b.style.background = c.hex; b.style.color = c.hex;
+  b.setAttribute('aria-label', c.name);
+  b.onclick = (e) => {
+    e.stopPropagation(); colour = c.hex; erasing = false;
+    [...document.querySelectorAll('#swatches .sw')].forEach((x, j) => x.classList.toggle('on', j === i));
+  };
+  document.getElementById('swatches').appendChild(b);
+});
+
+// Eraser — a sixth button in the same row, hollow so it reads as a tool.
+const eraserBtn = document.createElement('button');
+eraserBtn.className = 'sw eraser';
+eraserBtn.setAttribute('aria-label', 'Eraser');
+eraserBtn.onclick = (e) => {
+  e.stopPropagation(); erasing = true;
+  [...document.querySelectorAll('#swatches .sw')].forEach((x) => x.classList.remove('on'));
+  eraserBtn.classList.add('on');
+};
+document.getElementById('swatches').appendChild(eraserBtn);
+
+// Sizes, each dot drawn at its own brush size so the control shows the result
+DRAW_SIZES.forEach((sz, i) => {
+  const b = document.createElement('button');
+  b.className = 'sz' + (i === 1 ? ' on' : '');
+  b.setAttribute('aria-label', sz + 'px brush');
+  const dot = document.createElement('i');
+  const d = Math.max(4, Math.min(26, sz * 0.34));
+  dot.style.width = d + 'px'; dot.style.height = d + 'px';
+  b.appendChild(dot);
+  b.onclick = (e) => {
+    e.stopPropagation(); size = sz;
+    [...document.querySelectorAll('#sizes .sz')].forEach((x, j) => x.classList.toggle('on', j === i));
+  };
+  document.getElementById('sizes').appendChild(b);
+});
+
+document.getElementById('clearDraw').onclick = (e) => {
+  e.stopPropagation();
+  const rc = frontCard(); if (!rc) return;
+  rc.ictx.globalCompositeOperation = 'source-over';
+  rc.ictx.clearRect(0, 0, RW, RH);
+  repaintCard(rc);
+};
+
+function setDrawing(v) {
+  drawing = v;
+  drawBtn.classList.toggle('on', v);
+  drawBtn.setAttribute('aria-pressed', v ? 'true' : 'false');
+  tools.classList.toggle('on', v);
+  drawLayer.classList.toggle('on', v);
+}
+drawBtn.addEventListener('click', (e) => { e.stopPropagation(); setDrawing(!drawing); });
+drawBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+function stamp(ctx, x, y) {
+  inkMode(ctx);
+  ctx.fillStyle = colour;
+  ctx.beginPath(); ctx.arc(x, y, size / 2, 0, Math.PI * 2); ctx.fill();
+}
+
+drawLayer.addEventListener('pointerdown', (e) => {
+  if (!drawing) return;
+  e.stopPropagation();                       // never reaches the ring's drag
+  const rc = frontCard(); if (!rc) return;
+  const uv = uvAt(e.clientX, e.clientY); if (!uv) return;   // off the card: nothing
+  strokeOn = true;
+  drawLayer.setPointerCapture(e.pointerId);
+  const ic = rc.ictx;
+  inkMode(ic);
+  // Order matters. stamp() runs beginPath() of its own, so stamping AFTER
+  // starting the line left the arc on the current path — the first stroke() then
+  // outlined that arc as well as drawing the line, putting a size-wide ring
+  // around a size-wide dot and opening every stroke at double thickness.
+  stamp(ic, uv.x, uv.y);                     // a tap alone still leaves a mark
+  ic.strokeStyle = colour; ic.lineWidth = size;
+  ic.beginPath(); ic.moveTo(uv.x, uv.y);
+  lastUV = uv;
+  repaintCard(rc);
+});
+drawLayer.addEventListener('pointermove', (e) => {
+  if (!drawing || !strokeOn) return;
+  e.stopPropagation();
+  const rc = frontCard(); if (!rc) return;
+  const uv = uvAt(e.clientX, e.clientY);
+  if (!uv) { lastUV = null; return; }        // left the card — the stroke stops
+  const ic = rc.ictx;
+  inkMode(ic);
+  if (!lastUV) { ic.beginPath(); ic.moveTo(uv.x, uv.y); }   // re-entered: start again
+  else { ic.lineTo(uv.x, uv.y); ic.stroke(); ic.beginPath(); ic.moveTo(uv.x, uv.y); }
+  lastUV = uv;
+  repaintCard(rc);
+});
+const endStroke = (e) => { if (strokeOn) { strokeOn = false; lastUV = null; if (e) e.stopPropagation(); } };
+drawLayer.addEventListener('pointerup', endStroke);
+drawLayer.addEventListener('pointercancel', endStroke);
+addEventListener('blur', () => endStroke());
+
+// ── Spotlight / stepping ──────────────────────────────────────────────────────
+const DIM_LEVEL = 0.26;     // how far the unlit cards fall back
+const stepFor = (f) => (Math.PI * 2) / f.count;
+let frontIdx = -1;
+
+// Whichever card is nearest dead centre: furthest forward AND squarest on.
+function computeFrontIdx(f) {
+  let best = -1, bestScore = -Infinity;
+  for (let i = 0; i < f.count; i++) {
+    const p = f.panels[i];
+    if (!p) continue;
+    const score = p.position.z - Math.abs(p.position.x) * 2.2;
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return best;
+}
+
+function stepRing(dir) {
+  const f = floors[FLOOR_DETROIT];
+  if (!f) return;
+  const st = stepFor(f);
+  const base = (f.snapTo !== null && f.snapTo !== undefined) ? f.snapTo : f.angle;
+  f.snapTo = Math.round(base / st) * st + dir * st;
+  f.angVel = 0;
+}
+
+function render(now) {
+  requestAnimationFrame(render);
+  if (!FROZEN) remixTick(now);
+  let dt = (now - last) / 1000; last = now;
+  if (dt > 0.05) dt = 0.05;
+  // Draw mode now lives BEHIND the freeze, and two of its parts are animations:
+  // the ring easing onto a card, and the lights coming down. Those have to keep
+  // running while the world is stopped, so they get their own clock. Everything
+  // else — the spin, the dissolve, the camera — still reads dt and stays put.
+  const dtUI = dt;
+  if (FROZEN) dt = 0;
+
+  // Camera
+  camY += (camYTarget - camY) * Math.min(1, dt * 3.5);
+  if (isMobile) {
+    // Smooth gyro yaw
+    gyroYaw += (gyroYawTarget - gyroYaw) * Math.min(1, dt * 8);
+
+    if (mobileState === 'viewing') {
+      // FLOOR_DETROIT zoom: camera stays centered, ring rotates past it
+      camera.position.x += (0 - camera.position.x) * Math.min(1, dt * 4);
+      camera.position.y = camY;
+      camera.position.z += (MOB_VIEW_Z - camera.position.z) * Math.min(1, dt * 4);
+      camera.lookAt(0, camY, RADIUS);
+    } else {
+      // Per-floor roaming Z: DETROIT is inside ring, UPPER/DIVER are outside their small rings
+      const targetZ = currentFloor === FLOOR_DETROIT ? MOB_CAM_Z : FLOOR_CAM_Z[currentFloor];
+      camera.position.x += (0 - camera.position.x) * Math.min(1, dt * 3.5);
+      camera.position.y = camY;
+      camera.position.z += (targetZ - camera.position.z) * Math.min(1, dt * 3.5);
+      if (currentFloor === FLOOR_DETROIT) {
+        // Inside DETROIT ring — look outward with gyro pan
+        const lx = camera.position.x + Math.sin(gyroYaw) * 30;
+        const lz = camera.position.z + Math.cos(gyroYaw) * 30;
+        camera.lookAt(lx, camY, lz);
+      } else {
+        // Outside small ring (UPPER/DIVER) — look inward toward center
+        camera.lookAt(0, camY, 0);
+      }
+      if (mobileState === 'returning' &&
+          Math.abs(camera.position.x) < 0.1 &&
+          Math.abs(camera.position.z - targetZ) < 0.1) {
+        mobileState = 'roaming';
+      }
+    }
+  } else {
+    camZ += (FLOOR_CAM_Z[currentFloor] - camZ) * Math.min(1, dt * 3.5);
+    camera.position.set(0, camY, camZ);
+    camera.lookAt(0, camY, 0);
+  }
+
+  // Archive showreel: transparent pass, render after canvas face via renderOrder
+  const upperAmt = floors[FLOOR_UPPER] ? floors[FLOOR_UPPER].floorAmt : 0;
+  if (upperAmt > 0 && !archiveVideoLoaded) {
+    archiveVideoLoaded = true;
+    archiveVideoEl.src = '/videos/showreel2_3.mp4';
+    archiveVideoEl.load();
+  }
+  if (archiveVideoMesh && floors[FLOOR_UPPER]) {
+    archiveVideoMesh.visible = upperAmt > 0.01;
+    const archPanel = floors[FLOOR_UPPER].panels[ARCHIVE_PANEL_IDX];
+    if (archPanel) archiveVideoMesh.renderOrder = archPanel.renderOrder + 40000;
+    archiveVideoTex.needsUpdate = true;
+  }
+  if (upperAmt > 0.05 && archiveVideoEl.paused) archiveVideoEl.play().catch(() => {});
+  else if (upperAmt < 0.01 && !archiveVideoEl.paused) { archiveVideoEl.pause(); archiveVideoEl.currentTime = 0; }
+
+  // Diver video: play/pause all elements, update blur canvases
+  const detroitAmt = floors[FLOOR_DETROIT] ? floors[FLOOR_DETROIT].floorAmt : 1;
+  const diverFloor = floors[FLOOR_DIVER];
+  const diverAmt = diverFloor ? diverFloor.floorAmt : 0;
+  if (diverAmt > 0 && !diverVideosLoaded) {
+    diverVideosLoaded = true;
+    DIVER_SRCS.forEach((src, i) => { if (i === 0) return; vidEls[i].src = src; vidEls[i].load(); });
+  }
+  // Update Detroit text-panel diver overlay opacity
+  for (const dm of detroitDiverMats) dm.opacity = detroitAmt * 0.9;
+  for (let vi = 0; vi < DIVER_COUNT; vi++) {
+    const el = vidEls[vi];
+    // vidEls[0] serves both Detroit text panels and Diver floor panel 0
+    const needsPlay = vi === 0 ? (detroitAmt > 0.05 || diverAmt > 0.05) : diverAmt > 0.05;
+    const shouldStop = vi === 0 ? (detroitAmt < 0.01 && diverAmt < 0.01) : diverAmt < 0.01;
+    if (needsPlay && el.paused && el.src) el.play().catch(() => {});
+    else if (shouldStop && !el.paused) { el.pause(); el.currentTime = 0; }
+    if (diverAmt > 0.01 && el.readyState >= 2) {
+      const cp = vidCropParams[vi];
+      const bw = 320, bh = 180;
+      blurCtxs[vi].filter = 'blur(10px) brightness(0.65)';
+      if (cp) {
+        const sw = Math.round(cp.rx * el.videoWidth);
+        const sh = Math.round(cp.ry * el.videoHeight);
+        const sx = Math.round(cp.ox * el.videoWidth);
+        const sy = Math.round(cp.oy * el.videoHeight);
+        blurCtxs[vi].drawImage(el, sx, sy, sw, sh, 0, 0, bw, bh);
+      } else {
+        blurCtxs[vi].drawImage(el, 0, 0, bw, bh);
+      }
+      blurTexs[vi].needsUpdate = true;
+    }
+  }
+
+  // Audio
+  duck += ((paused ? 0.5 : 1.0) - duck) * Math.min(1, dt * 4);
+  if (started) audio.volume = Math.max(0, Math.min(1, 0.7 * duck));
+
+  // Speed-based fog/emissive (driven by current floor)
+  const cf = floors[currentFloor];
+  if (cf) {
+    const instSpeed = dragging ? Math.abs(trackedVel * SENS) : Math.abs(cf.angVel);
+    const targetFog = instSpeed > FOG_FLOOR ? Math.min(1, instSpeed / MAX_VEL) : 0;
+    fog += (targetFog - fog) * Math.min(1, dt * FOG_EASE);
+  }
+  const emi = fog * FOG_MAX;
+
+  // Update all floors
+  for (let fi = 0; fi < 3; fi++) {
+    const f = floors[fi];
+    if (!f) continue;
+    const isActive = fi === currentFloor;
+    const isDraggingThis = dragging && isActive;
+
+    // Animate floor visibility (fast crossfade)
+    const floorTarget = isActive ? 1 : 0;
+    f.floorAmt += (floorTarget - f.floorAmt) * Math.min(1, dt * 5);
+
+    // Keep rotating even when invisible so it's in motion when it reappears
+    if (!isDraggingThis) {
+      // Snapping belongs to DRAW MODE only. Outside it the ring turns as it
+      // always did; inside it a card has to sit squarely at the front to be
+      // worked on, so it eases onto the nearest one and HOLDS there.
+      //
+      // Holding is the point. An earlier version released the target once it
+      // arrived, and the idle rotation immediately pushed the angle off centre,
+      // which re-armed the snap, which pulled it back — the two fighting several
+      // times a second and shaking the whole ring.
+      const wantSnap = (fi === FLOOR_DETROIT) && drawing && isActive;
+      if (wantSnap) {
+        const st = stepFor(f);
+        if (f.snapTo === null || f.snapTo === undefined) {
+          f.snapTo = Math.round(f.angle / st) * st;
+        }
+        f.angVel = 0;
+        const d = f.snapTo - f.angle;
+        f.angle += d * Math.min(1, dtUI * 7);
+        if (Math.abs(d) < 0.0002) f.angle = f.snapTo;   // settle, and stay
+      } else {
+        if (fi === FLOOR_DETROIT) f.snapTo = null;      // hand the ring back
+        if (!paused || !isActive) {
+          const target = AUTO_SPEED * autoDir;
+          f.angVel = target + (f.angVel - target) * Math.exp(-FRICTION * dt);
+        } else {
+          f.angVel *= Math.exp(-FRICTION * dt);
+        }
+        f.angle += f.angVel * dt;
+      }
+    }
+
+    // Skip per-panel updates when fully invisible
+    if (f.floorAmt < 0.001) {
+      for (let i = 0; i < f.count; i++) f.panels[i].visible = false;
+      continue;
+    }
+
+    // Read off the previous frame's positions — a frame of lag is invisible, and
+    // it avoids having to place every panel twice just to find the front one.
+    if (fi === FLOOR_DETROIT) frontIdx = computeFrontIdx(f);
+
+    orbitEuler.set(0, f.angle, 0, 'XYZ');
+    orbitQuat.setFromEuler(orbitEuler);
+
+    for (let i = 0; i < f.count; i++) {
+      f.panels[i].visible = true;
+      orbitPos.copy(f.home[i]).applyQuaternion(orbitQuat);
+      f.panels[i].position.set(orbitPos.x * SPREAD, f.baseY, orbitPos.z);
+      f.panels[i].rotation.set(f.tilt[i], Math.atan2(orbitPos.x, orbitPos.z), 0);
+
+      const norm = Math.min(1, Math.max(0, (orbitPos.z + f.radius) / (2 * f.radius)));
+      const fa = f.floorAmt;
+
+      // Spotlight: the card at dead centre keeps its light, the rest fall away.
+      // Draw mode only — it exists to show you which card you can work on, so
+      // outside it every card is lit as before. Eased per card either way, so
+      // entering and leaving draw mode reads as lights coming down and back up
+      // rather than a switch being thrown.
+      if (fi === FLOOR_DETROIT) {
+        const want = (!drawing || i === frontIdx) ? 1 : DIM_LEVEL;
+        f.litAmt[i] += (want - f.litAmt[i]) * Math.min(1, dtUI * 5);
+        const lit = f.litAmt[i];
+        // color multiplies the map, so this genuinely dims the picture rather
+        // than fading it toward the background.
+        f.faceMats[i].color.setScalar(lit);
+        f.sideMats[i].color.setScalar(lit * 1.25);
+        f.reflMats[i].opacity *= lit;
+      }
+
+      f.faceMats[i].opacity  = (paused ? 1 : FRONT_OPACITY * (0.5 + 0.5*norm)) * fa;
+      f.glassMats[i].opacity = BACK_OPACITY * (0.3 + 0.7 * norm) * fa;
+      f.sideMats[i].opacity  = 0.65 * fa * (0.22 + 0.45 * norm);
+      f.backMats[i].opacity  = 0.72 * fa;
+      if (fi !== FLOOR_DIVER) f.reflMats[i].opacity = (isMobile ? 0.2 : 0.66) * fa;
+      f.panels[i].renderOrder = Math.round(orbitPos.z * 1000);
+
+      // Detroit: emissive glow at speed
+      if (fi === FLOOR_DETROIT) {
+        f.faceMats[i].emissiveIntensity = emi;
+        f.backMats[i].emissiveIntensity = emi * 0.3;
+      }
+
+      // Diver: video overlay driven by floorAmt
+      if (fi === FLOOR_DIVER) {
+        const vOp = fa * (0.5 + 0.5 * norm);
+        f.videoMats[i].opacity     = vOp;
+        f.videoBackMats[i].opacity = vOp;
+        f.videoReflMats[i].opacity = vOp * (isMobile ? 0.2 : 0.66);
+        f.videoMeshes[i].renderOrder     = f.panels[i].renderOrder + 40000;
+        f.videoBackMeshes[i].renderOrder = f.panels[i].renderOrder + 40000;
+      }
+    }
+  }
+
+  if (upperAmt > 0.01) drawOswinPanel(now);
+
+  placeArrows();
+  renderer.render(scene, camera);
+}
+
+requestAnimationFrame(render);
+
+// ── Enter ─────────────────────────────────────────────────────────────────────
+function enter(withAudio) {
+  started = true;
+  document.getElementById('begin').style.display = 'none';
+  if (withAudio) audio.play();
+  // Gyro: call outside the click gesture context — requestPermission inside a
+  // click handler can cause iOS Safari to suspend/reload the page on HTTP.
+  if (isMobile) setTimeout(tryGyro, 500);
+}
+
+function tryGyro() {
+  if (typeof DeviceOrientationEvent === 'undefined') return;
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+ — no longer in gesture context, so permission dialog won't show,
+    // but it won't crash the page either. Events may still fire if already granted.
+    DeviceOrientationEvent.requestPermission()
+      .then(p => { if (p === 'granted') initGyro(); })
+      .catch(() => {});
+  } else {
+    initGyro();
+  }
+}
+
+document.getElementById('btn-audio-on').addEventListener('click', function() { enter(true); });
+document.getElementById('btn-audio-off').addEventListener('click', function() { enter(false); });
+
+// Auto-start when embedded in iframe — parent (alextaves-site) handles intro and audio
+if (window !== window.top) {
+  document.getElementById('begin').style.display = 'none';
+  started = true;
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+function handleKey(key) {
+  if (key === 'ArrowDown') goToFloor(currentFloor + 1);
+  else if (key === 'ArrowUp') goToFloor(currentFloor - 1);
+  else if (key === 'ArrowLeft') { const f = floors[currentFloor]; if (f) { f.angVel = Math.min(MAX_VEL, f.angVel + 1.8); paused = false; } }
+  else if (key === 'ArrowRight') { const f = floors[currentFloor]; if (f) { f.angVel = Math.max(-MAX_VEL, f.angVel - 1.8); paused = false; } }
+  else if (key === ' ') paused = !paused;
+}
+window.addEventListener('keydown', (e) => handleKey(e.key));
+window.addEventListener('message', (e) => { if (e.data && e.data.type === 'key') handleKey(e.data.key); });
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+</script>
+</body>
+</html>
