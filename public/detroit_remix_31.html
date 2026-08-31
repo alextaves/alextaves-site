@@ -59,12 +59,21 @@
 // would misclassify faces the further a blade leans. The raw attribute is still
 // exactly (0,0,1) on the front face however far the box is skewed.
 //
-// The sides also fade along their length, thinning toward the hub, which keeps
-// twenty-six overlapping translucent blades from stacking into a solid wall
-// where they all converge.
+// The sides fade along their length, thinning toward the hub. At 0.22 they were
+// so thin that the blade stopped reading as an object with a side and became a
+// haze; at 0.58 the depth is a surface you can see, still see-through enough to
+// find the convergence behind it. The fade is what lets the opacity go that high
+// without the twenty-six of them stacking into a solid wall at the hub.
 //
-//   ?alpha=0.22   how opaque the sides are at the face
+// They are lifted by an EMISSIVE term rather than by turning up their colour.
+// Sitting nearly edge-on to both lights, a side receives almost no diffuse, so
+// pure white still renders as dull grey — the brightness has to be added after
+// the lighting rather than handed to it. The picture faces get none of it: they
+// are meant to be lit, not to glow.
+//
+//   ?alpha=0.58   how opaque the sides are at the face
 //   ?fade=0.75    how much they thin toward the hub; 0 keeps them even
+//   ?glow=0.62    how illuminated the sides read; 0 leaves them lit only
 //
 // Same ring, same dead-on framing, same convergence — but the grid is a single
 // cell, so each card is ONE prism carrying the whole picture and running intact
@@ -165,8 +174,9 @@ const SHIFT    = num('shift', 0);
 const CONVERGE = num('converge', 1);
 const VERSIONS = Math.max(2, Math.round(num('versions', 100)));
 const SAT      = num('sat', 1.75);
-const SIDE_A   = num('alpha', 0.22);
+const SIDE_A   = num('alpha', 0.58);
 const SIDE_F   = num('fade', 0.75);
+const SIDE_G   = num('glow', 0.62);
 let   STEP_MS  = Math.max(16, num('ms', 240));
 let   TURN     = num('turn', 0.05);
 // Framed from the ring's own size rather than a guessed distance. Thirty-nine
@@ -296,10 +306,12 @@ function build(images) {
   tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
 
   const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0.04,
-                                               transparent: true, depthWrite: true });
+                                               transparent: true, depthWrite: true,
+                                               emissive: new THREE.Color(0xffffff) });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uSideA = { value: SIDE_A };
     sh.uniforms.uSideF = { value: SIDE_F };
+    sh.uniforms.uSideG = { value: SIDE_G };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>',
         '#include <common>\nattribute vec4 aUv;\nvarying vec4 vAUv;\nvarying float vFront;\nvarying float vDepth;')
@@ -310,14 +322,23 @@ function build(images) {
         + '\tvDepth = 0.5 - position.z;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>',
-        '#include <common>\nvarying vec4 vAUv;\nvarying float vFront;\nvarying float vDepth;\nuniform float uSideA;\nuniform float uSideF;')
+        '#include <common>\nvarying vec4 vAUv;\nvarying float vFront;\nvarying float vDepth;\nuniform float uSideA;\nuniform float uSideF;\nuniform float uSideG;')
       .replace('#include <map_fragment>',
         '#ifdef USE_MAP\n'
         + '\tvec4 texel = texture2D( map, vAUv.xy + vUv * vAUv.zw );\n'
         + '\tdiffuseColor.rgb *= mix( vec3(1.0), texel.rgb, vFront );\n'
         + '\tfloat sideA = uSideA * ( 1.0 - uSideF * clamp( vDepth, 0.0, 1.0 ) );\n'
         + '\tdiffuseColor.a *= mix( sideA, 1.0, vFront );\n'
-        + '#endif');
+        + '#endif')
+      // The sides sit nearly edge-on to both lights, so diffuse alone leaves them
+      // a dull grey however white their colour is. An emissive term carries them
+      // instead: it is added after the lighting rather than lit by it, so they
+      // read as illuminated white. The picture faces get none of it — they are
+      // meant to be lit, not to glow.
+      .replace('#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n'
+        + '\ttotalEmissiveRadiance *= ( 1.0 - vFront ) * uSideG\n'
+        + '\t\t* ( 1.0 - uSideF * clamp( vDepth, 0.0, 1.0 ) );');
   };
 
   const total = NCARDS * SQ.length;
