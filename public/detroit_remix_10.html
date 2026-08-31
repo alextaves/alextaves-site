@@ -1587,33 +1587,80 @@ function paintGround(c) {
   return c;
 }
 
-// One transformed copy of the source. Variant 0 is left untouched so the
-// original is always somewhere in the mix.
+// The ground of a given canvas. Same border flood as paintGround, but it hands
+// back the pixel list instead of filling it.
 //
-// Deliberately restrained, after a first pass that was not: random hue across
-// the full circle plus zoom from 1.0 to 1.55 produced psychedelic mush with the
-// portrait no longer readable in it. The face has to survive the process or
-// there is nothing being remixed. So the geometry barely moves — a mirror and a
-// few percent of drift — and the hue steps around a small ring of colourways
-// instead of landing anywhere. Each camo patch then shows the SAME features in
-// a different colour, which keeps the portrait legible and reads as camouflage.
+// Run PER VARIANT, after the transform, not once on the source. A single shared
+// mask was the first attempt and it was wrong: the variants mirror and drift, so
+// a mask cut from the untransformed source punched the original silhouette
+// through a figure that had moved, and the blue ate into the face. Flooding each
+// variant separately means every ground is correctly aligned to its own figure,
+// and because they are all filled with the SAME blue the background still reads
+// as one continuous field with no cut visible in it.
+function groundIndices(c) {
+  const w = c.width, h = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, w, h).data;
+  const seen = new Uint8Array(w * h);
+  const tol2 = GROUND_TOL * GROUND_TOL * 3;
+  const hit = [];
+  const flood = (start) => {
+    const si = start * 4, sr = d[si], sg = d[si + 1], sb = d[si + 2];
+    const stack = [start];
+    while (stack.length) {
+      const p = stack.pop();
+      if (seen[p]) continue;
+      seen[p] = 1;
+      const i = p * 4;
+      const dr = d[i] - sr, dg = d[i + 1] - sg, db = d[i + 2] - sb;
+      if (dr * dr + dg * dg + db * db > tol2) continue;
+      hit.push(p);
+      const px = p % w, py = (p / w) | 0;
+      if (px > 0) stack.push(p - 1);
+      if (px < w - 1) stack.push(p + 1);
+      if (py > 0) stack.push(p - w);
+      if (py < h - 1) stack.push(p + w);
+    }
+  };
+  for (let i = 0; i < w; i++) { if (!seen[i]) flood(i);
+                                const q = (h - 1) * w + i; if (!seen[q]) flood(q); }
+  for (let j = 0; j < h; j++) { const l = j * w, r = l + w - 1;
+                                if (!seen[l]) flood(l); if (!seen[r]) flood(r); }
+  return hit;
+}
+
+// One transformed copy of the source, then the ground put back to the one blue.
+// The figure is free to mirror, drift and change hue; the field behind it is
+// identical in every variant, so the camo cut disappears out there and only
+// shows across the face.
 const HUE_STEPS = Math.max(2, Math.round(_rnum('hues', 8)));
 function makeVariant(base, k) {
   const c = document.createElement('canvas'); c.width = RW; c.height = RH;
   const x = c.getContext('2d');
-  if (k === 0) { x.drawImage(base, 0, 0, RW, RH); return c; }
-  const flip = rnd() < 0.5;
-  const sc   = 1 + rnd() * 0.12;
-  const dx   = (rnd() - 0.5) * RW * 0.10;
-  const dy   = (rnd() - 0.5) * RH * 0.10;
-  const hue  = Math.round((k % HUE_STEPS) * (360 / HUE_STEPS));
-  x.save();
-  if (HUE_ON && hue) x.filter = 'hue-rotate(' + hue + 'deg) saturate(1.08)';
-  x.translate(RW / 2 + dx, RH / 2 + dy);
-  if (flip) x.scale(-1, 1);
-  x.scale(sc, sc);
-  x.drawImage(base, -RW / 2, -RH / 2, RW, RH);
-  x.restore();
+  if (k === 0) {
+    x.drawImage(base, 0, 0, RW, RH);
+  } else {
+    const flip = rnd() < 0.5;
+    const sc   = 1 + rnd() * 0.12;
+    const dx   = (rnd() - 0.5) * RW * 0.10;
+    const dy   = (rnd() - 0.5) * RH * 0.10;
+    const hue  = Math.round((k % HUE_STEPS) * (360 / HUE_STEPS));
+    x.save();
+    if (HUE_ON && hue) x.filter = 'hue-rotate(' + hue + 'deg) saturate(1.08)';
+    x.translate(RW / 2 + dx, RH / 2 + dy);
+    if (flip) x.scale(-1, 1);
+    x.scale(sc, sc);
+    x.drawImage(base, -RW / 2, -RH / 2, RW, RH);
+    x.restore();
+  }
+  const gidx = groundIndices(c);
+  if (gidx.length) {
+    const id = x.getImageData(0, 0, RW, RH), d = id.data;
+    for (const p of gidx) {
+      const i = p * 4;
+      d[i] = BLUE.r; d[i + 1] = BLUE.g; d[i + 2] = BLUE.b; d[i + 3] = 255;
+    }
+    x.putImageData(id, 0, 0);
+  }
   return c;
 }
 
