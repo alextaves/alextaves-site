@@ -321,7 +321,7 @@ export default function App() {
   const REVEAL_MS = 360
 
   const [scene, setScene] = useState(1)
-  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum' | 'detroit' | 'detroitRemix' | 'detroitNine' | 'detroitGrid' | 'detroitBlue' | 'detroitFlood' | 'detroitBlack' | 'detroitHalves' | 'detroitFaces' | 'detroitCamo' | 'detroitOneFace' | 'detroitBlueGround' | 'detroitChunky' | 'detroitOnBlack' | 'detroitShuffle' | 'detroitRun' | 'detroitRunBlack' | 'detroitRunBlue' | 'detroitRunWhite' | 'detroitRunFiner' | 'detroitBoxes' | 'detroitCityscape' | 'detroitOnePoint' | 'detroitDragPoint' | 'detroitDetail' | 'detroitQuarter' | 'detroitDouble' | 'detroitHalfDrift' | 'detroitWheel' | 'detroitOpenWheel' | 'postcards'
+  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum' | 'detroit' | 'detroitRemix' | 'detroitNine' | 'detroitGrid' | 'detroitBlue' | 'detroitFlood' | 'detroitBlack' | 'detroitHalves' | 'detroitFaces' | 'detroitCamo' | 'detroitOneFace' | 'detroitBlueGround' | 'detroitChunky' | 'detroitOnBlack' | 'detroitShuffle' | 'detroitRun' | 'detroitRunBlack' | 'detroitRunBlue' | 'detroitRunWhite' | 'detroitRunFiner' | 'detroitBoxes' | 'detroitCityscape' | 'detroitOnePoint' | 'detroitDragPoint' | 'detroitDetail' | 'detroitQuarter' | 'detroitDouble' | 'detroitHalfDrift' | 'detroitWheel' | 'detroitOpenWheel' | 'detroitDeadOn' | 'postcards'
   const [tPhase, setTPhase] = useState('idle')   // 'idle' | 'covering' | 'revealing'
   const [carouselKey, setCarouselKey] = useState(0)
   const [showIntro, setShowIntro] = useState(false)   // entry is now the WELCOME portal in the carousel
@@ -422,7 +422,7 @@ export default function App() {
           && e.data.ring === 'detroit' && phase === 'detroit') {
         const to = ['detroitFaces', 'detroitRemix', 'detroitNine', 'detroitGrid',
                     'detroitBlue', 'detroitFlood', 'detroitBlack', 'detroitHalves',
-                    'detroitCamo', 'detroitOneFace', 'detroitBlueGround', 'detroitChunky', 'detroitOnBlack', 'detroitShuffle', 'detroitRun', 'detroitRunBlack', 'detroitRunBlue', 'detroitRunWhite', 'detroitRunFiner', 'detroitBoxes', 'detroitCityscape', 'detroitOnePoint', 'detroitDragPoint', 'detroitDetail', 'detroitQuarter', 'detroitDouble', 'detroitHalfDrift', 'detroitWheel', 'detroitOpenWheel'][e.data.idx]
+                    'detroitCamo', 'detroitOneFace', 'detroitBlueGround', 'detroitChunky', 'detroitOnBlack', 'detroitShuffle', 'detroitRun', 'detroitRunBlack', 'detroitRunBlue', 'detroitRunWhite', 'detroitRunFiner', 'detroitBoxes', 'detroitCityscape', 'detroitOnePoint', 'detroitDragPoint', 'detroitDetail', 'detroitQuarter', 'detroitDouble', 'detroitHalfDrift', 'detroitWheel', 'detroitOpenWheel', 'detroitDeadOn'][e.data.idx]
         if (to) doTransition(to)
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'fiction') {
@@ -453,7 +453,7 @@ export default function App() {
     // focus) and a forwarded postMessage. The parent holds focus after a SPA
     // transition, so we must forward for ALL iframe phases — not just carousel
     // and fiction — or arrow keys silently do nothing in detroit/postcards/hum.
-    const IFRAME_PHASES = new Set(['carousel', 'fiction', 'hum', 'detroit', 'detroitRemix', 'detroitNine', 'detroitGrid', 'detroitBlue', 'detroitFlood', 'detroitBlack', 'detroitHalves', 'detroitFaces', 'detroitCamo', 'detroitOneFace', 'detroitBlueGround', 'detroitChunky', 'detroitOnBlack', 'detroitShuffle', 'detroitRun', 'detroitRunBlack', 'detroitRunBlue', 'detroitRunWhite', 'detroitRunFiner', 'detroitBoxes', 'detroitCityscape', 'detroitOnePoint', 'detroitDragPoint', 'detroitDetail', 'detroitQuarter', 'detroitDouble', 'detroitHalfDrift', 'detroitWheel', 'detroitOpenWheel', 'postcards'])
+    const IFRAME_PHASES = new Set(['carousel', 'fiction', 'hum', 'detroit', 'detroitRemix', 'detroitNine', 'detroitGrid', 'detroitBlue', 'detroitFlood', 'detroitBlack', 'detroitHalves', 'detroitFaces', 'detroitCamo', 'detroitOneFace', 'detroitBlueGround', 'detroitChunky', 'detroitOnBlack', 'detroitShuffle', 'detroitRun', 'detroitRunBlack', 'detroitRunBlue', 'detroitRunWhite', 'detroitRunFiner', 'detroitBoxes', 'detroitCityscape', 'detroitOnePoint', 'detroitDragPoint', 'detroitDetail', 'detroitQuarter', 'detroitDouble', 'detroitHalfDrift', 'detroitWheel', 'detroitOpenWheel', 'detroitDeadOn', 'postcards'])
     if (!IFRAME_PHASES.has(phase)) return
     const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '])
     const onKey = (e) => {
@@ -532,6 +532,18 @@ export default function App() {
             }}
           />
           <BackButton onClick={() => doTransition('carousel')} />
+        </>
+      )}
+      {phase === 'detroitDeadOn' && (
+        <>
+          <iframe
+            src="/detroit_remix_29.html"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('detroit')} />
         </>
       )}
       {phase === 'detroitOpenWheel' && (
