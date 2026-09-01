@@ -321,7 +321,7 @@ export default function App() {
   const REVEAL_MS = 360
 
   const [scene, setScene] = useState(1)
-  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum' | 'detroit' | 'detroitRemix' | 'detroitNine' | 'detroitGrid' | 'detroitBlue' | 'detroitFlood' | 'detroitBlack' | 'detroitHalves' | 'detroitFaces' | 'detroitCamo' | 'detroitOneFace' | 'detroitBlueGround' | 'detroitChunky' | 'detroitOnBlack' | 'detroitShuffle' | 'detroitRun' | 'detroitRunBlack' | 'detroitRunBlue' | 'detroitRunWhite' | 'detroitRunFiner' | 'detroitBoxes' | 'detroitCityscape' | 'detroitOnePoint' | 'detroitDragPoint' | 'detroitDetail' | 'detroitQuarter' | 'detroitDouble' | 'detroitHalfDrift' | 'detroitWheel' | 'detroitOpenWheel' | 'detroitDeadOn' | 'detroitBlades' | 'detroitWhiteDepth' | 'postcards'
+  const [phase, setPhase] = useState('carousel') // 'carousel' | 'fading' | 'site' | 'journal' | 'fiction' | 'hum' | 'detroit' | 'detroitRemix' | 'detroitNine' | 'detroitGrid' | 'detroitBlue' | 'detroitFlood' | 'detroitBlack' | 'detroitHalves' | 'detroitFaces' | 'detroitCamo' | 'detroitOneFace' | 'detroitBlueGround' | 'detroitChunky' | 'detroitOnBlack' | 'detroitShuffle' | 'detroitRun' | 'detroitRunBlack' | 'detroitRunBlue' | 'detroitRunWhite' | 'detroitRunFiner' | 'detroitBoxes' | 'detroitCityscape' | 'detroitOnePoint' | 'detroitDragPoint' | 'detroitDetail' | 'detroitQuarter' | 'detroitDouble' | 'detroitHalfDrift' | 'detroitWheel' | 'detroitOpenWheel' | 'detroitDeadOn' | 'detroitBlades' | 'detroitWhiteDepth' | 'bsides' | 'postcards'
   const [tPhase, setTPhase] = useState('idle')   // 'idle' | 'covering' | 'revealing'
   const [carouselKey, setCarouselKey] = useState(0)
   const [showIntro, setShowIntro] = useState(false)   // entry is now the WELCOME portal in the carousel
@@ -413,6 +413,7 @@ export default function App() {
         if (e.data.idx === 3) doTransition('fiction')
         if (e.data.idx === 7) doTransition('detroit')
         if (e.data.idx === 8) doTransition('postcards')
+        if (e.data.idx === 9) doTransition('bsides')
         if (e.data.idx === 1) { setPhase('fading'); setTimeout(() => setPhase('site'), 700) }
       }
       // The Detroit ring is the same portals file with ?ring=detroit, so its
@@ -453,7 +454,7 @@ export default function App() {
     // focus) and a forwarded postMessage. The parent holds focus after a SPA
     // transition, so we must forward for ALL iframe phases — not just carousel
     // and fiction — or arrow keys silently do nothing in detroit/postcards/hum.
-    const IFRAME_PHASES = new Set(['carousel', 'fiction', 'hum', 'detroit', 'detroitRemix', 'detroitNine', 'detroitGrid', 'detroitBlue', 'detroitFlood', 'detroitBlack', 'detroitHalves', 'detroitFaces', 'detroitCamo', 'detroitOneFace', 'detroitBlueGround', 'detroitChunky', 'detroitOnBlack', 'detroitShuffle', 'detroitRun', 'detroitRunBlack', 'detroitRunBlue', 'detroitRunWhite', 'detroitRunFiner', 'detroitBoxes', 'detroitCityscape', 'detroitOnePoint', 'detroitDragPoint', 'detroitDetail', 'detroitQuarter', 'detroitDouble', 'detroitHalfDrift', 'detroitWheel', 'detroitOpenWheel', 'detroitDeadOn', 'detroitBlades', 'detroitWhiteDepth', 'postcards'])
+    const IFRAME_PHASES = new Set(['carousel', 'fiction', 'hum', 'detroit', 'detroitRemix', 'detroitNine', 'detroitGrid', 'detroitBlue', 'detroitFlood', 'detroitBlack', 'detroitHalves', 'detroitFaces', 'detroitCamo', 'detroitOneFace', 'detroitBlueGround', 'detroitChunky', 'detroitOnBlack', 'detroitShuffle', 'detroitRun', 'detroitRunBlack', 'detroitRunBlue', 'detroitRunWhite', 'detroitRunFiner', 'detroitBoxes', 'detroitCityscape', 'detroitOnePoint', 'detroitDragPoint', 'detroitDetail', 'detroitQuarter', 'detroitDouble', 'detroitHalfDrift', 'detroitWheel', 'detroitOpenWheel', 'detroitDeadOn', 'detroitBlades', 'detroitWhiteDepth', 'bsides', 'postcards'])
     if (!IFRAME_PHASES.has(phase)) return
     const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '])
     const onKey = (e) => {
@@ -526,6 +527,18 @@ export default function App() {
         <>
           <iframe
             src="/portals.html?ring=detroit"
+            style={{
+              position: 'fixed', inset: 0, width: '100%', height: '100%',
+              border: 'none', zIndex: 10,
+            }}
+          />
+          <BackButton onClick={() => doTransition('carousel')} />
+        </>
+      )}
+      {phase === 'bsides' && (
+        <>
+          <iframe
+            src="/detroit_index.html"
             style={{
               position: 'fixed', inset: 0, width: '100%', height: '100%',
               border: 'none', zIndex: 10,

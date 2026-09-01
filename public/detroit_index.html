@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>detroit — all iterations</title>
+<style>
+  :root { --ink:#e8e4de; --dim:#8d867d; --rule:#2a2622; --bg:#0c0806; --hi:#FAFF00; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--ink);
+    font:400 14px/1.5 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 64px 32px 120px; }
+  h1 { font-size: 34px; font-weight: 700; letter-spacing:-0.02em; margin:0 0 6px; }
+  .sub { color:var(--dim); font-size:12px; letter-spacing:0.16em; text-transform:uppercase; margin-bottom:44px; }
+  h2 { font-size:11px; letter-spacing:0.22em; text-transform:uppercase; color:var(--dim);
+       margin:44px 0 4px; padding-bottom:10px; border-bottom:1px solid var(--rule); font-weight:400; }
+  .row { display:grid; grid-template-columns: 30px 44px 1fr 150px; gap:16px; align-items:baseline;
+         padding:13px 0; border-bottom:1px solid var(--rule); }
+  .row:hover { background: rgba(255,255,255,0.028); }
+  .n { color:var(--dim); font-size:11px; font-variant-numeric:tabular-nums; }
+  a.name { color:var(--ink); text-decoration:none; font-size:16px; }
+  a.name:hover { color:var(--hi); }
+  .desc { color:var(--dim); font-size:12.5px; margin-top:3px; }
+  .meta { color:#5f5952; font-size:10.5px; letter-spacing:0.1em; text-align:right; text-transform:uppercase; }
+  input[type=checkbox] { accent-color:var(--hi); width:15px; height:15px; cursor:pointer; }
+  .keep { position:sticky; bottom:0; margin-top:56px; background:rgba(12,8,6,0.96);
+          border-top:1px solid var(--rule); padding:18px 0 22px; }
+  .keep h3 { font-size:11px; letter-spacing:0.22em; text-transform:uppercase; color:var(--dim);
+             margin:0 0 10px; font-weight:400; }
+  #picked { font-size:13px; color:var(--hi); min-height:20px; line-height:1.7; }
+  .none { color:#5f5952; }
+  button { font:500 11px/1 'Helvetica Neue',Helvetica,Arial,sans-serif; letter-spacing:0.18em;
+    text-transform:uppercase; padding:9px 14px; background:none; border:1px solid var(--rule);
+    color:var(--dim); cursor:pointer; margin-right:8px; margin-top:12px; }
+  button:hover { color:var(--ink); border-color:var(--dim); }
+  .note { color:#5f5952; font-size:12px; margin-top:28px; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Detroit — every iteration</h1>
+  <div class="sub">31 pieces · click a name to open it · tick the ones to keep</div>
+  <div id="list"></div>
+
+  <div class="keep">
+    <h3>Keeping</h3>
+    <div id="picked" class="none">nothing ticked yet</div>
+    <button id="all">Tick all</button>
+    <button id="clear">Clear</button>
+    <button id="copy">Copy list</button>
+  </div>
+
+  <div class="note">
+    Ticks are remembered in this browser only — they are a note to yourself, not saved to the project.
+    Every piece is its own file in <code>public/</code> and all of them are committed, so nothing here
+    is at risk while you decide.
+  </div>
+</div>
+<script>
+const GROUPS = [
+  ['Cut on a grid', [
+    ['', 'remix', 'Four quadrants. Top-left always stays top-left.', '2×2'],
+    ['_2', 'nine', 'Cut into thirds both ways.', '3×3'],
+    ['_3', 'grid', 'Thirty-five pieces.', '5×7'],
+    ['_4', 'blue', 'Eighty cells on the portraits’ own blue.', '8×10'],
+    ['_5', 'flood', 'The accident — region growing ate the figure. Kept deliberately.', '8×10'],
+    ['_6', 'black', 'The same grid on a painted black ground.', '8×10'],
+    ['_7', 'halves', 'One cut across the middle. Top of one face, bottom of another.', '1×2'],
+  ]],
+  ['Cut by pattern, and down to one source', [
+    ['_8', 'camo', 'Camouflage blobs instead of a grid. 100 patterns.', '5 regions'],
+    ['_9', 'one face', 'Thirty-nine cuts of a single portrait, hue-stepped.', '34.webp'],
+    ['_10', 'blue ground', 'Same, with the ground pinned to one blue.', '34.webp'],
+    ['_11', 'chunky', 'Two faces mixed, the cut loosened to blocks.', '32 + 34'],
+    ['_12', 'black chunky', 'On black, with more of the face left standing.', '32 + 34'],
+  ]],
+  ['Squares over a still', [
+    ['_13', 'shuffle', 'Squares flattened to one colour and displaced 5%. The original underneath, so no holes.', '192 sq'],
+  ]],
+  ['The run — one card, a hundred arrangements', [
+    ['_14', 'run', 'The shuffle interpolated: squares glide instead of cutting. Four speeds.', 'on the image'],
+    ['_15', 'run on black', 'Nothing underneath. Every gap is a hole in the face.', 'black'],
+    ['_16', 'run on blue', 'On #1E2BFF, the portraits’ blue.', 'blue'],
+    ['_17', 'run on white', 'The ground lighter than what sits on it.', 'white'],
+    ['_18', 'run finer', 'A third more squares — 252 against 192.', '22px'],
+  ]],
+  ['Prisms — three dimensions', [
+    ['_19', 'run in space', 'Squares become boxes. Depth driven by luminance.', 'three.js'],
+    ['_20', 'cityscape', 'Parallel prisms running to a horizon off the right.', 'parallel'],
+    ['_21', 'one point', 'They arrive at an apex instead of receding forever.', 'converge 1'],
+    ['_22', 'drag the point', 'The vanishing point follows your cursor. Scroll for depth.', 'interactive'],
+    ['_23', 'drag, in detail', 'Textured with the real picture, sheared so each square stays level.', 'textured'],
+    ['_24', 'quarter travel', 'Prisms travel 25% of the way. The portrait reads first.', 'converge 0.25'],
+    ['_25', 'double square', 'Squares at 44px — one holds a whole eye or the mouth.', '63 sq'],
+    ['_26', 'half drift', 'The same, drifting 17% of a square instead of 34%.', 'shift 0.025'],
+  ]],
+  ['The ring — the carousel’s axis as the vanishing point', [
+    ['_27', 'ring of one point', 'All 39 cards’ prisms reach the centre of the wheel.', '2457 prisms'],
+    ['_28', 'open wheel', '26 cards with gaps, converging fully, verticals held by a lens shift.', '26 cards'],
+    ['_29', 'dead on', 'Down at the rim, cards at 80vh, no keystone.', '80vh'],
+    ['_30', 'whole blades', 'One rectangle per image instead of 63. The picture down the depth.', '26 prisms'],
+    ['_31', 'white depth', 'Picture on the face, translucent lit white down the sides.', 'glass'],
+  ]],
+];
+
+const list = document.getElementById('list');
+let n = 0;
+const saved = (() => { try { return JSON.parse(localStorage.getItem('detroitKeep') || '[]'); }
+                       catch (e) { return []; } })();
+
+GROUPS.forEach(([title, items]) => {
+  const h = document.createElement('h2'); h.textContent = title; list.appendChild(h);
+  items.forEach(([suf, name, desc, meta]) => {
+    n++;
+    const file = 'detroit_remix' + suf + '.html';
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML =
+      '<div><input type="checkbox" data-file="' + file + '" data-name="' + name + '"></div>' +
+      '<div class="n">' + String(n).padStart(2, '0') + '</div>' +
+      '<div><a class="name" href="/' + file + '" target="_blank" rel="noopener">' + name + '</a>' +
+      '<div class="desc">' + desc + '</div></div>' +
+      '<div class="meta">' + meta + '</div>';
+    list.appendChild(row);
+  });
+});
+
+const boxes = [...document.querySelectorAll('input[type=checkbox]')];
+boxes.forEach(b => { if (saved.includes(b.dataset.file)) b.checked = true; });
+
+function refresh() {
+  const on = boxes.filter(b => b.checked);
+  const picked = document.getElementById('picked');
+  if (!on.length) { picked.className = 'none'; picked.textContent = 'nothing ticked yet'; }
+  else {
+    picked.className = '';
+    picked.textContent = on.map(b => b.dataset.name + '  (' + b.dataset.file + ')').join('   ·   ');
+  }
+  try { localStorage.setItem('detroitKeep', JSON.stringify(on.map(b => b.dataset.file))); } catch (e) {}
+}
+boxes.forEach(b => b.addEventListener('change', refresh));
+document.getElementById('all').addEventListener('click', () => { boxes.forEach(b => b.checked = true); refresh(); });
+document.getElementById('clear').addEventListener('click', () => { boxes.forEach(b => b.checked = false); refresh(); });
+document.getElementById('copy').addEventListener('click', () => {
+  const t = boxes.filter(b => b.checked).map(b => b.dataset.name + ' (' + b.dataset.file + ')').join('\n');
+  navigator.clipboard && navigator.clipboard.writeText(t || 'nothing ticked');
+});
+refresh();
+</script>
+</body>
+</html>
