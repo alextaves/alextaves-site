@@ -215,6 +215,7 @@ let PORTALS = [
   { title: 'DETROIT',          sub: 'split in four',                           bg: '#A1A1A1', light: false,
     body: '2,313,441 recombinations of thirty-nine faces. you are unlikely to see the same work twice.' },
   { title: 'POSTCARDS',        sub: '2016',                                    bg: '#A69A8C', light: false },
+  { title: 'B-SIDES',          sub: 'wip',                                     bg: '#FFFFFF', light: false },
 ]
 if (RING === 'detroit') PORTALS = DETROIT_RING
 
@@ -243,6 +244,8 @@ const MOVING_IMAGES_INDEX = MAIN ? 1 : -1
 const ALEX_TAVES_INDEX = MAIN ? 4 : -1
 const DETROIT_INDEX = MAIN ? 7 : -1
 const POSTCARDS_INDEX = MAIN ? 8 : -1
+// Appended after postcards, so nothing above it moves and WELCOME stays last.
+const B_SIDES_INDEX = MAIN ? 9 : -1
 // Appended AFTER postcards, so every existing index is unmoved and
 // WELCOME_INDEX (COUNT - 1) still lands on the welcome card.
 const DETROIT_REMIX_INDEX = 9
@@ -1047,6 +1050,8 @@ for (let i = 0; i < COUNT; i++) {
     ? (ctx, W, H) => drawDuotoneTrace(ctx, postcardsTraceImg, W, H, portal.bg, 0.5, TRACE_GRAYSCALE)
     : i === OSWIN_INDEX
     ? (ctx, W, H) => drawOswinCircle(ctx, W, H, PORTALS[OSWIN_INDEX])
+    : i === B_SIDES_INDEX
+    ? (ctx, W, H) => drawOswinCircle(ctx, W, H, PORTALS[B_SIDES_INDEX])
     : i === ENQUIRIES_INDEX
     ? (ctx, W, H) => drawEnquiryFormPreview(ctx, W, H, portal)
     : i === UNFILTERED_INDEX
