@@ -20,21 +20,26 @@ const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 // converted to container-query units — the phone titles then break and scale
 // exactly where the desktop cards do.
 const DESIGN_W = 600, DESIGN_MARGIN = 54
-function fitTitle(title) {
+// `given` forces the break-up — OSWIN JOURNAL falls onto two lines on its own,
+// and the cards that don't are broken by hand (with a hyphen where there is no
+// space to break at) so every title in the grid is two lines at one size.
+function fitTitle(title, given) {
   const ctx = document.createElement('canvas').getContext('2d')
   const maxW = DESIGN_W - DESIGN_MARGIN * 2
-  let size = 74, lines = [title]
+  let size = 74, lines = given ?? [title]
   for (; size >= 24; size -= 2) {
     ctx.font = `700 ${size}px ${FONT}`
     ctx.letterSpacing = '-0.01em'
-    lines = []
-    let line = ''
-    for (const w of title.split(' ')) {
-      const test = line ? line + ' ' + w : w
-      if (line && ctx.measureText(test).width > maxW) { lines.push(line); line = w }
-      else line = test
+    if (!given) {
+      lines = []
+      let line = ''
+      for (const w of title.split(' ')) {
+        const test = line ? line + ' ' + w : w
+        if (line && ctx.measureText(test).width > maxW) { lines.push(line); line = w }
+        else line = test
+      }
+      if (line) lines.push(line)
     }
-    if (line) lines.push(line)
     if (lines.length <= 3 && Math.max(...lines.map(l => ctx.measureText(l).width)) <= maxW) break
   }
   return { cqw: (size / DESIGN_W) * 100, lines }
@@ -54,8 +59,10 @@ const CARDS = [
   { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'exploration of sound and image', bg: '#FFFFFF' },
   { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'wip',                            bg: '#FFFFFF' },
   { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'wip',                            bg: '#FFFFFF' },
-  { id: 'alex',     kind: 'photo',  title: 'ALEX TAVES',    sub: 'a bit about me',                 bg: '#FFFFFF' },
-  { id: 'reel',     kind: 'video',  title: 'COMMISSIONS',   sub: 'the previous alextaves.com',     bg: '#0B0B0B', titleColor: '#D8FF14' },
+  { id: 'alex',     kind: 'photo',  title: 'ALEX TAVES',    sub: 'a bit about me',                 bg: '#FFFFFF',
+    lines: ['ALEX', 'TAVES'] },
+  { id: 'reel',     kind: 'video',  title: 'COMMISSIONS',   sub: 'the previous alextaves.com',     bg: '#0B0B0B', titleColor: '#D8FF14',
+    lines: ['COMMIS-', 'SIONS'] },     // com·mis·sions
   { id: 'enquiries',kind: 'form',   title: 'ENQUIRIES',     sub: 'get in touch · looking for like minded', bg: '#00C2A8' },
 ]
 
@@ -174,16 +181,16 @@ const css = `
   100% { background-position: 61px 43px, 0 0; }
 }
 
-.mg-bio {
-  position: absolute; inset: 0; z-index: 1;
-  padding: 30cqw 9cqw 9cqw;
-  overflow: hidden;
-  color: #000;
+/* The bio does not fit the card. Set inside a ~180px column it lands at 8px and
+   still overruns the face by a third — so tapping the portrait opens it as a
+   sheet, the same move the enquiry form makes, at a size meant for reading. */
+.mg-bio p {
+  margin: 0 0 1.1em;
   font-weight: 300;
-  font-size: max(8px, 3.25cqw);
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.62;
+  color: rgba(0, 0, 0, 0.82);
 }
-.mg-bio p { margin: 0 0 0.9em; }
 
 .mg-video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
 .mg-videoScrim {
@@ -194,6 +201,8 @@ const css = `
 
 .mg-formPreview {
   position: absolute; inset: 0; z-index: 1;
+  /* One-line header on this card, so the preview starts higher than the
+     two-line cards would need. */
   padding: 36cqw 9cqw 9cqw;
   color: rgba(0, 0, 0, 0.5);
   font-size: max(7px, 2.2cqw);
@@ -268,6 +277,8 @@ const css = `
   font-family: ${FONT}; font-size: 13px; font-weight: 700; letter-spacing: 0.16em; color: #000;
 }
 .mg-sheet .mg-sheetClose { font-weight: 300; color: rgba(0, 0, 0, 0.5); }
+/* Must come after .mg-sheet — same specificity, so source order decides. */
+.mg-sheet.mg-sheetLight { background: #FFFFFF; }
 
 @media (prefers-reduced-motion: reduce) {
   .mg-static { animation: none; }
@@ -277,24 +288,24 @@ const css = `
 export default function MobileGrid() {
   // Measured once — it depends only on the fixed design width, not the viewport.
   const [fitted] = useState(() =>
-    Object.fromEntries(CARDS.map(c => [c.id, fitTitle(c.title)])))
-  const [flipped, setFlipped] = useState(false)   // ALEX TAVES: portrait ↔ bio
+    Object.fromEntries(CARDS.map(c => [c.id, fitTitle(c.title, c.lines)])))
+  const [bioOpen, setBioOpen] = useState(false)
   const [reelOpen, setReelOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const enquiriesRef = useRef(null)
 
   // Close whatever is open on Back rather than leaving the site.
   useEffect(() => {
-    if (!reelOpen && !formOpen) return
-    const onPop = () => { setReelOpen(false); setFormOpen(false) }
+    if (!reelOpen && !formOpen && !bioOpen) return
+    const onPop = () => { setReelOpen(false); setFormOpen(false); setBioOpen(false) }
     window.history.pushState({ mgOverlay: true }, '')
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
-  }, [reelOpen, formOpen])
+  }, [reelOpen, formOpen, bioOpen])
 
   const openCard = (id) => {
     if (id === 'journal') { window.open('https://oswinjournal.com', '_blank'); return }
-    if (id === 'alex') { setFlipped(f => !f); return }
+    if (id === 'alex') { setBioOpen(true); return }
     if (id === 'reel') { setReelOpen(true); return }
     if (id === 'enquiries') { setFormOpen(true); return }
     // gallery / records have no destination yet, same as the desktop ring.
@@ -327,9 +338,7 @@ export default function MobileGrid() {
       <div className="mg-wrap">
         <div className="mg-grid">
           {CARDS.map((card) => {
-            // Alex flipped to the bio is the one face that turns dark-on-white.
-            const onPhoto = card.kind === 'photo' && !flipped
-            const lightInk = onPhoto || card.kind === 'video'
+            const lightInk = card.kind === 'photo' || card.kind === 'video'
             const ink = card.titleColor || (lightInk ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.88)')
             const inkSub = lightInk ? 'rgba(255,255,255,0.52)' : 'rgba(0,0,0,0.50)'
             const inkRule = lightInk ? 'rgba(255,255,255,0.30)' : 'rgba(0,0,0,0.22)'
@@ -344,17 +353,12 @@ export default function MobileGrid() {
               >
                 {card.kind === 'circle' && <div className="mg-circle" />}
 
-                {card.kind === 'photo' && !flipped && (
+                {card.kind === 'photo' && (
                   <>
                     <div className="mg-photo" />
                     <div className="mg-scrim" />
                     <div className="mg-static" />
                   </>
-                )}
-                {card.kind === 'photo' && flipped && (
-                  <div className="mg-bio">
-                    {ALEX_BIO.map((para, i) => <p key={i}>{para}</p>)}
-                  </div>
                 )}
 
                 {card.kind === 'video' && (
@@ -396,6 +400,19 @@ export default function MobileGrid() {
             <button className="mg-reelClose" aria-label="Close reel" onClick={() => setReelOpen(false)}>&#10005;</button>
           </div>
         </>
+      )}
+
+      {bioOpen && (
+        <div className="mg-sheet mg-sheetLight">
+          <h2>ALEX TAVES</h2>
+          <p className="mg-sheetSub">a bit about me</p>
+          <div className="mg-bio">
+            {ALEX_BIO.map((para, i) => <p key={i}>{para}</p>)}
+          </div>
+          <div className="mg-sheetActions">
+            <button type="button" className="mg-sheetClose" onClick={() => setBioOpen(false)}>CLOSE</button>
+          </div>
+        </div>
       )}
 
       {formOpen && (
