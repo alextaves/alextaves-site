@@ -249,16 +249,9 @@ let PORTALS = [
 ]
 if (RING === 'detroit') PORTALS = DETROIT_RING
 
-// The WELCOME entry portal shows on every fresh page load. Whether it's already
-// been begun is driven by the parent app via a ?begun=1 URL param (NOT
-// sessionStorage — that survived refreshes and hid the entry permanently). The
-// parent sets begun=1 only when it re-mounts this iframe after a portal return,
-// so backing out of a portal skips the entry, but a full refresh shows it again.
-let welcomeBegun = false
-try { welcomeBegun = new URLSearchParams(location.search).get('begun') === '1' } catch (e) {}
-if (!welcomeBegun && RING !== 'detroit') {
-  PORTALS.push({ title: 'WELCOME', sub: 'recommended to have audio on', bg: '#001ABE', light: true, welcome: true })
-}
+// The blue WELCOME entry card has gone to Oswin Gallery, which is the site that
+// now opens with it. Nothing is appended here, so this ring turns from the
+// moment it loads — the way the nested Detroit ring always has.
 
 
 const COUNT = PORTALS.length
@@ -308,16 +301,14 @@ const DETROIT_HALVES_INDEX = 15
 // Was STILL IMAGES, then ARCHIVE; the card now reads COMMISSIONS and plays its
 // showreel full-viewport in place rather than linking out to /archive.
 const ARCHIVE_INDEX = MAIN ? 1 : -1
-// -1 on the nested ring too: with no welcome card appended there, COUNT - 1
-// pointed at the last Detroit card and would have taken its click as the
-// welcome control instead of opening the page.
-const WELCOME_INDEX = (welcomeBegun || !MAIN) ? -1 : (COUNT - 1)   // last portal, or none once begun
+// No welcome card on any ring now. Pinned at -1 like the other departed cards:
+// its drawing and click routing stay in the file, index-guarded and inert, so
+// the entry can be restored by pushing the card back and setting this.
+const WELCOME_INDEX = -1
 
-// Entry state: ring is static until Begin is pressed; audio preference starts ON.
-// The nested ring has no welcome card, so it must never start in the entry
-// state — it would sit locked and unlit waiting for a Begin press that has
-// nothing to press, and the angle below would seek WELCOME_INDEX = -1.
-let welcomeActive = MAIN && !welcomeBegun
+// With no entry to press through, the ring is never in the entry state — it
+// starts turning immediately and no card is held solid.
+let welcomeActive = false
 let welcomeAudioOn = true
 let welcomeRegions = null   // {on,off,begin} hit rects in 600×800 card pixels
 
