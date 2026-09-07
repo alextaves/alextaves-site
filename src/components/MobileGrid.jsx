@@ -113,7 +113,7 @@ const NOISE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/
 const css = `
 .mg-wrap {
   position: fixed; inset: 0;
-  background: #0c0806;
+  background: #FF9D2B;
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   /* index.css pins touch-action:none globally for the WebGL rings; the grid is
@@ -147,8 +147,8 @@ const css = `
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 0 rgba(0, 0, 0, 0.30),
-    0 2px 3px rgba(0, 0, 0, 0.55),
-    0 10px 22px rgba(0, 0, 0, 0.50);
+    0 2px 3px rgba(0, 0, 0, 0.28),
+    0 10px 20px rgba(0, 0, 0, 0.22);
   transition: transform 200ms ease, box-shadow 200ms ease;
 }
 /* The glass itself: a sheen raked across the top-left corner, well under the
@@ -167,8 +167,21 @@ const css = `
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -1px 0 rgba(0, 0, 0, 0.30),
-    0 1px 2px rgba(0, 0, 0, 0.55),
-    0 4px 10px rgba(0, 0, 0, 0.45);
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 4px 9px rgba(0, 0, 0, 0.20);
+}
+
+/* Sits after the last row rather than pinned over it, so it never covers a
+   card — you arrive at it. */
+.mg-subscribe {
+  display: block;
+  margin: 26px auto calc(6px + env(safe-area-inset-bottom));
+  background: none; border: none; padding: 0 0 3px;
+  font-family: ${FONT};
+  font-size: 13px; font-weight: 700; letter-spacing: 0.22em;
+  color: rgba(0, 0, 0, 0.82);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.82);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mg-face { position: absolute; inset: 0; z-index: 0; }
@@ -447,6 +460,8 @@ export default function MobileGrid() {
             )
           })}
         </div>
+
+        <button type="button" className="mg-subscribe">SUBSCRIBE</button>
       </div>
 
       {reelOpen && (
