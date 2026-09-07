@@ -103,17 +103,65 @@ function EnquiryPreview() {
   )
 }
 
+// The card face and the full-screen reel are different files. The face is a
+// thumbnail a couple of hundred pixels wide, so it gets a 560px silent encode
+// (468KB, Constrained Baseline / yuv420p for the widest phone support) instead
+// of the 3.7MB master — which is what the reel still opens when you tap.
+const REEL_CARD_SRC = '/videos/showreel_card.mp4'
+const REEL_FULL_SRC = '/videos/showreel2_3.mp4'
+
+// Autoplaying inline on a phone is fussier than the attributes suggest. iOS
+// only allows it when the element is genuinely muted and inline, and React sets
+// `muted` as a property that has not always landed before the autoplay decision
+// is made — so it is set directly here and play() is asked for explicitly.
+// Low Power Mode refuses regardless, so the first touch anywhere is taken as
+// the gesture to retry on, and returning to the tab retries too.
+function CardVideo({ src }) {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    v.muted = true
+    v.defaultMuted = true
+    const play = () => { v.play().catch(() => {}) }
+    play()
+    window.addEventListener('touchstart', play, { once: true, passive: true })
+    document.addEventListener('visibilitychange', play)
+    return () => {
+      window.removeEventListener('touchstart', play)
+      document.removeEventListener('visibilitychange', play)
+    }
+  }, [])
+
+  return (
+    <video
+      ref={ref}
+      className="mg-video"
+      src={src}
+      muted loop playsInline autoPlay
+      preload="auto"
+      disableRemotePlayback
+    />
+  )
+}
+
 // Grid order follows the mock rather than the ring's own order: the three Oswin
 // rooms lead, then Alex, then the two that ask something of you.
+//
+// Captions are title case here where the ring sets them lowercase — at this size
+// they read as labels under a heading rather than as the ring's quiet asides.
+// Small joining words stay down ("and", "in", "for"), and the domain keeps its
+// own casing.
 const CARDS = [
-  { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'sound and image', bg: '#FFFFFF', circle: '#F9FF45' },
-  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'opens October',   bg: '#FFFFFF', circle: '#FF3612' },
-  { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'opens October',   bg: '#FFFFFF', circle: '#5D40FF' },
-  { id: 'alex',     kind: 'photo',  title: 'ALEX TAVES',    sub: 'a bit about me',                 bg: '#FFFFFF',
+  { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'Sound and Image', bg: '#FFFFFF', circle: '#F9FF45' },
+  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'Opens October',   bg: '#FFFFFF', circle: '#FF3612' },
+  { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'Opens October',   bg: '#FFFFFF', circle: '#5D40FF' },
+  { id: 'alex',     kind: 'photo',  title: 'ALEX TAVES',    sub: 'A Bit About Me',                 bg: '#FFFFFF',
     lines: ['ALEX', 'TAVES'] },
-  { id: 'reel',     kind: 'video',  title: 'COMMISSIONS',   sub: 'the previous alextaves.com',     bg: '#0B0B0B', titleColor: '#D8FF14',
+  { id: 'reel',     kind: 'video',  title: 'COMMISSIONS',   sub: 'The Previous alextaves.com',     bg: '#0B0B0B', titleColor: '#D8FF14',
     lines: ['COMMIS-', 'SIONS'] },     // com·mis·sions
-  { id: 'enquiries',kind: 'form',   title: 'ENQUIRIES',     sub: 'get in touch · looking for like minded', bg: '#00C2A8' },
+  { id: 'enquiries',kind: 'form',   title: 'ENQUIRIES',     sub: 'Get in Touch · Looking for Like Minded', bg: '#00C2A8' },
 ]
 
 // feTurbulence, tiled — the phone equivalent of the ring's pooled noise frames.
@@ -475,7 +523,7 @@ export default function MobileGrid() {
 
                 {card.kind === 'video' && (
                   <>
-                    <video className="mg-video" src="/videos/showreel2_3.mp4" muted loop playsInline autoPlay />
+                    <CardVideo src={REEL_CARD_SRC} />
                     <div className="mg-videoScrim" />
                   </>
                 )}
@@ -492,7 +540,9 @@ export default function MobileGrid() {
       {reelOpen && (
         <>
           <div className="mg-reel">
-            <video src="/videos/showreel2_3.mp4" autoPlay loop playsInline controls={false} />
+            {/* The master, at full resolution. Muted because the source carries no
+                audio track at all — it just makes autoplay one less thing to refuse. */}
+            <video src={REEL_FULL_SRC} autoPlay loop muted playsInline controls={false} />
           </div>
           <div className="mg-reelBar">
             <button className="mg-reelEnq" onClick={toEnquiries}>ENQUIRIES</button>
