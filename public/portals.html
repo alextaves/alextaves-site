@@ -9,6 +9,37 @@
   html, body { margin: 0; height: 100%; background: #0c0806; overflow: hidden; overscroll-behavior: none; }
   canvas { display: block; touch-action: none; }
 
+  /* COMMISSIONS reel controls. The <video> itself is styled from JS (see
+     REEL_FULL) and sits just below this layer; everything here is transparent
+     and click-through apart from the two buttons. */
+  #reelControls {
+    position: fixed; inset: 0; z-index: 61;
+    pointer-events: none;
+    opacity: 0; transition: opacity 300ms ease;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  #reelControls.active { opacity: 1; }
+  /* The reel runs from near-black to full-bleed yellow, so plain low-opacity
+     white sits legibly over some frames and vanishes on others. Same fix the
+     card face uses for its own title: a soft dark gradient across the top. */
+  #reelControls::before {
+    content: '';
+    position: fixed; top: 0; left: 0; right: 0; height: 120px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+    pointer-events: none;
+  }
+  #reelControls button {
+    position: fixed; top: 24px;
+    background: none; border: none; padding: 0; cursor: pointer;
+    pointer-events: auto;
+    font-family: inherit;
+    color: rgba(255, 255, 255, 0.75);
+    transition: color 200ms ease;
+  }
+  #reelControls button:hover { color: #fff; }
+  #reelEnquiries { left: 24px; font-size: 11px; letter-spacing: 0.22em; }
+  #reelClose { right: 24px; font-size: 18px; line-height: 1; }
+
   .story-overlay {
     --bg: #D9D02F; --bg-r: 217; --bg-g: 208; --bg-b: 47;
     container-type: size;
@@ -158,6 +189,10 @@
     </form>
   </div>
 </div>
+<div id="reelControls">
+  <button id="reelEnquiries" type="button">ENQUIRIES</button>
+  <button id="reelClose" type="button" aria-label="Close reel">&#10005;</button>
+</div>
 <script src="/vendor/three.min.js"></script>
 <script>
 // ── Nested ring ───────────────────────────────────────────────────────────────
@@ -206,7 +241,7 @@ const DETROIT_RING = [
 
 let PORTALS = [
   { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#FFFFFF', light: false },
-  { title: 'ARCHIVE',          sub: 'the previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
+  { title: 'COMMISSIONS',      sub: 'the previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
   { title: 'ALEX TAVES',       sub: 'a bit about me',                         bg: '#FFFFFF', light: false },
   { title: 'ENQUIRIES',        sub: 'get in touch · looking for like minded',  bg: '#00C2A8', light: false },
   { title: 'UNFILTERED IDEAS', sub: 'a journal',                               bg: '#D9D02F', light: false },
@@ -267,8 +302,9 @@ const DETROIT_BLUE_INDEX = 12
 const DETROIT_FLOOD_INDEX = 13
 const DETROIT_BLACK_INDEX = 14
 const DETROIT_HALVES_INDEX = 15
-const ARCHIVE_INDEX = MAIN ? 1 : -1   // was STILL IMAGES — now the archive showreel, links to /archive
-const ARCHIVE_URL = '/archive/index.html'   // explicit file → works in dev & prod; /archive also serves it via _redirects
+// Was STILL IMAGES, then ARCHIVE; the card now reads COMMISSIONS and plays its
+// showreel full-viewport in place rather than linking out to /archive.
+const ARCHIVE_INDEX = MAIN ? 1 : -1
 // -1 on the nested ring too: with no welcome card appended there, COUNT - 1
 // pointed at the last Detroit card and would have taken its click as the
 // welcome control instead of opening the page.
@@ -861,8 +897,8 @@ function buildSwimGray() {
 if (swimImg.complete) buildSwimGray()
 else swimImg.addEventListener('load', buildSwimGray)
 
-// ARCHIVE panel plays the showreel that showcases the previous alextaves.com,
-// cover-fit and full-colour; clicking the card links out to /archive.
+// COMMISSIONS panel plays the showreel cover-fit and full-colour on its face;
+// clicking the card opens that same reel full-viewport (see openReel).
 const archiveVideo = document.createElement('video')
 archiveVideo.src = '/videos/showreel2_3.mp4'
 archiveVideo.muted = true
@@ -870,11 +906,68 @@ archiveVideo.loop = true
 archiveVideo.playsInline = true
 archiveVideo.setAttribute('webkit-playsinline', '')
 archiveVideo.autoplay = true
-archiveVideo.style.cssText = 'position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; opacity:0.01; pointer-events:none;'
+// Two style states for one element. Closed, it is a 1px offscreen player kept
+// barely visible so the browser keeps decoding frames — display:none or
+// visibility:hidden would stall it and freeze the card face it draws. Open, the
+// same element fills the viewport.
+const REEL_PARKED = 'position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; opacity:0.01; pointer-events:none;'
+const REEL_FULL   = 'position:fixed; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:60;'
+archiveVideo.style.cssText = REEL_PARKED
 document.body.appendChild(archiveVideo)
 archiveVideo.play().catch(() => {})
 archiveVideo.addEventListener('loadeddata', () => archiveVideo.play().catch(() => {}))
 window.addEventListener('pointerdown', () => { if (archiveVideo.paused) archiveVideo.play().catch(() => {}) }, { once: true })
+
+// ── COMMISSIONS reel ──────────────────────────────────────────────────────────
+// Clicking COMMISSIONS plays the showreel over the ring instead of navigating
+// away. It reuses the card's own video element rather than making a second one,
+// which would download the same file twice and drift out of sync with the face.
+const reelControls = document.getElementById('reelControls')
+let reelOpen = false
+
+function openReel() {
+  if (reelOpen) return
+  reelOpen = true
+  archiveVideo.style.cssText = REEL_FULL
+  // Opening is a click, so unmuting here is inside a user gesture and allowed.
+  archiveVideo.muted = false
+  // Seeking before metadata is loaded throws InvalidStateError; the card face
+  // has usually had it playing for a while, but a click seconds after load
+  // might not have.
+  if (archiveVideo.readyState >= 1) archiveVideo.currentTime = 0
+  archiveVideo.play().catch(() => {})
+  reelControls.classList.add('active')
+}
+
+function closeReel() {
+  if (!reelOpen) return
+  reelOpen = false
+  archiveVideo.style.cssText = REEL_PARKED
+  archiveVideo.muted = true
+  archiveVideo.play().catch(() => {})
+  reelControls.classList.remove('active')
+}
+
+// Spin the ring so a given card is front and centre, and hold it there. Same
+// geometry the WELCOME entry uses, split by axis: the ring turns about Y on
+// desktop and about X on mobile, so the resting angle differs by a quarter turn.
+function seekToPanel(idx) {
+  if (idx < 0) return
+  const a = (idx / COUNT) * Math.PI * 2
+  angle = isMobile ? a : a - Math.PI / 2
+  angVel = 0
+  paused = true          // auto-rotation held until the next drag
+  pendingConfirmIdx = null
+}
+
+document.getElementById('reelClose').addEventListener('click', closeReel)
+// ENQUIRIES drops you back on the ring with that card already front and centre
+// and the drift held, so it is sitting there to be read rather than sliding past.
+document.getElementById('reelEnquiries').addEventListener('click', () => {
+  closeReel()
+  seekToPanel(ENQUIRIES_INDEX)
+})
+window.addEventListener('keydown', (e) => { if (reelOpen && e.key === 'Escape') closeReel() })
 
 // Draw the current showreel frame cover-fit onto the card, with a soft dark
 // gradient behind the header so the chartreuse title stays legible.
@@ -1480,16 +1573,13 @@ function frontPanelIdx() {
 
 function handlePanelClick(idx) {
   if (idx === UNFILTERED_INDEX || idx === ENQUIRIES_INDEX || idx === ALEX_TAVES_INDEX) { openStory(idx); return }
+  if (idx === ARCHIVE_INDEX) { openReel(); return }
   if (idx === OSWIN_INDEX) { window.open('https://oswinjournal.com', '_blank'); return }
   if (pendingConfirmIdx !== idx) {
     pendingConfirmIdx = idx
     return
   }
   pendingConfirmIdx = null
-  if (idx === ARCHIVE_INDEX) {
-    (window.top || window).location.href = ARCHIVE_URL
-    return
-  }
   if (window !== window.top) {
     window.parent.postMessage({ type: 'portalClick', idx, ring: RING }, '*')
   }
@@ -1518,7 +1608,7 @@ let downX = 0, downY = 0, lastX = 0, lastMoveT = 0, trackedVel = 0
 let paused = false
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (isMobile || storyOpen) return
+  if (isMobile || storyOpen || reelOpen) return
   dragging = true; didDrag = false
   downX = lastX = e.clientX; downY = e.clientY
   lastMoveT = performance.now(); trackedVel = 0
@@ -1567,7 +1657,7 @@ let touchId = null, touchLastY = 0, touchLastT = 0, touchVel = 0
 let mobHSwiping = false, touchStartX = 0, touchStartY = 0
 
 renderer.domElement.addEventListener('touchstart', (e) => {
-  if (!isMobile || storyOpen) return
+  if (!isMobile || storyOpen || reelOpen) return
   e.preventDefault()
   const t = e.touches[0]
   touchId = t.identifier
@@ -1599,7 +1689,7 @@ renderer.domElement.addEventListener('touchmove', (e) => {
 }, { passive: false })
 renderer.domElement.addEventListener('touchend', (e) => {
   clearHeldTrace()
-  if (!isMobile || storyOpen) return
+  if (!isMobile || storyOpen || reelOpen) return
   if (mobHSwiping) notifyRingDrag(false)
   dragging = false
   if (!mobHSwiping) {
@@ -1622,7 +1712,7 @@ renderer.domElement.addEventListener('touchcancel', clearHeldTrace, { passive: t
 // per burst and one "stopped" after scrolling actually pauses.
 let wheelDragTimeout = null
 window.addEventListener('wheel', (e) => {
-  if (storyOpen || welcomeActive) return
+  if (storyOpen || reelOpen || welcomeActive) return
   e.preventDefault()
   angle -= e.deltaY * 0.0008
   angVel = 0
@@ -1632,12 +1722,12 @@ window.addEventListener('wheel', (e) => {
 }, { passive: false })
 
 window.addEventListener('keydown', (e) => {
-  if (storyOpen || welcomeActive) return
+  if (storyOpen || reelOpen || welcomeActive) return
   if (e.key === 'ArrowLeft')       angVel = Math.min(MAX_VEL, angVel + 1.8)
   else if (e.key === 'ArrowRight') angVel = Math.max(-MAX_VEL, angVel - 1.8)
 })
 window.addEventListener('message', (e) => {
-  if (storyOpen || welcomeActive) return
+  if (storyOpen || reelOpen || welcomeActive) return
   if (!e.data || e.data.type !== 'key') return
   if (e.data.key === 'ArrowLeft')       angVel = Math.min(MAX_VEL, angVel + 1.8)
   else if (e.data.key === 'ArrowRight') angVel = Math.max(-MAX_VEL, angVel - 1.8)
@@ -1705,7 +1795,7 @@ function render(now) {
     archiveFaceTex.needsUpdate = true
   }
 
-  if (!dragging && !storyOpen && !welcomeActive) {
+  if (!dragging && !storyOpen && !reelOpen && !welcomeActive) {
     if (!paused) {
       const target = AUTO_SPEED
       angVel = target + (angVel - target) * Math.exp(-FRICTION * dt)
