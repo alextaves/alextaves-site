@@ -244,8 +244,6 @@ let PORTALS = [
   { title: 'COMMISSIONS',      sub: 'the previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
   { title: 'ALEX TAVES',       sub: 'a bit about me',                         bg: '#FFFFFF', light: false },
   { title: 'ENQUIRIES',        sub: 'get in touch · looking for like minded',  bg: '#00C2A8', light: false },
-  { title: 'UNFILTERED IDEAS', sub: 'a journal',                               bg: '#D9D02F', light: false },
-  { title: 'B-SIDES',          sub: 'wip',                                     bg: '#FFFFFF', light: false },
   { title: 'OSWIN GALLERY',    sub: 'wip',                                     bg: '#FFFFFF', light: false },
   { title: 'OSWIN RECORDS',    sub: 'wip',                                     bg: '#FFFFFF', light: false },
 ]
@@ -279,20 +277,25 @@ const MAIN = RING === 'main'   // -1 disables a special case on the nested ring
 // case in this file is index-guarded, so their machinery (the animated water
 // trace, the Detroit/Postcards press-and-hold reveal) goes quiet on its own
 // while staying here to be lifted across intact.
-const UNFILTERED_INDEX = MAIN ? 4 : -1
+// UNFILTERED IDEAS is hidden rather than deleted: at -1 its card is off the
+// ring and its journal typewriter stops on its own (the redraw is guarded on
+// unfilteredFaceTex, which only the build loop sets). Putting it back is a
+// matter of restoring its PORTALS entry and this index.
+const UNFILTERED_INDEX = -1
 const ENQUIRIES_INDEX = MAIN ? 3 : -1
 const OSWIN_INDEX = MAIN ? 0 : -1
 const MOVING_IMAGES_INDEX = -1
 const ALEX_TAVES_INDEX = MAIN ? 2 : -1
 const DETROIT_INDEX = -1
 const POSTCARDS_INDEX = -1
-// Appended at the end, so nothing above them moves and WELCOME stays last.
-const B_SIDES_INDEX = MAIN ? 5 : -1
+// B-SIDES has gone to Oswin Gallery too, alongside the Detroit iterations it
+// indexes — so the whole series lives in one place.
+const B_SIDES_INDEX = -1
 // The two Oswin rooms. They carry the Oswin Journal card treatment (white,
 // black circle) and no click target yet — a click just falls through to the
 // parent, which has no phase for them.
-const OSWIN_GALLERY_INDEX = MAIN ? 6 : -1
-const OSWIN_RECORDS_INDEX = MAIN ? 7 : -1
+const OSWIN_GALLERY_INDEX = MAIN ? 4 : -1
+const OSWIN_RECORDS_INDEX = MAIN ? 5 : -1
 // Appended AFTER postcards, so every existing index is unmoved and
 // WELCOME_INDEX (COUNT - 1) still lands on the welcome card.
 const DETROIT_REMIX_INDEX = 9
@@ -600,20 +603,114 @@ const ALEX_TAVES_BIO = [
   "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
 ]
 
+// The portrait that fronts Alex on Oswin Journal, brought over so the same face
+// meets you on both sites. It fills the card, and clicking swaps it for the bio
+// below — two states of one card rather than a picture that opens a page.
+const alexPhotoImg = new Image()
+alexPhotoImg.src = '/images/alexander.png'
+let alexShowingBio = false
+
+// The graded photo, baked once. The filter is the expensive part, so it never
+// runs per frame — the static on top is what moves.
+let _alexBw = null
+function alexBwCanvas(W, H) {
+  if (_alexBw) return _alexBw
+  const iw = alexPhotoImg.naturalWidth, ih = alexPhotoImg.naturalHeight
+  const c = document.createElement('canvas'); c.width = W; c.height = H
+  const bx = c.getContext('2d')
+  bx.filter = 'grayscale(1) contrast(1.2) brightness(0.95)'
+  // Cover-fit: the portrait is near enough the card's own 3:4 that this crops
+  // almost nothing, but a differently-shaped replacement will still fill.
+  const s = Math.max(W / iw, H / ih)
+  const dw = iw * s, dh = ih * s
+  bx.drawImage(alexPhotoImg, (W - dw) / 2, (H - dh) / 2, dw, dh)
+  _alexBw = c
+  return c
+}
+
+function drawAlexPhoto(ctx, W, H) {
+  if (!alexPhotoImg.complete || !alexPhotoImg.naturalWidth) return
+  ctx.drawImage(alexBwCanvas(W, H), 0, 0)
+  // Oswin Journal's own gradient — half the card, so the subtitle is still
+  // covered where it crosses the bright brick behind his head.
+  const grd = ctx.createLinearGradient(0, 0, 0, H * 0.5)
+  grd.addColorStop(0, 'rgba(0, 0, 0, 0.6)')
+  grd.addColorStop(1, 'rgba(0, 0, 0, 0)')
+  ctx.fillStyle = grd
+  ctx.fillRect(0, 0, W, H * 0.5)
+}
+
+// ── TV static ─────────────────────────────────────────────────────────────────
+// Carried over from Oswin Journal, where this card is a broadcast rather than a
+// photograph. Two noise passes — lighten puts in the bright specks, multiply the
+// dark ones — plus scanlines, laid over the WHOLE face including the type, so
+// the title sits inside the same signal as the picture.
+//
+// Oswin Journal rebuilds its noise buffer every frame with createImageData.
+// That is ~257KB of garbage per frame here, and this file has already been
+// burned once by exactly that pattern (see the Moving Images note above: a
+// per-frame read-back filled the heap and stuttered the ring ~15s in). So the
+// frames are generated ONCE into a small pool and cycled instead — same live
+// snow, no per-frame allocation.
+const NOISE_FRAMES = 10
+const _noisePool = []
+for (let n = 0; n < NOISE_FRAMES; n++) {
+  const c = document.createElement('canvas'); c.width = 220; c.height = 293
+  const nx = c.getContext('2d')
+  const id = nx.createImageData(c.width, c.height)
+  const d = id.data
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (Math.random() * 255) | 0
+    d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255
+  }
+  nx.putImageData(id, 0, 0)
+  _noisePool.push(c)
+}
+// Scanlines baked flat too: 266 fillRects per frame is a lot of calls for what
+// is one unchanging overlay.
+let _scanCanvas = null
+function scanCanvas(W, H) {
+  if (_scanCanvas) return _scanCanvas
+  const c = document.createElement('canvas'); c.width = W; c.height = H
+  const sx = c.getContext('2d')
+  sx.fillStyle = 'rgba(0, 0, 0, 0.16)'
+  for (let y = 0; y < H; y += 3) sx.fillRect(0, y, W, 1)
+  _scanCanvas = c
+  return c
+}
+
+const GRAIN_LIGHTEN = 0.088
+const GRAIN_MULTIPLY = 0.06
+let alexNoiseFrame = 0
+
+function applyAlexStatic(ctx, W, H) {
+  const noise = _noisePool[alexNoiseFrame % NOISE_FRAMES]
+  ctx.save()
+  ctx.imageSmoothingEnabled = false
+  ctx.globalCompositeOperation = 'lighten'; ctx.globalAlpha = GRAIN_LIGHTEN
+  ctx.drawImage(noise, 0, 0, W, H)
+  ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = GRAIN_MULTIPLY
+  ctx.drawImage(noise, 0, 0, W, H)
+  ctx.restore()
+  ctx.drawImage(scanCanvas(W, H), 0, 0)
+}
+
 function drawAlexTavesBio(ctx, W, H, portal) {
   const lm = 54
   const maxW = W - lm * 2
   const startY = Math.max(224, titleLayout(ctx, portal, maxW).headerBottom)
-  const ink = portal.light ? 'rgba(255,255,255,0.62)' : 'rgba(0,0,0,0.58)'
+  // Full-strength ink, not the 58% the other card body copy uses: this is the
+  // one card you click expressly to read, so it should not ask you to work.
+  const ink = portal.light ? '#ffffff' : '#000000'
   ctx.textAlign = 'left'
-  ctx.font = "300 13px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.font = "300 19.5px 'Helvetica Neue', Helvetica, Arial, sans-serif"
   ctx.letterSpacing = '0'
   ctx.fillStyle = ink
-  const lineHeight = 20
+  const lineHeight = 30
   let y = startY
   ALEX_TAVES_BIO.forEach((para) => {
     wrapText(ctx, para, maxW).forEach((ln) => { ctx.fillText(ln, lm, y); y += lineHeight })
-    y += 12
+    y += 18
   })
 }
 
@@ -767,7 +864,9 @@ function drawWelcomeCard(ctx, W, H, portal, lm) {
   }
 }
 
-function drawPortalCard(ctx, portal, W, H, lm, drawTrace) {
+// `drawOver` runs after everything, type included — for a treatment that has to
+// sit on top of the whole card rather than behind its title (see applyAlexStatic).
+function drawPortalCard(ctx, portal, W, H, lm, drawTrace, drawOver) {
   ctx.clearRect(0, 0, W, H)
   ctx.fillStyle = portal.bg; ctx.fillRect(0, 0, W, H)
   if (drawTrace) drawTrace(ctx, W, H)
@@ -849,13 +948,15 @@ function drawPortalCard(ctx, portal, W, H, lm, drawTrace) {
     let by = t.subTop + 34
     wrapText(ctx, portal.body, W - lm * 2).forEach((ln) => { ctx.fillText(ln, lm, by); by += 24 })
   }
+
+  if (drawOver) drawOver(ctx, W, H)
 }
 
-function makePortalTex(portal, drawTrace) {
+function makePortalTex(portal, drawTrace, drawOver) {
   const W = 600, H = 800, lm = 54
   const c = document.createElement('canvas'); c.width = W; c.height = H
   const ctx = c.getContext('2d')
-  drawPortalCard(ctx, portal, W, H, lm, drawTrace)
+  drawPortalCard(ctx, portal, W, H, lm, drawTrace, drawOver)
   const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; return tex
 }
 
@@ -1007,9 +1108,31 @@ const TRACE_GRAYSCALE = 0.75
 // as a reveal; releasing settles it back to TRACE_GRAYSCALE.
 const TRACE_GRAYSCALE_HELD = 0
 
+let alexFaceTex = null, alexFaceCtx = null
 let movingImagesFaceTex = null, movingImagesFaceCtx = null
 let archiveFaceTex = null, archiveFaceCtx = null
 let welcomeFaceTex = null, welcomeFaceCtx = null
+// The card's two faces differ in ink as well as content: white type over the
+// portrait, black type on the white bio card. `light` is the switch the shared
+// header already reads, so the swap just flips it and redraws.
+function redrawAlexFace() {
+  if (!alexFaceCtx) return
+  const portal = PORTALS[ALEX_TAVES_INDEX]
+  portal.light = !alexShowingBio
+  drawPortalCard(alexFaceCtx, portal, 600, 800, 54,
+    (ctx, W, H) => alexShowingBio ? drawAlexTavesBio(ctx, W, H, portal) : drawAlexPhoto(ctx, W, H),
+    alexShowingBio ? null : applyAlexStatic)
+  alexFaceTex.needsUpdate = true
+}
+// Until the portrait decodes the card is just its title on white — the first
+// draw happens at build time, before this has loaded.
+alexPhotoImg.addEventListener('load', redrawAlexFace)
+
+function toggleAlexFace() {
+  alexShowingBio = !alexShowingBio
+  redrawAlexFace()
+}
+
 function redrawWelcome() {
   if (!welcomeFaceCtx) return
   drawPortalCard(welcomeFaceCtx, PORTALS[WELCOME_INDEX], 600, 800, 54, null)
@@ -1166,9 +1289,11 @@ for (let i = 0; i < COUNT; i++) {
     : i === UNFILTERED_INDEX
     ? (ctx, W, H) => drawJournalQuote(ctx, W, H, portal)
     : i === ALEX_TAVES_INDEX
-    ? (ctx, W, H) => drawAlexTavesBio(ctx, W, H, portal)
+    ? (ctx, W, H) => alexShowingBio ? drawAlexTavesBio(ctx, W, H, portal) : drawAlexPhoto(ctx, W, H)
     : null
-  const faceTex  = makePortalTex(portal, drawTrace)
+  // ALEX TAVES is the one card with a treatment over its own type.
+  const drawOver = i === ALEX_TAVES_INDEX && !alexShowingBio ? applyAlexStatic : null
+  const faceTex  = makePortalTex(portal, drawTrace, drawOver)
   faceTexes.push(faceTex)
   if (i === MOVING_IMAGES_INDEX) {
     movingImagesFaceTex = faceTex
@@ -1189,6 +1314,10 @@ for (let i = 0; i < COUNT; i++) {
   if (i === UNFILTERED_INDEX) {
     unfilteredFaceTex = faceTex
     unfilteredFaceCtx = faceTex.image.getContext('2d')
+  }
+  if (i === ALEX_TAVES_INDEX) {
+    alexFaceTex = faceTex
+    alexFaceCtx = faceTex.image.getContext('2d')
   }
   if (i === ENQUIRIES_INDEX) {
     enquiryFaceTex = faceTex
@@ -1572,7 +1701,10 @@ function frontPanelIdx() {
 }
 
 function handlePanelClick(idx) {
-  if (idx === UNFILTERED_INDEX || idx === ENQUIRIES_INDEX || idx === ALEX_TAVES_INDEX) { openStory(idx); return }
+  if (idx === UNFILTERED_INDEX || idx === ENQUIRIES_INDEX) { openStory(idx); return }
+  // ALEX TAVES turns over in place — portrait to bio and back — instead of
+  // opening the story overlay it used to.
+  if (idx === ALEX_TAVES_INDEX) { toggleAlexFace(); return }
   if (idx === ARCHIVE_INDEX) { openReel(); return }
   if (idx === OSWIN_INDEX) { window.open('https://oswinjournal.com', '_blank'); return }
   if (pendingConfirmIdx !== idx) {
@@ -1789,6 +1921,14 @@ function render(now) {
     }
   }
 
+  // Static has to move or it is just grain. Advancing one pooled frame per
+  // render tick is fast enough to read as snow without pinning it to real time.
+  const axVisible = !panels[ALEX_TAVES_INDEX] || panels[ALEX_TAVES_INDEX].position.z > visThresh
+  if (axVisible && alexFaceTex && !alexShowingBio && alexPhotoImg.complete && alexPhotoImg.naturalWidth) {
+    alexNoiseFrame++
+    redrawAlexFace()
+  }
+
   if (arVisible && archiveFaceTex && archiveVideo.readyState >= 2) {
     drawPortalCard(archiveFaceCtx, PORTALS[ARCHIVE_INDEX], 600, 800, 54,
       (ctx, W, H) => drawArchiveVideo(ctx, W, H))
@@ -1833,6 +1973,13 @@ function render(now) {
         faceMats[i].opacity = 1; glassMats[i].opacity = 1
         sideMats[i].opacity = 1; backMats[i].opacity = 1
       }
+      // Alex's card turned over to the bio is there to be read, so it goes
+      // solid: at the ring's usual translucency the cards behind it print
+      // through the paragraphs.
+      if (alexShowingBio && i === ALEX_TAVES_INDEX) {
+        faceMats[i].opacity = 1; glassMats[i].opacity = 1
+        sideMats[i].opacity = 1; backMats[i].opacity = 1
+      }
       panels[i].renderOrder = Math.round(orbitPos.z * 1000)
     }
   } else {
@@ -1854,6 +2001,13 @@ function render(now) {
         sideMats[i].opacity = 1; backMats[i].opacity = 1
       }
       if (welcomeActive && i === WELCOME_INDEX) {
+        faceMats[i].opacity = 1; glassMats[i].opacity = 1
+        sideMats[i].opacity = 1; backMats[i].opacity = 1
+      }
+      // Alex's card turned over to the bio is there to be read, so it goes
+      // solid: at the ring's usual translucency the cards behind it print
+      // through the paragraphs.
+      if (alexShowingBio && i === ALEX_TAVES_INDEX) {
         faceMats[i].opacity = 1; glassMats[i].opacity = 1
         sideMats[i].opacity = 1; backMats[i].opacity = 1
       }

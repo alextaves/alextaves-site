@@ -409,11 +409,10 @@ export default function App() {
         setTimeout(() => setPhase('site'), 700)
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'carousel') {
-        // Renumbered as cards left this ring: FICTION to Oswin Journal, and
-        // MOVING IMAGES / DETROIT / POSTCARDS to Oswin Gallery. B-SIDES still
-        // reaches the Detroit iteration index, so that series stays reachable.
-        if (e.data.idx === 4) doTransition('journal')
-        if (e.data.idx === 5) doTransition('bsides')
+        // Nothing on the main ring routes through here any more. Oswin Journal
+        // opens its own tab, Commissions / Alex Taves / Enquiries all act in
+        // place, and the two Oswin rooms have no target yet. Kept so a card
+        // that needs a page again has somewhere to land.
       }
       // The Detroit ring is the same portals file with ?ring=detroit, so its
       // clicks arrive as portalClick too — the ring tag is what separates them
