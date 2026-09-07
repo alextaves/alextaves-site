@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
-import VideoDiver6 from './VideoDiver6.jsx'
+import MobileGrid from './MobileGrid.jsx'
 
 // Mobile entry gate. On arrival the phone gets a full-screen WELCOME card that
 // types "WELCOME TO THE MOBILE VERSION" out, holds, untypes, and loops — the
@@ -152,15 +152,13 @@ function WelcomeGate({ audioOn, onToggleAudio, onEnter }) {
 }
 
 
-// Wraps the diver with a tap-to-reveal close control. On Android the ENTER tap
-// put us in real fullscreen (no browser chrome), so there's no system way back
-// out — this X gives one. It only exists while actually fullscreen (so it never
-// shows on iPhone, which never enters fullscreen), appears on a tap, and
-// auto-hides after a few seconds so it stays out of the experience.
-function EnteredDiver() {
+// Wraps the grid with a way back out of fullscreen. The ENTER tap put Android
+// into real fullscreen (no browser chrome), so there is no system control left.
+// It only exists while actually fullscreen, so it never shows on iPhone, which
+// never enters it. The diver's tap-to-reveal is gone: on a view you scroll,
+// every card tap would have flashed the control up.
+function EnteredGrid() {
   const [isFs, setIsFs] = useState(false)
-  const [showX, setShowX] = useState(false)
-  const hideTimer = useRef(null)
 
   useEffect(() => {
     const onFsChange = () => setIsFs(!!document.fullscreenElement)
@@ -169,40 +167,14 @@ function EnteredDiver() {
     return () => document.removeEventListener('fullscreenchange', onFsChange)
   }, [])
 
-  // A tap (touch that didn't turn into a scroll/swipe) reveals the X. The
-  // diver's own scroll/color-invert gestures are drags, so they don't trigger it.
-  useEffect(() => {
-    let sx = 0, sy = 0, moved = false
-    const onStart = (e) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; moved = false }
-    const onMove = (e) => {
-      const t = e.touches[0]
-      if (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10) moved = true
-    }
-    const onEnd = () => {
-      if (moved) return
-      setShowX(true)
-      clearTimeout(hideTimer.current)
-      hideTimer.current = setTimeout(() => setShowX(false), 3200)
-    }
-    window.addEventListener('touchstart', onStart, { passive: true })
-    window.addEventListener('touchmove', onMove, { passive: true })
-    window.addEventListener('touchend', onEnd, { passive: true })
-    return () => {
-      window.removeEventListener('touchstart', onStart)
-      window.removeEventListener('touchmove', onMove)
-      window.removeEventListener('touchend', onEnd)
-      clearTimeout(hideTimer.current)
-    }
-  }, [])
-
   const exit = () => { document.exitFullscreen?.().catch(() => {}) }
 
   return (
     <>
-      <VideoDiver6 />
-      {isFs && showX && (
+      <MobileGrid />
+      {isFs && (
         <button onClick={exit} aria-label="Exit fullscreen" style={{
-          position: 'fixed', zIndex: 50,
+          position: 'fixed', zIndex: 70,
           top: 'calc(14px + env(safe-area-inset-top))', right: 14,
           width: 44, height: 44, padding: 0, borderRadius: '50%',
           border: 'none', background: 'rgba(0,0,0,0.4)', cursor: 'pointer',
@@ -257,11 +229,12 @@ export default function MobilePlaceholder() {
     schoenRef.current?.pause(); schoenRef.current = null
   }, [])
 
-  // After ENTER: the real Moving Images diver — the full three.js scene
-  // (video-tile strip cycling diver4 -> diver2, color-invert-on-scroll shader,
-  // particle field, glass blur), not a flat video. The ambient bed keeps
+  // After ENTER: the ring, laid flat as a scrolling grid of the same cards.
+  // This used to drop into the Moving Images diver scene, but that has gone to
+  // Oswin Gallery along with Detroit — so the phone now gets alextaves' own
+  // cards instead of content that lives on another site. The ambient bed keeps
   // playing over it.
-  if (entered) return <EnteredDiver />
+  if (entered) return <EnteredGrid />
   // ENTER runs inside the tap (a user gesture), so this is where a real
   // Fullscreen request is allowed. Works on Android Chrome; iOS Safari has no
   // Fullscreen API for non-video elements, so it silently no-ops there and we
