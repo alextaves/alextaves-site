@@ -427,6 +427,11 @@ const css = `
   font-family: ${FONT}; font-size: 13px; font-weight: 700; letter-spacing: 0.16em; color: #000;
 }
 .mg-sheet .mg-sheetClose { font-weight: 300; color: rgba(0, 0, 0, 0.5); }
+.mg-sheet .mg-sheetSubscribe {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.82);
+  padding-bottom: 3px;
+  letter-spacing: 0.22em;
+}
 /* Must come after .mg-sheet — same specificity, so source order decides. */
 .mg-sheet.mg-sheetLight { background: #FFFFFF; }
 
@@ -469,6 +474,10 @@ export default function MobileGrid() {
     requestAnimationFrame(() =>
       enquiriesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
   }
+
+  // Nothing behind this yet — the list has no home. Both SUBSCRIBE controls call
+  // it, so there is one place to wire up once that is decided.
+  const subscribe = () => {}
 
   const submit = (e) => {
     e.preventDefault()
@@ -534,7 +543,7 @@ export default function MobileGrid() {
           })}
         </div>
 
-        <button type="button" className="mg-subscribe">SUBSCRIBE</button>
+        <button type="button" className="mg-subscribe" onClick={subscribe}>SUBSCRIBE</button>
       </div>
 
       {reelOpen && (
@@ -559,6 +568,9 @@ export default function MobileGrid() {
             {ALEX_BIO.map((para, i) => <p key={i}>{para}</p>)}
           </div>
           <div className="mg-sheetActions">
+            {/* Same control as the one at the foot of the grid, and the same
+                handler — so wiring the list up later is one change, not two. */}
+            <button type="button" className="mg-sheetSubscribe" onClick={subscribe}>SUBSCRIBE</button>
             <button type="button" className="mg-sheetClose" onClick={() => setBioOpen(false)}>CLOSE</button>
           </div>
         </div>
