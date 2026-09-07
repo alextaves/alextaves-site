@@ -240,12 +240,12 @@ const DETROIT_RING = [
 
 
 let PORTALS = [
-  { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#FFFFFF', light: false, circle: '#F9FF45' },
-  { title: 'COMMISSIONS',      sub: 'the previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
-  { title: 'ALEX TAVES',       sub: 'a bit about me',                         bg: '#FFFFFF', light: false },
-  { title: 'ENQUIRIES',        sub: 'get in touch · looking for like minded',  bg: '#00C2A8', light: false },
-  { title: 'OSWIN GALLERY',    sub: 'wip',                                     bg: '#FFFFFF', light: false, circle: '#FF3612' },
-  { title: 'OSWIN RECORDS',    sub: 'wip',                                     bg: '#FFFFFF', light: false, circle: '#5D40FF' },
+  { title: 'OSWIN JOURNAL',    sub: 'Exploration of Sound and Image',          bg: '#FFFFFF', light: false, circle: '#F9FF45' },
+  { title: 'COMMISSIONS',      sub: 'The Previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
+  { title: 'ALEX TAVES',       sub: 'A Bit About Me',                         bg: '#FFFFFF', light: false },
+  { title: 'ENQUIRIES',        sub: 'Get in Touch · Looking for Like Minded',  bg: '#00C2A8', light: false },
+  { title: 'OSWIN GALLERY',    sub: 'Opens October',                           bg: '#FFFFFF', light: false, circle: '#FF3612' },
+  { title: 'OSWIN RECORDS',    sub: 'Opens October',                           bg: '#FFFFFF', light: false, circle: '#5D40FF' },
 ]
 if (RING === 'detroit') PORTALS = DETROIT_RING
 
@@ -600,6 +600,7 @@ const ALEX_TAVES_BIO = [
 const alexPhotoImg = new Image()
 alexPhotoImg.src = '/images/alexander.png'
 let alexShowingBio = false
+let alexSubscribeRegion = null   // {x,y,w,h} in card pixels, set while the bio shows
 
 // The graded photo, baked once. The filter is the expensive part, so it never
 // runs per frame — the static on top is what moves.
@@ -703,6 +704,19 @@ function drawAlexTavesBio(ctx, W, H, portal) {
     wrapText(ctx, para, maxW).forEach((ln) => { ctx.fillText(ln, lm, y); y += lineHeight })
     y += 18
   })
+
+  // SUBSCRIBE, drawn onto the same face. Anchored near the foot of the card so
+  // it sits in one place, but pushed down if the bio ever grows into it.
+  ctx.font = "700 22px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.letterSpacing = '0.22em'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillStyle = portal.light ? '#ffffff' : '#000000'
+  const subY = Math.max(y + 44, H - 96)
+  ctx.fillText('SUBSCRIBE', lm, subY)
+  const subW = ctx.measureText('SUBSCRIBE').width
+  ctx.fillRect(lm, subY + 8, subW, 1)
+  // Hit rect in 600x800 card pixels, read back through the panel's UVs.
+  alexSubscribeRegion = { x: lm - 16, y: subY - 28, w: subW + 32, h: 50 }
 }
 
 // ENQUIRIES: a preview of the real form's fields, styled to match the
@@ -1122,6 +1136,20 @@ alexPhotoImg.addEventListener('load', redrawAlexFace)
 function toggleAlexFace() {
   alexShowingBio = !alexShowingBio
   redrawAlexFace()
+}
+
+// While the bio is showing, a click inside SUBSCRIBE asks the parent for the
+// signup sheet instead of turning the card back over. Same UV read-back the
+// welcome card's controls used, so the rect stays true at any viewport size.
+function alexSubscribeClicked(hits) {
+  if (!alexShowingBio || !alexSubscribeRegion) return false
+  const h = hits.find(x => x.object.userData.panelIdx === ALEX_TAVES_INDEX)
+  if (!h || !h.uv) return false
+  const px = h.uv.x * 600, py = (1 - h.uv.y) * 800
+  const r = alexSubscribeRegion
+  if (px < r.x || px > r.x + r.w || py < r.y || py > r.y + r.h) return false
+  if (window !== window.top) window.parent.postMessage({ type: 'subscribe' }, '*')
+  return true
 }
 
 function redrawWelcome() {
@@ -1766,6 +1794,7 @@ renderer.domElement.addEventListener('pointerup', () => {
     const hits = raycaster.intersectObjects(panels, false)
     // Entry state: the only live controls are ON / OFF / Begin on the WELCOME card.
     if (welcomeActive) { handleWelcomeClick(hits); return }
+    if (hits.length > 0 && frontPanelIdx() === ALEX_TAVES_INDEX && alexSubscribeClicked(hits)) { paused = true; return }
     if (hits.length > 0) { paused = true; handlePanelClick(frontPanelIdx()) }
   } else {
     const av = (performance.now() - lastMoveT > 120) ? 0 : trackedVel * SENS

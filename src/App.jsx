@@ -168,6 +168,64 @@ function FullscreenButton() {
   )
 }
 
+// Sits over the ring on the same dark ground, sized like the card it came from
+// rather than like a browser dialog.
+function SubscribeSheet({ status, onSubmit, onClose }) {
+  const field = {
+    display: 'block', width: '100%', marginTop: 8,
+    background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.35)',
+    padding: '6px 0', fontFamily: FONT, fontSize: 16, color: '#000', borderRadius: 0,
+  }
+  const action = {
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+    fontFamily: FONT, fontSize: 13, fontWeight: 700, letterSpacing: '0.22em', color: '#000',
+  }
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 60,
+      background: 'rgba(12,8,6,0.72)', backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        width: 'min(420px, 86vw)', background: '#fff', padding: '34px 34px 28px',
+        borderRadius: 6, fontFamily: FONT,
+      }}>
+        <h2 style={{ margin: 0, fontSize: 30, fontWeight: 700, letterSpacing: '-0.01em' }}>SUBSCRIBE</h2>
+        <p style={{
+          margin: '10px 0 28px', fontSize: 10, fontWeight: 300, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'rgba(0,0,0,0.5)',
+        }}>the journal, when there is an issue</p>
+
+        {status === 'done' ? (
+          <>
+            <p style={{ margin: '0 0 22px', fontSize: 13, color: 'rgba(0,0,0,0.62)' }}>You&rsquo;re on the list.</p>
+            <button type="button" style={{ ...action, fontWeight: 300, color: 'rgba(0,0,0,0.5)' }} onClick={onClose}>CLOSE</button>
+          </>
+        ) : (
+          <form onSubmit={onSubmit}>
+            <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.16em', color: 'rgba(0,0,0,0.55)' }}>
+              EMAIL:<input type="email" name="email" autoComplete="email" required style={field} />
+            </label>
+            {status === 'error' && (
+              <p style={{ margin: '14px 0 0', fontSize: 12, color: 'rgba(0,0,0,0.62)' }}>
+                That didn&rsquo;t go through. Try again in a moment.
+              </p>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 26 }}>
+              <button type="submit" disabled={status === 'sending'}
+                style={{ ...action, opacity: status === 'sending' ? 0.45 : 1 }}>
+                {status === 'sending' ? 'SENDING…' : 'SUBMIT'}
+              </button>
+              <button type="button" style={{ ...action, fontWeight: 300, color: 'rgba(0,0,0,0.5)' }} onClick={onClose}>CLOSE</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function BackButton({ onClick }) {
   return (
     <button onClick={onClick} style={{
@@ -326,9 +384,32 @@ export default function App() {
   const [carouselKey, setCarouselKey] = useState(0)
   const [showIntro, setShowIntro] = useState(false)   // no entry screen since WELCOME left for Oswin Gallery
   const [audioOn, setAudioOn] = useState(false)
+  const [subOpen, setSubOpen] = useState(false)
+  const [subStatus, setSubStatus] = useState('idle')   // idle | sending | done | error
   const audioRef = useRef(null)
   const crowdRef = useRef(null)
   const transitioning = useRef(false)
+
+  // Netlify Forms: POST url-encoded to the site root with a form-name matching
+  // the hidden declaration in index.html. That handler only exists on a deployed
+  // Netlify site — the dev server has nothing listening, so locally this reports
+  // the failure rather than pretending it worked.
+  const submitSubscribe = async (e) => {
+    e.preventDefault()
+    const email = e.currentTarget.email.value.trim()
+    if (!email) return
+    setSubStatus('sending')
+    try {
+      const res = await fetch('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ 'form-name': 'subscribe', 'bot-field': '', email }).toString(),
+      })
+      setSubStatus(res.ok ? 'done' : 'error')
+    } catch {
+      setSubStatus('error')
+    }
+  }
 
   const doTransition = useCallback((to) => {
     if (transitioning.current) return
@@ -422,6 +503,12 @@ export default function App() {
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'fiction') {
         if (e.data.idx === 0) doTransition('hum')
+      }
+      // The bio card's SUBSCRIBE, drawn inside the ring's canvas — the panel does
+      // the hit-testing, the sheet lives out here where there is a DOM.
+      if (e.data && typeof e.data === 'object' && e.data.type === 'subscribe') {
+        setSubStatus('idle')
+        setSubOpen(true)
       }
       // Any ring (main carousel, fiction, detroit) reports its own drag
       // state — the piano itself lives here, one continuous layer, so it
@@ -939,6 +1026,7 @@ export default function App() {
           <InstallPrompt />
         </>
       )}
+      {subOpen && <SubscribeSheet status={subStatus} onSubmit={submitSubscribe} onClose={() => setSubOpen(false)} />}
       {!showIntro && <FullscreenButton />}
       {tPhase !== 'idle' && (
         <TransitionOverlay phase={tPhase} />
