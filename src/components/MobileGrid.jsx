@@ -146,6 +146,16 @@ function CardVideo({ src }) {
   )
 }
 
+// The two unopened rooms turn their whole face over to their own colour, with
+// the announcement in the card's title type — same weight, same measured size.
+const COMING_SOON_TEXT = 'Coming this October'
+
+// White or black off the fill's luminance, so a lighter colour later still reads.
+function inkOn(hex) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 150 ? 'rgba(0,0,0,0.88)' : 'rgba(255,255,255,0.95)'
+}
+
 // Grid order follows the mock rather than the ring's own order: the three Oswin
 // rooms lead, then Alex, then the two that ask something of you.
 //
@@ -256,6 +266,7 @@ const css = `
   letter-spacing: -0.01em;
 }
 .mg-title span { display: block; }
+.mg-coming { padding: 9cqw 9cqw 0; position: relative; z-index: 2; }
 .mg-rule { height: 1px; margin: 2.2cqw 0 2cqw; }
 .mg-sub {
   margin: 0;
@@ -448,8 +459,12 @@ const css = `
 
 export default function MobileGrid() {
   // Measured once — it depends only on the fixed design width, not the viewport.
-  const [fitted] = useState(() =>
-    Object.fromEntries(CARDS.map(c => [c.id, fitTitle(c.title, c.lines)])))
+  const [fitted] = useState(() => ({
+    ...Object.fromEntries(CARDS.map(c => [c.id, fitTitle(c.title, c.lines)])),
+    __coming: fitTitle(COMING_SOON_TEXT),
+  }))
+  // Which of the unopened rooms are showing their announcement.
+  const [coming, setComing] = useState(() => new Set())
   const [bioOpen, setBioOpen] = useState(false)
   const [subOpen, setSubOpen] = useState(false)
   const [subStatus, setSubStatus] = useState('idle')   // idle | sending | done | error
@@ -471,7 +486,13 @@ export default function MobileGrid() {
     if (id === 'alex') { setBioOpen(true); return }
     if (id === 'reel') { setReelOpen(true); return }
     if (id === 'enquiries') { setFormOpen(true); return }
-    // gallery / records have no destination yet, same as the desktop ring.
+    if (id === 'gallery' || id === 'records') {
+      setComing((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id); else next.add(id)
+        return next
+      })
+    }
   }
 
   // The desktop reel's ENQUIRIES control drops you back on the ring with that
@@ -524,6 +545,7 @@ export default function MobileGrid() {
       <div className="mg-wrap">
         <div className="mg-grid">
           {CARDS.map((card) => {
+            const showComing = coming.has(card.id)
             const lightInk = card.kind === 'photo' || card.kind === 'video'
             const ink = card.titleColor || (lightInk ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.88)')
             const inkSub = lightInk ? 'rgba(255,255,255,0.52)' : 'rgba(0,0,0,0.50)'
@@ -534,9 +556,15 @@ export default function MobileGrid() {
                 key={card.id}
                 ref={card.id === 'enquiries' ? enquiriesRef : null}
                 className="mg-card"
-                style={{ background: card.bg }}
+                style={{ background: showComing ? card.circle : card.bg }}
                 onClick={() => openCard(card.id)}
               >
+                {showComing ? (
+                  <h2 className="mg-title mg-coming"
+                      style={{ color: inkOn(card.circle), fontSize: `${fitted.__coming.cqw}cqw` }}>
+                    {fitted.__coming.lines.map((line, i) => <span key={i}>{line}</span>)}
+                  </h2>
+                ) : (
                 <div className="mg-head">
                   <h2 className="mg-title" style={{ color: ink, fontSize: `${fitted[card.id].cqw}cqw` }}>
                     {fitted[card.id].lines.map((line, i) => <span key={i}>{line}</span>)}
@@ -544,8 +572,9 @@ export default function MobileGrid() {
                   <div className="mg-rule" style={{ background: inkRule }} />
                   <p className="mg-sub" style={{ color: inkSub }}>{card.sub}</p>
                 </div>
+                )}
 
-                {card.kind === 'circle' && (
+                {!showComing && card.kind === 'circle' && (
                   <div className="mg-circle" style={card.circle ? { background: card.circle } : undefined} />
                 )}
 
