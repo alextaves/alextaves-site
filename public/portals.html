@@ -240,11 +240,11 @@ const DETROIT_RING = [
 
 
 let PORTALS = [
-  { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#FFFFFF', light: false },
+  { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#FFFFFF', light: false, circle: '#F6FF21' },
   { title: 'COMMISSIONS',      sub: 'the previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
   { title: 'ALEX TAVES',       sub: 'a bit about me',                         bg: '#FFFFFF', light: false },
   { title: 'ENQUIRIES',        sub: 'get in touch · looking for like minded',  bg: '#00C2A8', light: false },
-  { title: 'OSWIN GALLERY',    sub: 'wip',                                     bg: '#FFFFFF', light: false },
+  { title: 'OSWIN GALLERY',    sub: 'wip',                                     bg: '#FFFFFF', light: false, circle: '#DC7064' },
   { title: 'OSWIN RECORDS',    sub: 'wip',                                     bg: '#FFFFFF', light: false },
 ]
 if (RING === 'detroit') PORTALS = DETROIT_RING
@@ -581,7 +581,7 @@ function drawOswinCircle(ctx, W, H, portal) {
   const cx = W / 2
   const cy = top + (H - top) / 2 - 24
   const r = Math.min(W - margin * 2, (H - top) - margin * 2) / 2 * 0.9
-  ctx.fillStyle = '#000'
+  ctx.fillStyle = portal.circle || '#000'
   ctx.beginPath()
   ctx.arc(cx, cy, r, 0, Math.PI * 2)
   ctx.fill()

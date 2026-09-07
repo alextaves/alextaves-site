@@ -106,8 +106,8 @@ function EnquiryPreview() {
 // Grid order follows the mock rather than the ring's own order: the three Oswin
 // rooms lead, then Alex, then the two that ask something of you.
 const CARDS = [
-  { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'sound and image', bg: '#FFFFFF' },
-  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'opens October',   bg: '#FFFFFF' },
+  { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'sound and image', bg: '#FFFFFF', circle: '#F6FF21' },
+  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'opens October',   bg: '#FFFFFF', circle: '#DC7064' },
   { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'opens October',   bg: '#FFFFFF' },
   { id: 'alex',     kind: 'photo',  title: 'ALEX TAVES',    sub: 'a bit about me',                 bg: '#FFFFFF',
     lines: ['ALEX', 'TAVES'] },
@@ -225,7 +225,7 @@ const css = `
   width: 78cqw; height: 78cqw;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: #000;
+  background: #000;      /* default; a card can name its own (see CARDS.circle) */
   z-index: 1;
 }
 
@@ -461,7 +461,9 @@ export default function MobileGrid() {
                   <p className="mg-sub" style={{ color: inkSub }}>{card.sub}</p>
                 </div>
 
-                {card.kind === 'circle' && <div className="mg-circle" />}
+                {card.kind === 'circle' && (
+                  <div className="mg-circle" style={card.circle ? { background: card.circle } : undefined} />
+                )}
 
                 {card.kind === 'photo' && (
                   <>
