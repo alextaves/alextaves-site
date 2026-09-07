@@ -125,7 +125,7 @@ const NOISE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/
 const css = `
 .mg-wrap {
   position: fixed; inset: 0;
-  background: #F6FF21;
+  background: #E7E2D8;
   overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   /* index.css pins touch-action:none globally for the WebGL rings; the grid is
