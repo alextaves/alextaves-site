@@ -409,12 +409,11 @@ export default function App() {
         setTimeout(() => setPhase('site'), 700)
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'carousel') {
-        if (e.data.idx === 6) doTransition('journal')
-        if (e.data.idx === 3) doTransition('fiction')
-        if (e.data.idx === 7) doTransition('detroit')
-        if (e.data.idx === 8) doTransition('postcards')
-        if (e.data.idx === 9) doTransition('bsides')
-        if (e.data.idx === 1) { setPhase('fading'); setTimeout(() => setPhase('site'), 700) }
+        // Renumbered as cards left this ring: FICTION to Oswin Journal, and
+        // MOVING IMAGES / DETROIT / POSTCARDS to Oswin Gallery. B-SIDES still
+        // reaches the Detroit iteration index, so that series stays reachable.
+        if (e.data.idx === 4) doTransition('journal')
+        if (e.data.idx === 5) doTransition('bsides')
       }
       // The Detroit ring is the same portals file with ?ring=detroit, so its
       // clicks arrive as portalClick too — the ring tag is what separates them

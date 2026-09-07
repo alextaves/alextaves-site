@@ -206,15 +206,10 @@ const DETROIT_RING = [
 
 let PORTALS = [
   { title: 'OSWIN JOURNAL',    sub: 'exploration of sound and image',          bg: '#FFFFFF', light: false },
-  { title: 'MOVING IMAGES',    sub: 'immersive exploration',                   bg: '#C4C4C4', light: false },
   { title: 'ARCHIVE',          sub: 'the previous alextaves.com',              bg: '#0B0B0B', light: true, titleColor: '#D8FF14' },
-  { title: 'FICTION',          sub: 'sci fi meets absurdism',                  bg: '#FF5F00', light: false },
   { title: 'ALEX TAVES',       sub: 'a bit about me',                         bg: '#FFFFFF', light: false },
   { title: 'ENQUIRIES',        sub: 'get in touch · looking for like minded',  bg: '#00C2A8', light: false },
   { title: 'UNFILTERED IDEAS', sub: 'a journal',                               bg: '#D9D02F', light: false },
-  { title: 'DETROIT',          sub: 'split in four',                           bg: '#A1A1A1', light: false,
-    body: '2,313,441 recombinations of thirty-nine faces. you are unlikely to see the same work twice.' },
-  { title: 'POSTCARDS',        sub: '2016',                                    bg: '#A69A8C', light: false },
   { title: 'B-SIDES',          sub: 'wip',                                     bg: '#FFFFFF', light: false },
   { title: 'OSWIN GALLERY',    sub: 'wip',                                     bg: '#FFFFFF', light: false },
   { title: 'OSWIN RECORDS',    sub: 'wip',                                     bg: '#FFFFFF', light: false },
@@ -239,20 +234,30 @@ const MAIN = RING === 'main'   // -1 disables a special case on the nested ring
 // but the four places that DEREFERENCE one of these indices are not — two run
 // at load time and threw the whole script, which is why the ring came up black.
 // Those four use optional chaining.
-const UNFILTERED_INDEX = MAIN ? 6 : -1
-const ENQUIRIES_INDEX = MAIN ? 5 : -1
+// Four cards have left this ring: FICTION went to Oswin Journal, and MOVING
+// IMAGES / DETROIT / POSTCARDS went to Oswin Gallery. Removing cards from the
+// MIDDLE of this list shifts every index above them down — unlike the appends
+// at the end — so these constants and the click mapping in App.jsx were
+// renumbered together.
+//
+// The three departed cards are pinned at -1 rather than deleted: every special
+// case in this file is index-guarded, so their machinery (the animated water
+// trace, the Detroit/Postcards press-and-hold reveal) goes quiet on its own
+// while staying here to be lifted across intact.
+const UNFILTERED_INDEX = MAIN ? 4 : -1
+const ENQUIRIES_INDEX = MAIN ? 3 : -1
 const OSWIN_INDEX = MAIN ? 0 : -1
-const MOVING_IMAGES_INDEX = MAIN ? 1 : -1
-const ALEX_TAVES_INDEX = MAIN ? 4 : -1
-const DETROIT_INDEX = MAIN ? 7 : -1
-const POSTCARDS_INDEX = MAIN ? 8 : -1
-// Appended after postcards, so nothing above it moves and WELCOME stays last.
-const B_SIDES_INDEX = MAIN ? 9 : -1
-// The two Oswin rooms, appended after B-SIDES for the same reason. They carry
-// the Oswin Journal card treatment (white, black circle) and no click target
-// yet — a click just falls through to the parent, which has no phase for them.
-const OSWIN_GALLERY_INDEX = MAIN ? 10 : -1
-const OSWIN_RECORDS_INDEX = MAIN ? 11 : -1
+const MOVING_IMAGES_INDEX = -1
+const ALEX_TAVES_INDEX = MAIN ? 2 : -1
+const DETROIT_INDEX = -1
+const POSTCARDS_INDEX = -1
+// Appended at the end, so nothing above them moves and WELCOME stays last.
+const B_SIDES_INDEX = MAIN ? 5 : -1
+// The two Oswin rooms. They carry the Oswin Journal card treatment (white,
+// black circle) and no click target yet — a click just falls through to the
+// parent, which has no phase for them.
+const OSWIN_GALLERY_INDEX = MAIN ? 6 : -1
+const OSWIN_RECORDS_INDEX = MAIN ? 7 : -1
 // Appended AFTER postcards, so every existing index is unmoved and
 // WELCOME_INDEX (COUNT - 1) still lands on the welcome card.
 const DETROIT_REMIX_INDEX = 9
@@ -262,7 +267,7 @@ const DETROIT_BLUE_INDEX = 12
 const DETROIT_FLOOD_INDEX = 13
 const DETROIT_BLACK_INDEX = 14
 const DETROIT_HALVES_INDEX = 15
-const ARCHIVE_INDEX = 2   // was STILL IMAGES — now the archive showreel, links to /archive
+const ARCHIVE_INDEX = MAIN ? 1 : -1   // was STILL IMAGES — now the archive showreel, links to /archive
 const ARCHIVE_URL = '/archive/index.html'   // explicit file → works in dev & prod; /archive also serves it via _redirects
 // -1 on the nested ring too: with no welcome card appended there, COUNT - 1
 // pointed at the last Detroit card and would have taken its click as the
