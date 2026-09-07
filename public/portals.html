@@ -216,6 +216,8 @@ let PORTALS = [
     body: '2,313,441 recombinations of thirty-nine faces. you are unlikely to see the same work twice.' },
   { title: 'POSTCARDS',        sub: '2016',                                    bg: '#A69A8C', light: false },
   { title: 'B-SIDES',          sub: 'wip',                                     bg: '#FFFFFF', light: false },
+  { title: 'OSWIN GALLERY',    sub: 'wip',                                     bg: '#FFFFFF', light: false },
+  { title: 'OSWIN RECORDS',    sub: 'wip',                                     bg: '#FFFFFF', light: false },
 ]
 if (RING === 'detroit') PORTALS = DETROIT_RING
 
@@ -246,6 +248,11 @@ const DETROIT_INDEX = MAIN ? 7 : -1
 const POSTCARDS_INDEX = MAIN ? 8 : -1
 // Appended after postcards, so nothing above it moves and WELCOME stays last.
 const B_SIDES_INDEX = MAIN ? 9 : -1
+// The two Oswin rooms, appended after B-SIDES for the same reason. They carry
+// the Oswin Journal card treatment (white, black circle) and no click target
+// yet — a click just falls through to the parent, which has no phase for them.
+const OSWIN_GALLERY_INDEX = MAIN ? 10 : -1
+const OSWIN_RECORDS_INDEX = MAIN ? 11 : -1
 // Appended AFTER postcards, so every existing index is unmoved and
 // WELCOME_INDEX (COUNT - 1) still lands on the welcome card.
 const DETROIT_REMIX_INDEX = 9
@@ -1052,6 +1059,10 @@ for (let i = 0; i < COUNT; i++) {
     ? (ctx, W, H) => drawOswinCircle(ctx, W, H, PORTALS[OSWIN_INDEX])
     : i === B_SIDES_INDEX
     ? (ctx, W, H) => drawOswinCircle(ctx, W, H, PORTALS[B_SIDES_INDEX])
+    : i === OSWIN_GALLERY_INDEX
+    ? (ctx, W, H) => drawOswinCircle(ctx, W, H, PORTALS[OSWIN_GALLERY_INDEX])
+    : i === OSWIN_RECORDS_INDEX
+    ? (ctx, W, H) => drawOswinCircle(ctx, W, H, PORTALS[OSWIN_RECORDS_INDEX])
     : i === ENQUIRIES_INDEX
     ? (ctx, W, H) => drawEnquiryFormPreview(ctx, W, H, portal)
     : i === UNFILTERED_INDEX
