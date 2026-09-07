@@ -201,6 +201,23 @@ const css = `
     calc(10px + env(safe-area-inset-left));
   font-family: ${FONT};
 }
+/* Masthead. Its height is measured from the first card's title block, so it
+   stands exactly as tall as that card's title does — a measurement rather than a
+   number that would drift from the cards through a rotation or a column change.
+   Carries the same radius and lift as a card so it sits in the same world. */
+.mg-masthead {
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  background: #111111; color: #FFFFFF;
+  font-weight: 700; letter-spacing: -0.01em; line-height: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+    0 2px 3px rgba(0, 0, 0, 0.28),
+    0 10px 20px rgba(0, 0, 0, 0.22);
+}
+
 .mg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 .mg-card {
@@ -471,6 +488,25 @@ export default function MobileGrid() {
   const [reelOpen, setReelOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const enquiriesRef = useRef(null)
+  const mastheadRef = useRef(null)
+
+  // Match the masthead to the first card's title: same height, type set at the
+  // same size. Measured rather than computed from the ratio, so it stays true
+  // whatever the column works out to.
+  useEffect(() => {
+    const el = mastheadRef.current
+    if (!el) return
+    const size = () => {
+      const title = document.querySelector('.mg-card .mg-title')
+      if (!title) return
+      el.style.height = title.getBoundingClientRect().height + 'px'
+      el.style.fontSize = getComputedStyle(title).fontSize
+    }
+    size()
+    window.addEventListener('resize', size)
+    document.fonts?.ready?.then(size)
+    return () => window.removeEventListener('resize', size)
+  }, [])
 
   // Close whatever is open on Back rather than leaving the site.
   useEffect(() => {
@@ -543,6 +579,7 @@ export default function MobileGrid() {
       <style>{css}</style>
 
       <div className="mg-wrap">
+        <div className="mg-masthead" ref={mastheadRef}>Alexander Taves</div>
         <div className="mg-grid">
           {CARDS.map((card) => {
             const showComing = coming.has(card.id)
