@@ -427,6 +427,12 @@ const css = `
   font-family: ${FONT}; font-size: 13px; font-weight: 700; letter-spacing: 0.16em; color: #000;
 }
 .mg-sheet .mg-sheetClose { font-weight: 300; color: rgba(0, 0, 0, 0.5); }
+.mg-subNote {
+  margin: 4px 0 18px;
+  font-size: 12px; letter-spacing: 0.06em; line-height: 1.5;
+  color: rgba(0, 0, 0, 0.62);
+}
+.mg-sheet button[disabled] { opacity: 0.45; }
 .mg-sheet .mg-sheetSubscribe {
   border-bottom: 1px solid rgba(0, 0, 0, 0.82);
   padding-bottom: 3px;
@@ -445,18 +451,20 @@ export default function MobileGrid() {
   const [fitted] = useState(() =>
     Object.fromEntries(CARDS.map(c => [c.id, fitTitle(c.title, c.lines)])))
   const [bioOpen, setBioOpen] = useState(false)
+  const [subOpen, setSubOpen] = useState(false)
+  const [subStatus, setSubStatus] = useState('idle')   // idle | sending | done | error
   const [reelOpen, setReelOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const enquiriesRef = useRef(null)
 
   // Close whatever is open on Back rather than leaving the site.
   useEffect(() => {
-    if (!reelOpen && !formOpen && !bioOpen) return
-    const onPop = () => { setReelOpen(false); setFormOpen(false); setBioOpen(false) }
+    if (!reelOpen && !formOpen && !bioOpen && !subOpen) return
+    const onPop = () => { setReelOpen(false); setFormOpen(false); setBioOpen(false); setSubOpen(false) }
     window.history.pushState({ mgOverlay: true }, '')
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
-  }, [reelOpen, formOpen, bioOpen])
+  }, [reelOpen, formOpen, bioOpen, subOpen])
 
   const openCard = (id) => {
     if (id === 'journal') { window.open('https://oswinjournal.com', '_blank'); return }
@@ -475,9 +483,28 @@ export default function MobileGrid() {
       enquiriesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
   }
 
-  // Nothing behind this yet — the list has no home. Both SUBSCRIBE controls call
-  // it, so there is one place to wire up once that is decided.
-  const subscribe = () => {}
+  const subscribe = () => { setSubStatus('idle'); setSubOpen(true) }
+
+  // Netlify Forms: POST url-encoded to the site root with a form-name matching
+  // the hidden declaration in index.html. That handler only exists on a deployed
+  // Netlify site — the dev server has nothing listening, so locally this reports
+  // the failure rather than pretending it worked.
+  const submitSubscribe = async (e) => {
+    e.preventDefault()
+    const email = e.currentTarget.email.value.trim()
+    if (!email) return
+    setSubStatus('sending')
+    try {
+      const res = await fetch('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ 'form-name': 'subscribe', 'bot-field': '', email }).toString(),
+      })
+      setSubStatus(res.ok ? 'done' : 'error')
+    } catch {
+      setSubStatus('error')
+    }
+  }
 
   const submit = (e) => {
     e.preventDefault()
@@ -573,6 +600,34 @@ export default function MobileGrid() {
             <button type="button" className="mg-sheetSubscribe" onClick={subscribe}>SUBSCRIBE</button>
             <button type="button" className="mg-sheetClose" onClick={() => setBioOpen(false)}>CLOSE</button>
           </div>
+        </div>
+      )}
+
+      {subOpen && (
+        <div className="mg-sheet mg-sheetLight">
+          <h2>SUBSCRIBE</h2>
+          <p className="mg-sheetSub">the journal, when there is an issue</p>
+          {subStatus === 'done' ? (
+            <>
+              <p className="mg-subNote">You&rsquo;re on the list.</p>
+              <div className="mg-sheetActions">
+                <button type="button" className="mg-sheetClose" onClick={() => setSubOpen(false)}>CLOSE</button>
+              </div>
+            </>
+          ) : (
+            <form onSubmit={submitSubscribe}>
+              <label>EMAIL:<input type="email" name="email" autoComplete="email" required /></label>
+              {subStatus === 'error' && (
+                <p className="mg-subNote">That didn&rsquo;t go through. Try again in a moment.</p>
+              )}
+              <div className="mg-sheetActions">
+                <button type="submit" disabled={subStatus === 'sending'}>
+                  {subStatus === 'sending' ? 'SENDING…' : 'SUBMIT'}
+                </button>
+                <button type="button" className="mg-sheetClose" onClick={() => setSubOpen(false)}>CLOSE</button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 

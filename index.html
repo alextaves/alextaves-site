@@ -41,6 +41,16 @@
     </script>
   </head>
   <body>
+    <!-- Netlify finds forms by parsing the built HTML at deploy time. The real
+         subscribe form is rendered by React, which Netlify never sees, so it is
+         declared here as well — same name, same fields. Without this the POST
+         is answered with a 404. bot-field is the honeypot: real people never
+         see it, bots fill it in and get dropped. -->
+    <form name="subscribe" data-netlify="true" netlify-honeypot="bot-field" hidden>
+      <input type="email" name="email" />
+      <input name="bot-field" />
+    </form>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
