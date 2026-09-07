@@ -53,6 +53,44 @@ const ALEX_BIO = [
   "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
 ]
 
+// Same joke enquiry the desktop card types out, and the same cadence — one
+// character every 32.5ms, a ten-second hold once it lands, then from the top.
+// Duplicated from public/portals.html for the reason ALEX_BIO is; keep in step.
+const ENQUIRY_SAMPLE_MESSAGE = "Hey! I came across your work during a mandatory rest period aboard the International Space Station (ISS). Downlink is slow up here so your site took forty minutes to load, which honestly added to the experience. Everyone here is glued to the window, but I'm fixated on your site. I have a thing for carousels, I guess. I feel your 3D carousel could really elevate the NASA homepage. Pluto gets its own screen, its own facts, maybe a little ambient hum. It deserves that after everything. I have no authority to commission anything. I'm just an astronaut. Budget: I can get you a moon rock, or a button from our ship. Best, Tony"
+const ENQUIRY_CHAR_MS = 32.5
+const ENQUIRY_HOLD_MS = 10000
+
+// Its own component so the 30-times-a-second tick re-renders this card's text
+// and nothing else in the grid.
+function EnquiryPreview() {
+  // Reduced motion gets the finished message rather than no message.
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [count, setCount] = useState(() => (reduced ? ENQUIRY_SAMPLE_MESSAGE.length : 0))
+
+  useEffect(() => {
+    if (reduced) return
+    let hold = null
+    const id = setInterval(() => {
+      setCount((c) => {
+        if (c >= ENQUIRY_SAMPLE_MESSAGE.length) {
+          if (!hold) hold = setTimeout(() => { hold = null; setCount(0) }, ENQUIRY_HOLD_MS)
+          return c
+        }
+        return c + 1
+      })
+    }, ENQUIRY_CHAR_MS)
+    return () => { clearInterval(id); clearTimeout(hold) }
+  }, [reduced])
+
+  return (
+    <div className="mg-enquiry">
+      <span className="mg-enquiryLabel">message</span>
+      <p className="mg-enquiryMsg">{ENQUIRY_SAMPLE_MESSAGE.slice(0, count)}</p>
+      <span className="mg-enquiryLabel mg-enquirySubmit">submit</span>
+    </div>
+  )
+}
+
 // Grid order follows the mock rather than the ring's own order: the three Oswin
 // rooms lead, then Alex, then the two that ask something of you.
 const CARDS = [
@@ -81,7 +119,16 @@ const css = `
   /* index.css pins touch-action:none globally for the WebGL rings; the grid is
      the one view that has to scroll. */
   touch-action: pan-y;
-  padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+  /* index.html ships viewport-fit=cover with a black-translucent status bar, so
+     installed to the home screen this view runs edge to edge — under the clock
+     and the battery, and under the notch or Dynamic Island in landscape. Inset
+     on all four sides so nothing lands beneath any of it. In an ordinary
+     browser tab every inset resolves to 0 and this is just the 10px gutter. */
+  padding:
+    calc(10px + env(safe-area-inset-top))
+    calc(10px + env(safe-area-inset-right))
+    calc(10px + env(safe-area-inset-bottom))
+    calc(10px + env(safe-area-inset-left));
   font-family: ${FONT};
 }
 .mg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -199,34 +246,49 @@ const css = `
   background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0));
 }
 
-.mg-formPreview {
+/* One-line header on this card, so the preview starts higher than the two-line
+   cards would need. Ratios follow the desktop face: label, message, submit. */
+.mg-enquiry {
   position: absolute; inset: 0; z-index: 1;
-  /* One-line header on this card, so the preview starts higher than the
-     two-line cards would need. */
   padding: 36cqw 9cqw 9cqw;
+  display: flex; flex-direction: column;
+}
+.mg-enquiryLabel {
+  display: block;
+  font-weight: 300;
+  font-size: max(7px, 2.33cqw);
+  letter-spacing: 0.16em;
   color: rgba(0, 0, 0, 0.5);
-  font-size: max(7px, 2.2cqw);
-  letter-spacing: 0.14em;
 }
-.mg-formPreview span { display: block; margin-bottom: 1.5cqw; }
-.mg-formPreview i {
-  display: block; height: 1px;
-  background: rgba(0, 0, 0, 0.22);
-  margin-bottom: 6cqw;
+.mg-enquiryMsg {
+  margin: 3cqw 0 0;
+  /* The message outgrows a card this size, and is not meant to be read here —
+     it is the card showing someone mid-sentence. So it takes whatever room is
+     left between label and submit and the tail runs past, faded out rather than
+     sliced, which would read as a clipping bug. */
+  flex: 1; min-height: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  font-weight: 300;
+  font-size: max(6.5px, 2.17cqw);
+  line-height: 1.55;
+  letter-spacing: 0;
+  color: rgba(0, 0, 0, 0.58);
 }
-.mg-formPreview b {
-  font-weight: 700; color: rgba(0, 0, 0, 0.8);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.8);
-  display: inline-block; letter-spacing: 0.14em;
-}
+.mg-enquirySubmit { margin-top: auto; }
 
 /* ── Reel, full screen ─────────────────────────────────────────────────────── */
 .mg-reel { position: fixed; inset: 0; z-index: 60; background: #000; }
 .mg-reel video { width: 100%; height: 100%; object-fit: contain; background: #000; }
 .mg-reelBar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 61;
-  height: 108px;
-  padding: calc(18px + env(safe-area-inset-top)) 20px 0;
+  height: calc(108px + env(safe-area-inset-top));
+  padding:
+    calc(18px + env(safe-area-inset-top))
+    calc(20px + env(safe-area-inset-right))
+    0
+    calc(20px + env(safe-area-inset-left));
   display: flex; align-items: flex-start; justify-content: space-between;
   /* Same scrim the desktop reel needed: the showreel runs from near-black to
      full-bleed yellow and plain white vanishes on the bright frames. */
@@ -247,7 +309,11 @@ const css = `
   position: fixed; inset: 0; z-index: 60;
   background: #00C2A8;
   overflow-y: auto; touch-action: pan-y;
-  padding: calc(28px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));
+  padding:
+    calc(28px + env(safe-area-inset-top))
+    calc(24px + env(safe-area-inset-right))
+    calc(28px + env(safe-area-inset-bottom))
+    calc(24px + env(safe-area-inset-left));
   font-family: ${FONT}; color: #000;
 }
 .mg-sheet h2 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.01em; }
@@ -368,14 +434,7 @@ export default function MobileGrid() {
                   </>
                 )}
 
-                {card.kind === 'form' && (
-                  <div className="mg-formPreview">
-                    <span>NAME:</span><i />
-                    <span>EMAIL:</span><i />
-                    <span>MESSAGE:</span><i />
-                    <b>SUBMIT</b>
-                  </div>
-                )}
+                {card.kind === 'form' && <EnquiryPreview />}
 
                 <div className="mg-head">
                   <h2 className="mg-title" style={{ color: ink, fontSize: `${fitted[card.id].cqw}cqw` }}>
