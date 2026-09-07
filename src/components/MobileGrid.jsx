@@ -106,9 +106,9 @@ function EnquiryPreview() {
 // Grid order follows the mock rather than the ring's own order: the three Oswin
 // rooms lead, then Alex, then the two that ask something of you.
 const CARDS = [
-  { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'sound and image', bg: '#FFFFFF', circle: '#F6FF21' },
-  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'opens October',   bg: '#FFFFFF', circle: '#DC7064' },
-  { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'opens October',   bg: '#FFFFFF' },
+  { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'sound and image', bg: '#FFFFFF', circle: '#F9FF45' },
+  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'opens October',   bg: '#FFFFFF', circle: '#FF3612' },
+  { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'opens October',   bg: '#FFFFFF', circle: '#5D40FF' },
   { id: 'alex',     kind: 'photo',  title: 'ALEX TAVES',    sub: 'a bit about me',                 bg: '#FFFFFF',
     lines: ['ALEX', 'TAVES'] },
   { id: 'reel',     kind: 'video',  title: 'COMMISSIONS',   sub: 'the previous alextaves.com',     bg: '#0B0B0B', titleColor: '#D8FF14',
