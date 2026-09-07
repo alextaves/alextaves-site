@@ -53,39 +53,51 @@ const ALEX_BIO = [
   "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
 ]
 
-// Same joke enquiry the desktop card types out, and the same cadence — one
-// character every 32.5ms, a ten-second hold once it lands, then from the top.
-// Duplicated from public/portals.html for the reason ALEX_BIO is; keep in step.
-const ENQUIRY_SAMPLE_MESSAGE = "Hey! I came across your work during a mandatory rest period aboard the International Space Station (ISS). Downlink is slow up here so your site took forty minutes to load, which honestly added to the experience. Everyone here is glued to the window, but I'm fixated on your site. I have a thing for carousels, I guess. I feel your 3D carousel could really elevate the NASA homepage. Pluto gets its own screen, its own facts, maybe a little ambient hum. It deserves that after everything. I have no authority to commission anything. I'm just an astronaut. Budget: I can get you a moon rock, or a button from our ship. Best, Tony"
-const ENQUIRY_CHAR_MS = 32.5
-const ENQUIRY_HOLD_MS = 10000
+// The desktop card types out a joke enquiry. At this size that text can only be
+// a grey smear, so the card keeps the gesture and drops the words: bars stand in
+// for lines of copy, each one growing left to right as if being written, one
+// after the next, then a hold and back to an empty field.
+//
+// Ragged widths on purpose — a stack of equal bars reads as a loading skeleton,
+// where uneven ones read as prose. The short line is a paragraph ending.
+const COPY_LINES = [100, 96, 99, 92, 100, 88, 54, 97, 100, 84, 91, 63]
+const COPY_BREAK_AFTER = 6        // blank line between the two paragraphs
+const COPY_LINE_MS = 1500         // one line written
+const COPY_HOLD_MS = 8000         // the finished message sits before it resets
 
-// Its own component so the 30-times-a-second tick re-renders this card's text
-// and nothing else in the grid.
+// Its own component so the tick re-renders this card and nothing else.
 function EnquiryPreview() {
-  // Reduced motion gets the finished message rather than no message.
+  // Reduced motion gets the finished message rather than an empty field.
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const [count, setCount] = useState(() => (reduced ? ENQUIRY_SAMPLE_MESSAGE.length : 0))
+  const [written, setWritten] = useState(() => (reduced ? COPY_LINES.length : 0))
 
   useEffect(() => {
     if (reduced) return
     let hold = null
     const id = setInterval(() => {
-      setCount((c) => {
-        if (c >= ENQUIRY_SAMPLE_MESSAGE.length) {
-          if (!hold) hold = setTimeout(() => { hold = null; setCount(0) }, ENQUIRY_HOLD_MS)
-          return c
+      setWritten((n) => {
+        if (n >= COPY_LINES.length) {
+          if (!hold) hold = setTimeout(() => { hold = null; setWritten(0) }, COPY_HOLD_MS)
+          return n
         }
-        return c + 1
+        return n + 1
       })
-    }, ENQUIRY_CHAR_MS)
+    }, COPY_LINE_MS)
     return () => { clearInterval(id); clearTimeout(hold) }
   }, [reduced])
 
   return (
     <div className="mg-enquiry">
       <span className="mg-enquiryLabel">message</span>
-      <p className="mg-enquiryMsg">{ENQUIRY_SAMPLE_MESSAGE.slice(0, count)}</p>
+      <div className="mg-enquiryCopy">
+        {COPY_LINES.map((w, i) => (
+          <span
+            key={i}
+            className={i === COPY_BREAK_AFTER ? 'mg-copyLine mg-copyBreak' : 'mg-copyLine'}
+            style={{ width: `${w}%`, transform: `scaleX(${i < written ? 1 : 0})` }}
+          />
+        ))}
+      </div>
       <span className="mg-enquiryLabel mg-enquirySubmit">submit</span>
     </div>
   )
@@ -94,9 +106,9 @@ function EnquiryPreview() {
 // Grid order follows the mock rather than the ring's own order: the three Oswin
 // rooms lead, then Alex, then the two that ask something of you.
 const CARDS = [
-  { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'exploration of sound and image', bg: '#FFFFFF' },
-  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'wip',                            bg: '#FFFFFF' },
-  { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'wip',                            bg: '#FFFFFF' },
+  { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'sound and image', bg: '#FFFFFF' },
+  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'opens October',   bg: '#FFFFFF' },
+  { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'opens October',   bg: '#FFFFFF' },
   { id: 'alex',     kind: 'photo',  title: 'ALEX TAVES',    sub: 'a bit about me',                 bg: '#FFFFFF',
     lines: ['ALEX', 'TAVES'] },
   { id: 'reel',     kind: 'video',  title: 'COMMISSIONS',   sub: 'the previous alextaves.com',     bg: '#0B0B0B', titleColor: '#D8FF14',
@@ -136,6 +148,7 @@ const css = `
 .mg-card {
   container-type: inline-size;
   position: relative;
+  display: flex; flex-direction: column;
   aspect-ratio: 3 / 4;
   border-radius: 6px;
   overflow: hidden;
@@ -199,11 +212,12 @@ const css = `
 .mg-sub {
   margin: 0;
   font-weight: 300;
-  /* The true ratio lands under 5px on a phone column, so it is floored at a
-     size that still reads. */
-  font-size: max(7.5px, 2.33cqw);
-  letter-spacing: 0.16em;
-  line-height: 1.35;
+  /* The desktop ratio lands under 5px in a phone column. Floored at a size that
+     is actually readable at arm's length — which is why these taglines are
+     shorter here than on the ring. A long one wraps rather than shrinking. */
+  font-size: max(9.5px, 2.33cqw);
+  letter-spacing: 0.14em;
+  line-height: 1.4;
 }
 
 .mg-circle {
@@ -259,11 +273,14 @@ const css = `
   background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0));
 }
 
-/* One-line header on this card, so the preview starts higher than the two-line
-   cards would need. Ratios follow the desktop face: label, message, submit. */
+/* Ratios follow the desktop face: label, message, submit. */
+/* In flow under the header rather than absolutely positioned at a guessed
+   offset — the enquiry tagline wraps to two lines in a phone column, and a
+   fixed inset had the label landing on top of it. */
 .mg-enquiry {
-  position: absolute; inset: 0; z-index: 1;
-  padding: 36cqw 9cqw 9cqw;
+  position: relative; z-index: 1;
+  flex: 1; min-height: 0;
+  padding: 5cqw 9cqw 9cqw;
   display: flex; flex-direction: column;
 }
 .mg-enquiryLabel {
@@ -273,22 +290,28 @@ const css = `
   letter-spacing: 0.16em;
   color: rgba(0, 0, 0, 0.5);
 }
-.mg-enquiryMsg {
-  margin: 3cqw 0 0;
-  /* The message outgrows a card this size, and is not meant to be read here —
-     it is the card showing someone mid-sentence. So it takes whatever room is
-     left between label and submit and the tail runs past, faded out rather than
-     sliced, which would read as a clipping bug. */
+.mg-enquiryCopy {
+  margin: 3.5cqw 0 0;
   flex: 1; min-height: 0;
   overflow: hidden;
-  mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
-  font-weight: 300;
-  font-size: max(6.5px, 2.17cqw);
-  line-height: 1.55;
-  letter-spacing: 0;
-  color: rgba(0, 0, 0, 0.58);
+  /* The copy outgrows the card, as the real message does — faded out at the
+     bottom rather than sliced, which would read as a clipping bug. */
+  mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
 }
+.mg-copyLine {
+  display: block;
+  height: max(3px, 1.5cqw);
+  margin-bottom: max(3.5px, 1.7cqw);
+  /* Half the weight it started at — tonal against the teal, a shift in the
+     card's own colour rather than dark bars printed on it. */
+  background: rgba(0, 0, 0, 0.17);
+  border-radius: 1px;
+  transform-origin: left center;
+  /* Slightly under the interval, so each line lands before the next starts. */
+  transition: transform 1300ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+.mg-copyBreak { margin-top: max(5px, 2.4cqw); }
 .mg-enquirySubmit { margin-top: auto; }
 
 /* ── Reel, full screen ─────────────────────────────────────────────────────── */
@@ -430,6 +453,14 @@ export default function MobileGrid() {
                 style={{ background: card.bg }}
                 onClick={() => openCard(card.id)}
               >
+                <div className="mg-head">
+                  <h2 className="mg-title" style={{ color: ink, fontSize: `${fitted[card.id].cqw}cqw` }}>
+                    {fitted[card.id].lines.map((line, i) => <span key={i}>{line}</span>)}
+                  </h2>
+                  <div className="mg-rule" style={{ background: inkRule }} />
+                  <p className="mg-sub" style={{ color: inkSub }}>{card.sub}</p>
+                </div>
+
                 {card.kind === 'circle' && <div className="mg-circle" />}
 
                 {card.kind === 'photo' && (
@@ -448,14 +479,6 @@ export default function MobileGrid() {
                 )}
 
                 {card.kind === 'form' && <EnquiryPreview />}
-
-                <div className="mg-head">
-                  <h2 className="mg-title" style={{ color: ink, fontSize: `${fitted[card.id].cqw}cqw` }}>
-                    {fitted[card.id].lines.map((line, i) => <span key={i}>{line}</span>)}
-                  </h2>
-                  <div className="mg-rule" style={{ background: inkRule }} />
-                  <p className="mg-sub" style={{ color: inkSub }}>{card.sub}</p>
-                </div>
               </div>
             )
           })}
