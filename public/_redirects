@@ -3,4 +3,6 @@
 /archive/* 200
 /typescale 200
 /typescale/* 200
+/typescale-reference 200
+/typescale-reference/* 200
 /*  /index.html  200

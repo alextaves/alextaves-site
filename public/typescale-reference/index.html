@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Type scale quick reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F6F7;--card:#FFFFFF;--ink:#12171C;--slate:#5C6873;
+  --rule:#DCE2E6;--accent:#1F5470;--accent-soft:#E4EDF2;--warn:#A33A26;
+  --ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#15191C;--card:#1C2126;--ink:#E8EDF0;--slate:#93A0AB;
+    --rule:#2C333A;--accent:#7FB5D1;--accent-soft:#1E2B33;--warn:#E08A74;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15191C;--card:#1C2126;--ink:#E8EDF0;--slate:#93A0AB;
+  --rule:#2C333A;--accent:#7FB5D1;--accent-soft:#1E2B33;--warn:#E08A74;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--ui);
+  -webkit-font-smoothing:antialiased;padding:32px 24px 64px}
+.wrap{max-width:1160px;margin:0 auto}
+
+h1{font-size:27px;font-weight:700;margin:0 0 8px;letter-spacing:-0.015em}
+.sub{margin:0 0 26px;font-size:15px;color:var(--slate);line-height:1.5;max-width:78ch}
+
+.controls{display:flex;align-items:center;gap:26px;flex-wrap:wrap;margin-bottom:22px}
+.ctrl{display:flex;align-items:center;gap:10px}
+.ctrl label{font-size:11px;font-weight:600;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--slate)}
+input[type=number]{width:72px;font:inherit;font-size:15px;padding:7px 9px;
+  border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink)}
+input[type=range]{width:200px;accent-color:var(--accent)}
+.unit{font-size:14px;color:var(--slate)}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{font:inherit;font-size:13px;padding:6px 12px;background:var(--card);
+  border:1px solid var(--rule);border-radius:3px;color:var(--ink);cursor:pointer;
+  transition:border-color .12s ease,background .12s ease}
+.chips button:hover{border-color:var(--slate)}
+.chips button[aria-pressed="true"]{background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent);font-weight:500}
+
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;min-width:820px;background:var(--card);
+  border:1px solid var(--rule);border-radius:4px}
+th,td{border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  padding:0;text-align:center}
+th:last-child,td:last-child{border-right:none}
+tr:last-child td{border-bottom:none}
+
+thead th{padding:14px 10px 16px;vertical-align:top}
+.verb{display:block;font-size:18px;font-weight:700;color:var(--accent);margin-bottom:5px}
+.rname{display:block;font-size:14px;font-weight:400;color:var(--ink);margin-bottom:3px}
+.use{display:block;font-size:12px;font-weight:400;color:var(--slate)}
+thead th.corner{background:transparent}
+
+td.lab,th.corner{text-align:left;width:236px;min-width:236px}
+td.lab{padding:20px 16px}
+.step{display:inline-block;width:34px;font-size:17px;font-weight:700;color:var(--slate)}
+.elname{font-size:15px}
+td.val{font-size:19px;font-variant-numeric:tabular-nums;padding:20px 10px}
+tr.base td{background:var(--accent-soft)}
+tr.base td.val{font-weight:700}
+tr.base .step{color:var(--accent)}
+td.under{color:var(--warn)}
+
+.notes{display:flex;gap:28px;justify-content:space-between;flex-wrap:wrap;
+  margin-top:16px;padding-top:14px;border-top:1px solid var(--rule);
+  font-size:13px;color:var(--slate);line-height:1.5}
+.notes p{margin:0;max-width:64ch}
+.swatch{display:inline-block;width:8px;height:8px;background:var(--warn);
+  margin-right:7px;vertical-align:baseline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:600px){body{padding:20px 14px 48px}h1{font-size:23px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Type scale quick reference</h1>
+<p class="sub">The ratio sets the distance between steps, not the sizes. You are not obliged to use every rung.</p>
+
+<div class="controls">
+  <div class="ctrl">
+    <label for="base">Base</label>
+    <input type="number" id="base" min="8" max="24" step="0.5" value="12">
+    <span class="unit">pt, set on the body</span>
+  </div>
+  <div class="ctrl">
+    <input type="range" id="slider" min="8" max="24" step="0.5" value="12" aria-label="Base size">
+  </div>
+  <div class="ctrl">
+    <label>Show</label>
+    <div class="chips">
+      <button type="button" id="exact" aria-pressed="true">Exact</button>
+      <button type="button" id="rounded" aria-pressed="false">Rounded</button>
+    </div>
+  </div>
+</div>
+
+<div class="scroll">
+  <table>
+    <thead><tr id="head"><th class="corner"></th></tr></thead>
+    <tbody id="body"></tbody>
+  </table>
+</div>
+
+<div class="notes">
+  <p><span class="swatch"></span>Below 8.5pt. The arithmetic is correct and the result is unreadable. Move it up a step, or set it by hand and note that you broke the scale on purpose.</p>
+  <p>Rounding to the nearest half point will not break the relationship. The ratio is the point, not the decimals.</p>
+</div>
+
+</div>
+
+<script>
+const RATIOS=[
+  {verb:'Compress',name:'Major second',v:1.125,use:'Long reading, editorial'},
+  {verb:'Work',name:'Perfect fourth',v:1.333,use:'Reports, Word defaults'},
+  {verb:'Compose',name:'Golden section',v:1.618,use:'Book covers, spreads'},
+  {verb:'Shout',name:'Octave',v:2,use:'Title slides, signage'}
+];
+const STEPS=[
+  [4,'Display'],[3,'Headline'],[2,'Subheading'],[1,'Deck'],
+  [0,'Body (base)'],[-1,'Kicker, caption'],[-2,'Credit']
+];
+const FLOOR=8.5;
+let base=12, rounded=false;
+
+const $=id=>document.getElementById(id);
+
+RATIOS.forEach(r=>{
+  const th=document.createElement('th');
+  th.innerHTML='<span class="verb">'+r.verb+'</span>'
+    +'<span class="rname">'+r.name+' &nbsp;'+r.v+'</span>'
+    +'<span class="use">'+r.use+'</span>';
+  $('head').appendChild(th);
+});
+
+STEPS.forEach(([s,label])=>{
+  const tr=document.createElement('tr');
+  if(s===0)tr.className='base';
+  const td=document.createElement('td');
+  td.className='lab';
+  td.innerHTML='<span class="step">'+(s>0?'+'+s:s)+'</span><span class="elname">'+label+'</span>';
+  tr.appendChild(td);
+  RATIOS.forEach((r,i)=>{
+    const c=document.createElement('td');
+    c.className='val';
+    c.id='c-'+s+'-'+i;
+    tr.appendChild(c);
+  });
+  $('body').appendChild(tr);
+});
+
+function render(){
+  STEPS.forEach(([s])=>{
+    RATIOS.forEach((r,i)=>{
+      const size=base*Math.pow(r.v,s);
+      const cell=$('c-'+s+'-'+i);
+      cell.textContent=rounded
+        ? (Math.round(size*2)/2).toFixed(1)
+        : size.toFixed(1);
+      cell.classList.toggle('under',size<FLOOR);
+    });
+  });
+}
+
+function setBase(v){
+  if(isNaN(v)||v<8||v>24)return;
+  base=v; $('base').value=v; $('slider').value=v; render();
+}
+$('base').addEventListener('input',e=>setBase(parseFloat(e.target.value)));
+$('slider').addEventListener('input',e=>setBase(parseFloat(e.target.value)));
+$('exact').addEventListener('click',()=>{
+  rounded=false;$('exact').setAttribute('aria-pressed','true');
+  $('rounded').setAttribute('aria-pressed','false');render();
+});
+$('rounded').addEventListener('click',()=>{
+  rounded=true;$('rounded').setAttribute('aria-pressed','true');
+  $('exact').setAttribute('aria-pressed','false');render();
+});
+
+render();
+</script>
+</body>
+</html>

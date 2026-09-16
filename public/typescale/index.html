@@ -89,6 +89,18 @@ figure img{width:100%;display:block;border-radius:2px}
 #caption{font-family:var(--ui);color:var(--ink);margin:12px 0 4px;line-height:1.4}
 #credit{font-family:var(--ui);color:var(--slate);margin:0;line-height:1.4}
 
+.sources{border-top:1px solid var(--rule);margin-top:32px;padding-top:14px;
+  font-size:13px;color:var(--slate)}
+.sources summary{cursor:pointer;font-size:11px;font-weight:600;
+  letter-spacing:0.1em;text-transform:uppercase;list-style:none}
+.sources summary::-webkit-details-marker{display:none}
+.sources summary::after{content:' +';color:var(--slate)}
+.sources[open] summary::after{content:' –'}
+.sources dl{margin:14px 0 0;line-height:1.55}
+.sources dt{color:var(--ink);margin-top:10px}
+.sources dd{margin:2px 0 0}
+.sources p{margin:16px 0 0}
+
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:no-preference){
   .ratios button,.acts button{transition:border-color .12s ease,background .12s ease}
@@ -134,14 +146,30 @@ figure img{width:100%;display:block;border-radius:2px}
     <p id="deck">A photographer, a browser, and the question of what a page is allowed to remember about the person reading it.</p>
     <p id="body">Every issue is built as a distinct room. You arrive and the light is already on, and something in the arrangement suggests you were expected. The scroll is not navigation. It is the descent itself, and the further down you go the colder the water gets. Nobody tells you this. You work it out somewhere around the second paragraph, when the sound changes.</p>
     <figure>
-      <img src="/typescale/ridgelines.jpg" alt="Layered blue mountain ridges fading into haze">
+      <img src="/typescale/beach.jpg" alt="A crowded beach in soft focus, bleached by summer light">
       <figcaption>
-        <p id="caption">Fig. 1. Installation view, ridgelines at four removes.</p>
-        <p id="credit">Photograph by Wes Hicks</p>
+        <p id="caption">Fig. 1. The beach (lady with hair).</p>
+        <p id="credit">Photograph by Alex Taves</p>
       </figcaption>
     </figure>
   </div>
 </div>
+
+<details class="sources">
+  <summary>Sources</summary>
+  <dl>
+    <dt>Brown, T. (2010) <em>Modular Scale</em></dt>
+    <dd>modularscale.com. Origin of the modular type scale and the musical interval naming used here.</dd>
+
+    <dt>Church, J. (2013) <em>Type Scale</em></dt>
+    <dd>type-scale.com. Visual calculator using the same ratios.</dd>
+
+    <dt>Bringhurst, R. (1992) <em>The Elements of Typographic Style</em></dt>
+    <dd>Background on typographic proportion.</dd>
+  </dl>
+  <p>This page, the reference chart and the session materials were made by Alex Taves.
+     Photograph by Alex Taves.</p>
+</details>
 </div>
 
 <script>
