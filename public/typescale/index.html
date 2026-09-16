@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typescale composer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F6F7;--card:#FFFFFF;--ink:#12171C;--slate:#5C6873;
+  --rule:#DCE2E6;--accent:#1F5470;--accent-soft:#E4EDF2;--warn:#A33A26;
+  --ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --art:'Spectral',Georgia,serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1340px;margin:0 auto;padding:32px 24px 80px}
+
+header{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:28px;
+  padding-bottom:20px;border-bottom:1px solid var(--rule)}
+h1{font-size:17px;font-weight:600;margin:0;letter-spacing:-0.01em}
+header p{margin:0;font-size:13px;color:var(--slate);max-width:56ch;line-height:1.5}
+
+.grid{display:grid;grid-template-columns:400px minmax(0,1fr);gap:36px;align-items:start}
+@media (max-width:940px){.grid{grid-template-columns:1fr;gap:28px}}
+
+.label{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--slate);margin:0 0 10px}
+
+.ratios{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:26px}
+.ratios button{font:inherit;font-size:12px;text-align:left;padding:9px 11px;background:transparent;
+  border:1px solid var(--rule);border-radius:3px;color:var(--ink);cursor:pointer;
+  display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:baseline}
+.ratios button:hover{border-color:var(--slate)}
+.ratios button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.ratios .rn{font-weight:500}
+.ratios .reg{color:var(--slate);font-size:11px;white-space:nowrap}
+.ratios button[aria-pressed="true"] .reg{color:var(--accent)}
+
+.baserow{display:flex;align-items:center;gap:10px;margin-bottom:26px}
+.baserow input{width:64px;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--rule);
+  border-radius:3px;background:var(--card);color:var(--ink)}
+.baserow span{font-size:13px;color:var(--slate)}
+
+.heads{display:grid;grid-template-columns:70px 78px 84px 30px 48px;gap:8px;
+  font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--slate);margin-bottom:6px}
+.heads span:nth-child(4),.heads span:nth-child(5){text-align:center}
+.assign{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.row{display:grid;grid-template-columns:70px 78px 84px 30px 48px;gap:8px;align-items:center}
+.row .nm{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row select{font:inherit;font-size:12px;padding:5px 4px;border:1px solid var(--rule);
+  border-radius:3px;background:var(--card);color:var(--ink);width:100%;min-width:0}
+.row .it{font:inherit;font-size:13px;font-family:var(--art);font-style:italic;padding:4px 0;
+  border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--slate);cursor:pointer}
+.row .it[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.row .pt{font-size:12px;font-variant-numeric:tabular-nums;text-align:right;color:var(--slate)}
+.row.under .pt{color:var(--warn);font-weight:600}
+
+.floor{font-size:12px;line-height:1.5;color:var(--warn);border-left:2px solid var(--warn);
+  padding-left:10px;margin:0 0 20px}
+.floor:empty{display:none}
+
+.acts{display:flex;gap:8px;margin-bottom:10px}
+.acts button{font:inherit;font-size:12px;padding:7px 12px;border:1px solid var(--rule);
+  border-radius:3px;background:var(--card);color:var(--ink);cursor:pointer}
+.acts button:hover{border-color:var(--slate)}
+.note{font-size:12px;color:var(--slate);margin:0 0 30px;min-height:16px}
+
+.ladder{border-top:1px solid var(--rule);padding-top:18px}
+.step{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px dotted var(--rule)}
+.step .n{font-size:11px;width:24px;color:var(--slate);font-variant-numeric:tabular-nums}
+.step .bar{height:2px;background:var(--rule);flex-shrink:0;min-width:2px}
+.step.used .bar{background:var(--accent)}
+.step .sz{font-size:11px;color:var(--slate);font-variant-numeric:tabular-nums;width:52px;text-align:right}
+.step .tags{font-size:11px;color:var(--accent);margin-left:auto;text-align:right}
+
+.stage{background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:56px 60px 60px}
+@media (max-width:600px){.stage{padding:28px 22px 34px}.wrap{padding:20px 14px 60px}}
+
+#kicker{font-family:var(--ui);letter-spacing:0.12em;text-transform:uppercase;color:var(--slate);margin:0 0 18px}
+#headline{font-family:var(--art);line-height:1.02;letter-spacing:-0.02em;margin:0 0 18px}
+#deck{font-family:var(--art);line-height:1.3;color:var(--slate);margin:0 0 28px;max-width:34em}
+#body{font-family:var(--art);line-height:1.62;margin:0 0 32px;max-width:34em}
+figure{margin:0}
+figure img{width:100%;display:block;border-radius:2px}
+#caption{font-family:var(--ui);color:var(--ink);margin:12px 0 4px;line-height:1.4}
+#credit{font-family:var(--ui);color:var(--slate);margin:0;line-height:1.4}
+
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){
+  .ratios button,.acts button{transition:border-color .12s ease,background .12s ease}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Typescale composer</h1>
+  <p>The ratio generates the sizes you are allowed to use. Which element sits on which step, and how much weight it carries, is still your call.</p>
+</header>
+
+<div class="grid">
+  <div>
+    <p class="label">Ratio</p>
+    <div class="ratios" id="ratios"></div>
+
+    <p class="label">Base size</p>
+    <div class="baserow">
+      <input type="number" id="base" min="8" max="24" step="0.5" value="12" aria-label="Base size in points">
+      <span>pt, set on the body</span>
+    </div>
+
+    <p class="label">Composition</p>
+    <div class="heads"><span>Element</span><span>Step</span><span>Weight</span><span>Ital</span><span>Size</span></div>
+    <div class="assign" id="assign"></div>
+    <p class="floor" id="floor"></p>
+
+    <div class="acts">
+      <button id="reset">Reset</button>
+      <button id="share">Copy link to this setting</button>
+    </div>
+    <p class="note" id="note"></p>
+
+    <div class="ladder" id="ladder"></div>
+  </div>
+
+  <div class="stage">
+    <p id="kicker">TTT Assessment / Task 4</p>
+    <h2 id="headline">The room turns toward you</h2>
+    <p id="deck">A photographer, a browser, and the question of what a page is allowed to remember about the person reading it.</p>
+    <p id="body">Every issue is built as a distinct room. You arrive and the light is already on, and something in the arrangement suggests you were expected. The scroll is not navigation. It is the descent itself, and the further down you go the colder the water gets. Nobody tells you this. You work it out somewhere around the second paragraph, when the sound changes.</p>
+    <figure>
+      <img src="/typescale/ridgelines.jpg" alt="Layered blue mountain ridges fading into haze">
+      <figcaption>
+        <p id="caption">Fig. 1. Installation view, ridgelines at four removes.</p>
+        <p id="credit">Photograph by Wes Hicks</p>
+      </figcaption>
+    </figure>
+  </div>
+</div>
+</div>
+
+<script>
+const RATIOS=[
+  {n:'Major second',v:1.125,eg:'Editorial, long reading',att:'Compress'},
+  {n:'Perfect fourth',v:1.333,eg:"Reports, textbooks, Word's own defaults",att:'Work'},
+  {n:'Golden section',v:1.618,eg:'Book design, poster',att:'Compose'},
+  {n:'Octave',v:2,eg:'Display, signage',att:'Shout'}
+];
+const ELEMENTS=[
+  {id:'kicker',label:'Kicker'},{id:'headline',label:'Headline'},
+  {id:'deck',label:'Deck'},{id:'body',label:'Body'},
+  {id:'caption',label:'Caption'},{id:'credit',label:'Credit'}
+];
+const STEPS=[-3,-2,-1,0,1,2,3,4,5,6];
+const WEIGHTS=[[300,'Light'],[400,'Regular'],[500,'Medium'],[600,'Semibold'],[700,'Bold']];
+const FLOOR=8.5;
+
+// PRESETS[0] is the state the page opens in and the one Reset returns to. The
+// three below it were the "Start from" buttons; the buttons are gone but the
+// settings are kept here so they can be restored without working them out again.
+const PRESETS=[
+  {n:'Default', r:1, b:12, s:[-1,3,1,0,-1,-2], w:[600,600,300,400,400,400], i:[0,0,1,0,0,0]},
+  {n:'Aesop', r:0, b:12, s:[0,6,0,0,0,0], w:[400,400,600,400,600,400], i:[0,0,0,0,0,0]},
+  {n:'Bauhaus', r:3, b:12, s:[0,3,0,0,0,0], w:[700,700,700,400,400,400], i:[0,0,0,0,0,0]},
+  {n:'MoMA', r:2, b:12, s:[4,3,1,0,-2,-3], w:[700,700,700,400,400,400], i:[0,0,0,0,0,0]}
+];
+
+let ratio=1, base=12;
+let steps=PRESETS[0].s.slice(), weights=PRESETS[0].w.slice(), italics=PRESETS[0].i.slice();
+
+const $=id=>document.getElementById(id);
+
+RATIOS.forEach((r,i)=>{
+  const b=document.createElement('button');
+  b.type='button';
+  b.innerHTML='<span class="rn">'+r.att+'</span><span class="reg">'+r.n+' '+r.v+'</span><span class="reg">'+r.eg+'</span>';
+  b.setAttribute('aria-pressed','false');
+  b.addEventListener('click',()=>{ratio=i;render()});
+  $('ratios').appendChild(b);
+});
+
+ELEMENTS.forEach((e,i)=>{
+  const row=document.createElement('div');
+  row.className='row'; row.id='row-'+e.id;
+
+  const nm=document.createElement('span');
+  nm.className='nm'; nm.textContent=e.label;
+
+  const st=document.createElement('select');
+  st.setAttribute('aria-label',e.label+' step');
+  STEPS.forEach(s=>{
+    const o=document.createElement('option');
+    o.value=s; o.textContent=(s>0?'+':'')+s;
+    st.appendChild(o);
+  });
+  st.addEventListener('change',()=>{steps[i]=parseInt(st.value,10);render()});
+
+  const wt=document.createElement('select');
+  wt.setAttribute('aria-label',e.label+' weight');
+  WEIGHTS.forEach(w=>{
+    const o=document.createElement('option');
+    o.value=w[0]; o.textContent=w[1];
+    wt.appendChild(o);
+  });
+  wt.addEventListener('change',()=>{weights[i]=parseInt(wt.value,10);render()});
+
+  const it=document.createElement('button');
+  it.type='button'; it.className='it'; it.textContent='I';
+  it.setAttribute('aria-label',e.label+' italic');
+  it.addEventListener('click',()=>{italics[i]=italics[i]?0:1;render()});
+
+  const pt=document.createElement('span');
+  pt.className='pt'; pt.id='pt-'+e.id;
+
+  row.append(nm,st,wt,it,pt);
+  $('assign').appendChild(row);
+});
+
+$('base').addEventListener('input',()=>{
+  const v=parseFloat($('base').value);
+  if(!isNaN(v)&&v>=8&&v<=24){base=v;render()}
+});
+$('reset').addEventListener('click',()=>{
+  const p=PRESETS[0];
+  ratio=p.r; base=p.b; $('base').value=p.b;
+  steps=p.s.slice(); weights=p.w.slice(); italics=p.i.slice();
+  $('note').textContent=''; render();
+});
+$('share').addEventListener('click',()=>{
+  const local=location.protocol==='file:';
+  const url=local?hash():location.origin+location.pathname+hash();
+  navigator.clipboard.writeText(url).then(
+    ()=>{$('note').textContent=local?'Settings code copied. Paste it into your submission.':'Link copied. Paste it into your submission.'},
+    ()=>{$('note').textContent='Copy failed. The settings code is in the address bar after the # sign.'}
+  );
+});
+
+function hash(){
+  return '#r='+ratio+'&b='+base+'&s='+steps.join(',')+'&w='+weights.join(',')+'&i='+italics.join(',');
+}
+function readHash(){
+  const h=new URLSearchParams(location.hash.slice(1));
+  const r=parseInt(h.get('r'),10), b=parseFloat(h.get('b'));
+  const s=(h.get('s')||'').split(',').map(Number);
+  const w=(h.get('w')||'').split(',').map(Number);
+  const it=(h.get('i')||'').split(',').map(Number);
+  if(!isNaN(r)&&RATIOS[r])ratio=r;
+  if(!isNaN(b)&&b>=8&&b<=24){base=b;$('base').value=b}
+  if(s.length===ELEMENTS.length&&s.every(n=>STEPS.includes(n)))steps=s;
+  if(w.length===ELEMENTS.length&&w.every(n=>WEIGHTS.some(x=>x[0]===n)))weights=w;
+  if(it.length===ELEMENTS.length&&it.every(n=>n===0||n===1))italics=it;
+}
+
+function sizeAt(step){return base*Math.pow(RATIOS[ratio].v,step)}
+
+function render(){
+  [...$('ratios').children].forEach((b,i)=>
+    b.setAttribute('aria-pressed', i===ratio?'true':'false'));
+
+  const small=[];
+  ELEMENTS.forEach((e,i)=>{
+    const size=sizeAt(steps[i]);
+    const row=$('row-'+e.id);
+    row.querySelectorAll('select')[0].value=steps[i];
+    row.querySelectorAll('select')[1].value=weights[i];
+    row.querySelector('.it').setAttribute('aria-pressed', italics[i]?'true':'false');
+    $('pt-'+e.id).textContent=size.toFixed(1)+'pt';
+    row.classList.toggle('under',size<FLOOR);
+
+    const el=$(e.id);
+    el.style.fontSize=Math.min(size,120).toFixed(2)+'pt';
+    el.style.fontWeight=weights[i];
+    el.style.fontStyle=italics[i]?'italic':'normal';
+    if(size<FLOOR)small.push(e.label.toLowerCase());
+  });
+
+  $('floor').textContent = small.length
+    ? 'Below the readability floor: '+small.join(', ')+'. The arithmetic is correct and the result is unusable. Move it up a step, or set it by hand at 9pt and note that you broke the scale on purpose.'
+    : '';
+
+  const maxSize=sizeAt(Math.max(...steps));
+  $('ladder').innerHTML='<p class="label">The scale</p>'+STEPS.slice().reverse().map(s=>{
+    const size=sizeAt(s);
+    const used=ELEMENTS.filter((e,i)=>steps[i]===s).map(e=>e.label);
+    const w=Math.max(2,Math.round((size/maxSize)*150));
+    return '<div class="step'+(used.length?' used':'')+'">'
+      +'<span class="n">'+(s>0?'+':'')+s+'</span>'
+      +'<span class="bar" style="width:'+w+'px"></span>'
+      +'<span class="sz">'+size.toFixed(1)+'</span>'
+      +'<span class="tags">'+used.join(', ')+'</span></div>';
+  }).join('');
+
+  history.replaceState(null,'',hash());
+}
+
+readHash();
+render();
+</script>
+</body>
+</html>
