@@ -38,14 +38,49 @@ const SMALL_SCREEN_MAX = 768
 // tablets over the line the size test is there to draw. maxTouchPoints is what
 // separates a touch device from a display (desktop 0-1, iPad 5), and it is also
 // what catches iPadOS, which claims to be "Macintosh".
-function isSmallScreen() {
-  if (params.has('desktop')) return false
-  if (navigator.maxTouchPoints <= 1) return false
+// A touchscreen LAPTOP passes both tests above and should not. Its screen is
+// measured in CSS pixels, which OS display scaling changes: a 1920x1080 laptop
+// at 150% reports 1280x720, so its short side is 720 and it looks like a
+// tablet. Physical pixels do not separate them either — that laptop is 1080
+// physical where an iPad mini is 1488.
+//
+// What does separate them is the PRIMARY pointer. On a touch laptop the mouse
+// or trackpad is primary, so `(pointer: coarse)` is false while
+// `(any-pointer: coarse)` is true. On a tablet touch is primary and it is true.
+// The macOS-Safari worry noted above is already covered by maxTouchPoints,
+// which is 0 there, so requiring both is safe.
+function detect() {
+  const touchPoints = navigator.maxTouchPoints
+  const coarsePrimary = window.matchMedia('(pointer: coarse)').matches
   const shortSide = Math.min(
     window.screen?.width || window.innerWidth,
     window.screen?.height || window.innerHeight,
   )
-  return shortSide <= SMALL_SCREEN_MAX
+  const small = !params.has('desktop')
+    && touchPoints > 1
+    && coarsePrimary
+    && shortSide <= SMALL_SCREEN_MAX
+  return { touchPoints, coarsePrimary, shortSide, dpr: window.devicePixelRatio, small }
+}
+
+function isSmallScreen() {
+  return detect().small
+}
+
+// ?why prints what was measured, so a device that lands on the wrong homepage
+// can say why without needing to be in the room.
+if (params.has('why')) {
+  const d = detect()
+  console.log('[homepage]', d)
+  addEventListener('DOMContentLoaded', () => {
+    const el = document.createElement('pre')
+    el.style.cssText = 'position:fixed;inset:auto 0 0 0;z-index:99999;margin:0;padding:12px;'
+      + 'background:#111;color:#0f0;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap'
+    el.textContent = 'homepage: ' + (d.small ? 'MOBILE GRID' : 'DESKTOP RING') + '\n'
+      + Object.entries(d).map(([k, v]) => `  ${k}: ${v}`).join('\n')
+      + '\n  (threshold: short side <= ' + SMALL_SCREEN_MAX + ')'
+    document.body.appendChild(el)
+  })
 }
 
 function Root() {
