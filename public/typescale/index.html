@@ -6,7 +6,7 @@
 <title>Typescale composer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Nunito+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
 <style>
 :root{
   --paper:#F4F6F7;--card:#FFFFFF;--ink:#12171C;--slate:#5C6873;
@@ -17,7 +17,11 @@
      the page. Without a webfont fallback, Windows and Android readers would
      drop to Helvetica, which is a different animal entirely. */
   --ui:'Avenir Next','Avenir','Nunito Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  --art:'Spectral',Georgia,serif;
+  /* The specimen now takes the same face as the interface. It was Spectral, a
+     serif — useful for separating chrome from content, but the brief is a sans
+     as close to Avenir as possible, and the scale is what is being demonstrated
+     here, not a contrast of faces. */
+  --art:'Avenir Next','Avenir','Nunito Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
