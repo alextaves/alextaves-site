@@ -49,8 +49,10 @@ function fitTitle(title, given) {
 // raw HTML in an iframe and cannot import from here, so the wording is repeated.
 // If the bio changes there, change it here.
 const ALEX_BIO = [
-  "Alex Taves builds rooms on the internet, part of what he calls the Slow Web, and his gut says the web is only beginning. He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario. It took off, earned a nod from The New York Times, then crashed. The crash mattered: it opened a whole new world. Out of desperation he learned to code, and React, the framework Netflix runs on, became an obsession. It seemed wildly untapped as a medium for art.",
-  "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
+  "Alex Taves builds rooms on the internet. He calls it the Slow Web, and his gut says the web is only beginning.",
+  "He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario, which earned a nod from The New York Times. He saw a chance to take the gallery experience onto the web, studied how a platform like Netflix was built, and learned the same framework. React seemed wildly untapped as a medium for art.",
+  "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It is time to evolve into the humans we could be: not performing for likes, not dictated to by an algorithm.",
+  "He toggles his time between web development, teaching design, and his own art practice.",
 ]
 
 // The desktop card types out a joke enquiry. At this size that text can only be

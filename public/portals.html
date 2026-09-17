@@ -590,8 +590,10 @@ function drawOswinCircle(ctx, W, H, portal) {
 // ALEX TAVES: the bio itself, printed straight onto the card under the
 // subtitle — same wording as the full story overlay this card opens into.
 const ALEX_TAVES_BIO = [
-  "Alex Taves builds rooms on the internet, part of what he calls the Slow Web, and his gut says the web is only beginning. He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario. It took off, earned a nod from The New York Times, then crashed. The crash mattered: it opened a whole new world. Out of desperation he learned to code, and React, the framework Netflix runs on, became an obsession. It seemed wildly untapped as a medium for art.",
-  "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
+  "Alex Taves builds rooms on the internet. He calls it the Slow Web, and his gut says the web is only beginning.",
+  "He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario, which earned a nod from The New York Times. He saw a chance to take the gallery experience onto the web, studied how a platform like Netflix was built, and learned the same framework. React seemed wildly untapped as a medium for art.",
+  "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It is time to evolve into the humans we could be: not performing for likes, not dictated to by an algorithm.",
+  "He toggles his time between web development, teaching design, and his own art practice.",
 ]
 
 // The portrait that fronts Alex on Oswin Journal, brought over so the same face
@@ -690,7 +692,7 @@ function applyAlexStatic(ctx, W, H) {
 function drawAlexTavesBio(ctx, W, H, portal) {
   const lm = 54
   const maxW = W - lm * 2
-  const startY = Math.max(224, titleLayout(ctx, portal, maxW).headerBottom)
+  const startY = Math.max(200, titleLayout(ctx, portal, maxW).headerBottom)
   // Full-strength ink, not the 58% the other card body copy uses: this is the
   // one card you click expressly to read, so it should not ask you to work.
   const ink = portal.light ? '#ffffff' : '#000000'
@@ -698,11 +700,14 @@ function drawAlexTavesBio(ctx, W, H, portal) {
   ctx.font = "300 19.5px 'Helvetica Neue', Helvetica, Arial, sans-serif"
   ctx.letterSpacing = '0'
   ctx.fillStyle = ink
-  const lineHeight = 30
+  // Leading and paragraph gap are set tight enough that the four paragraphs
+  // clear SUBSCRIBE at its anchor. At 30/18 the block ran to y=746 and shoved
+  // the control to the very edge of the 800px card.
+  const lineHeight = 28
   let y = startY
   ALEX_TAVES_BIO.forEach((para) => {
     wrapText(ctx, para, maxW).forEach((ln) => { ctx.fillText(ln, lm, y); y += lineHeight })
-    y += 18
+    y += 12
   })
 
   // SUBSCRIBE, drawn onto the same face. Anchored near the foot of the card so
@@ -1542,8 +1547,10 @@ const STORIES = {
     coverTypeOpts: { typeDur: 1600, backspaceDur: 1600, cycle: 6200 },
     bg: PORTALS[ALEX_TAVES_INDEX]?.bg,
     paragraphs: [
-      "Alex Taves builds rooms on the internet, part of what he calls the Slow Web, and his gut says the web is only beginning. He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario. It took off, earned a nod from The New York Times, then crashed. The crash mattered: it opened a whole new world. Out of desperation he learned to code, and React, the framework Netflix runs on, became an obsession. It seemed wildly untapped as a medium for art.",
-      "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It's time to evolve into the humans we could be: not desperate for likes, not dictated to by an algorithm.",
+      "Alex Taves builds rooms on the internet. He calls it the Slow Web, and his gut says the web is only beginning.",
+      "He started in fashion, twelve years as art director to Joseph Mimran, then got pulled into the art world and opened a gallery in Hamilton, Ontario, which earned a nod from The New York Times. He saw a chance to take the gallery experience onto the web, studied how a platform like Netflix was built, and learned the same framework. React seemed wildly untapped as a medium for art.",
+      "Canadian by birth, Melburnian by choice. His goal is to bridge art and the net. To Alex, platforms like Instagram already feel dated. It is time to evolve into the humans we could be: not performing for likes, not dictated to by an algorithm.",
+      "He toggles his time between web development, teaching design, and his own art practice.",
     ],
   },
 }
