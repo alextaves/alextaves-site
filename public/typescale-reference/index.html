@@ -6,12 +6,16 @@
 <title>Type scale quick reference</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --paper:#F4F6F7;--card:#FFFFFF;--ink:#12171C;--slate:#5C6873;
   --rule:#DCE2E6;--accent:#1F5470;--accent-soft:#E4EDF2;--warn:#A33A26;
-  --ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+  /* Avenir Next where it exists — macOS and iOS — with Nunito Sans behind it
+     as a webfont for Windows and Android, which have neither. The closest free
+     humanist geometric: open apertures, near-circular bowls. Matches the
+     composer at /typescale so the two pages read as one piece of work. */
+  --ui:'Avenir Next','Avenir','Nunito Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -73,6 +77,10 @@ tr.base td.val{font-weight:700}
 tr.base .step{color:var(--accent)}
 td.under{color:var(--warn)}
 
+.toref{font-size:13px;color:var(--accent);text-decoration:none;
+  border-bottom:1px solid var(--accent-soft)}
+.toref:hover{border-bottom-color:var(--accent)}
+.toref::after{content:' \2192'}
 .notes{display:flex;gap:28px;justify-content:space-between;flex-wrap:wrap;
   margin-top:16px;padding-top:14px;border-top:1px solid var(--rule);
   font-size:13px;color:var(--slate);line-height:1.5}
@@ -115,8 +123,9 @@ td.under{color:var(--warn)}
 </div>
 
 <div class="notes">
-  <p><span class="swatch"></span>Below 8.5pt. The arithmetic is correct and the result is unreadable. Move it up a step, or set it by hand and note that you broke the scale on purpose.</p>
+  <p><span class="swatch"></span>Below 8.5pt. The maths is right, the size isn't. Move it up a step, or set it by hand at 8pt.</p>
   <p>Rounding to the nearest half point will not break the relationship. The ratio is the point, not the decimals.</p>
+  <p><a class="toref" href="/typescale">Compose a scale with these ratios</a></p>
 </div>
 
 </div>
