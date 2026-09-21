@@ -521,10 +521,12 @@ export default function MobileGrid() {
 
   const openCard = (id) => {
     if (id === 'journal') { window.open('https://oswinjournal.com', '_blank'); return }
+    if (id === 'gallery') { window.open('https://oswingallery.com', '_blank'); return }
     if (id === 'alex') { setBioOpen(true); return }
     if (id === 'reel') { setReelOpen(true); return }
     if (id === 'enquiries') { setFormOpen(true); return }
-    if (id === 'gallery' || id === 'records') {
+    // Records alone is still an announcement; the gallery is open (above).
+    if (id === 'records') {
       setComing((prev) => {
         const next = new Set(prev)
         if (next.has(id)) next.delete(id); else next.add(id)

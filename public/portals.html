@@ -1773,7 +1773,11 @@ function handlePanelClick(idx) {
   // ALEX TAVES turns over in place — portrait to bio and back — instead of
   // opening the story overlay it used to.
   if (idx === ALEX_TAVES_INDEX) { toggleAlexFace(); return }
-  if (idx === OSWIN_GALLERY_INDEX || idx === OSWIN_RECORDS_INDEX) { toggleComingSoon(idx); return }
+  // The gallery is open, so its card is a door like the Journal's rather than
+  // an announcement. Records still has nothing behind it and keeps the
+  // coming-soon turn.
+  if (idx === OSWIN_GALLERY_INDEX) { window.open('https://oswingallery.com', '_blank'); return }
+  if (idx === OSWIN_RECORDS_INDEX) { toggleComingSoon(idx); return }
   if (idx === ARCHIVE_INDEX) { openReel(); return }
   if (idx === OSWIN_INDEX) { window.open('https://oswinjournal.com', '_blank'); return }
   if (pendingConfirmIdx !== idx) {
