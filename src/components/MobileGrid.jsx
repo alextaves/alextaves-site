@@ -167,8 +167,8 @@ function inkOn(hex) {
 // own casing.
 const CARDS = [
   { id: 'journal',  kind: 'circle', title: 'OSWIN JOURNAL', sub: 'Sound and Image', bg: '#FFFFFF', circle: '#F9FF45' },
-  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'Opens October',   bg: '#FFFFFF', circle: '#FF3612' },
-  { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'Opens October',   bg: '#FFFFFF', circle: '#5D40FF' },
+  { id: 'gallery',  kind: 'circle', title: 'OSWIN GALLERY', sub: 'Opens October',   bg: '#FFFFFF', circle: '#0043DE' },
+  { id: 'records',  kind: 'circle', title: 'OSWIN RECORDS', sub: 'Opens October',   bg: '#FFFFFF', circle: '#FF3612' },
   { id: 'alex',     kind: 'photo',  title: 'ALEX TAVES',    sub: 'A Bit About Me',                 bg: '#FFFFFF',
     lines: ['ALEX', 'TAVES'] },
   { id: 'reel',     kind: 'video',  title: 'COMMISSIONS',   sub: 'The Previous alextaves.com',     bg: '#0B0B0B', titleColor: '#D8FF14',
