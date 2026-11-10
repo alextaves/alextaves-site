@@ -77,18 +77,24 @@ const key = new THREE.DirectionalLight('#ffffff', 1.1); key.position.set(4, 6, 5
 const rim = new THREE.DirectionalLight('#ffcf90', 0.5); rim.position.set(-5, 2, -4);
 scene.add(key, rim);
 
-// Panel geometry — sized like detroit: 75% of near-face horizontal view
+// Panel geometry — the home ring's, exactly. The two branches were the wrong
+// way round: desktop was sizing off the HORIZONTAL view, so on a wide window a
+// panel came out 6.88 tall against a 4.16 viewport — 1.8x the home ring's 3.75.
+// Vertical for desktop, horizontal for portrait, which is how portals.html has
+// it. And isMobile is now the width test that file settled on, rather than
+// aspect, so an unusually tall desktop window does not flip into the phone
+// layout.
 const vFOV      = (camera.fov * Math.PI) / 180;
-const nearDist  = CAM_Z - RADIUS;  // = 4
-const isMobile  = camera.aspect < 1;
+const nearDist  = CAM_Z - RADIUS;  // = 4, same as the home ring
+const isMobile  = innerWidth < 1024;
 let panelW, panelH;
 if (!isMobile) {
-  const hFOVhalf = Math.atan(Math.tan(vFOV / 2) * camera.aspect);
-  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.75;
-  panelH = panelW * (4 / 3);
-} else {
-  panelH = 0.85 * 2 * nearDist * Math.tan(vFOV / 2);
+  panelH = 0.9 * 2 * nearDist * Math.tan(vFOV / 2);
   panelW = panelH * (3 / 4);
+} else {
+  const hFOVhalf = Math.atan(Math.tan(vFOV / 2) * camera.aspect);
+  panelW = 2 * nearDist * Math.tan(hFOVhalf) * 0.95;
+  panelH = panelW * (4 / 3);
 }
 
 const panelGeo = new THREE.BoxGeometry(panelW, panelH, THICK);

@@ -246,6 +246,7 @@ let PORTALS = [
   { title: 'ENQUIRIES',        sub: 'Get in Touch · Looking for Like Minded',  bg: '#00C2A8', light: false },
   { title: 'OSWIN GALLERY',    sub: 'Opens October',                           bg: '#FFFFFF', light: false, circle: '#0043DE' },
   { title: 'OSWIN RECORDS',    sub: 'Opens October',                           bg: '#FFFFFF', light: false, circle: '#FF3612' },
+  { title: 'VIDEO ART',        sub: 'Moving Image · the B-sides',              bg: '#0B0B0B', light: true, titleColor: '#4DB8FF' },
 ]
 if (RING === 'detroit') PORTALS = DETROIT_RING
 
@@ -289,6 +290,9 @@ const B_SIDES_INDEX = -1
 // parent, which has no phase for them.
 const OSWIN_GALLERY_INDEX = MAIN ? 4 : -1
 const OSWIN_RECORDS_INDEX = MAIN ? 5 : -1
+// Appended at the end on purpose: every index above is positional, so a card
+// inserted anywhere else would hand its special case to the wrong portal.
+const VIDEO_ART_INDEX = MAIN ? 6 : -1
 // Appended AFTER postcards, so every existing index is unmoved and
 // WELCOME_INDEX (COUNT - 1) still lands on the welcome card.
 const DETROIT_REMIX_INDEX = 9

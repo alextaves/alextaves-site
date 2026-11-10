@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import VideoDiver6 from './components/VideoDiver6'
+import VideoDiver3 from './components/VideoDiver3'
 import VideoStripWallStreet2 from './components/VideoStripWallStreet2'
 import VideoStripPreRaceCrossBlueGlass from './components/VideoStripPreRaceCrossBlueGlass'
 import VideoStripHurdlesReverse from './components/VideoStripHurdlesReverse'
@@ -98,12 +99,15 @@ function InstallPrompt() {
   )
 }
 
+// Keyed by scene number, so inserting a scene moves every hint below it —
+// otherwise scene 3 inherits the instruction that belongs to scene 4.
 const HINTS = {
   1: null,
-  2: 'scroll to change speed',
-  3: '← brown · green → · ↑↓ b&w',
-  4: '↑ forward · ↓ reverse',
-  5: 'scroll up to speed up · scroll down to slow down',
+  2: 'scroll to change speed',          // the new diver takes the wheel too
+  3: 'scroll to change speed',
+  4: '← brown · green → · ↑↓ b&w',
+  5: '↑ forward · ↓ reverse',
+  6: 'scroll up to speed up · scroll down to slow down',
 }
 
 function SceneHint({ scene }) {
@@ -486,10 +490,15 @@ export default function App() {
         setTimeout(() => setPhase('site'), 700)
       }
       if (e.data && typeof e.data === 'object' && e.data.type === 'portalClick' && phase === 'carousel') {
-        // Nothing on the main ring routes through here any more. Oswin Journal
-        // opens its own tab, Commissions / Alex Taves / Enquiries all act in
-        // place, and the two Oswin rooms have no target yet. Kept so a card
-        // that needs a page again has somewhere to land.
+        // Oswin Journal opens its own tab, Commissions / Alex Taves / Enquiries
+        // act in place, and the two Oswin rooms still have no target. Video Art
+        // is the card that came back and needed a page — index 6, which is the
+        // end of PORTALS, because every index in portals.html is positional.
+        // Video Art reopens Moving Images — the 'site' phase, full screen,
+        // scene 1 is the blue diver, numbers 1-6 along the bottom move between
+        // the pieces. MOVING_IMAGES_INDEX was pinned to -1 when its card came
+        // off the ring, so the phase has been unreachable, not missing.
+        if (e.data.idx === 6) { setScene(1); doTransition('site') }
       }
       // The Detroit ring is the same portals file with ?ring=detroit, so its
       // clicks arrive as portalClick too — the ring tag is what separates them
@@ -1016,11 +1025,12 @@ export default function App() {
       {phase === 'site' && (
         <>
           {scene === 1 && <VideoDiver6 />}
-          {scene === 2 && <VideoStripWallStreet2 />}
-          {scene === 3 && <VideoStripPreRaceCrossBlueGlass />}
-          {scene === 4 && <VideoStripHurdlesReverse />}
-          {scene === 5 && <VideoPlayback />}
-          {scene === 6 && <WaterMarquee controls={false} />}
+          {scene === 2 && <VideoDiver3 />}
+          {scene === 3 && <VideoStripWallStreet2 />}
+          {scene === 4 && <VideoStripPreRaceCrossBlueGlass />}
+          {scene === 5 && <VideoStripHurdlesReverse />}
+          {scene === 6 && <VideoPlayback />}
+          {scene === 7 && <WaterMarquee controls={false} />}
           <TypewriterText scene={scene} onSceneChange={setScene} onGoHome={goHome} audioOn={audioOn} onToggleAudio={toggleAudio} />
           <SceneHint scene={scene} />
           <InstallPrompt />

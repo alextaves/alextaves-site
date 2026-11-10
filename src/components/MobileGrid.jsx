@@ -174,6 +174,9 @@ const CARDS = [
   { id: 'reel',     kind: 'video',  title: 'COMMISSIONS',   sub: 'The Previous alextaves.com',     bg: '#0B0B0B', titleColor: '#D8FF14',
     lines: ['COMMIS-', 'SIONS'] },     // com·mis·sions
   { id: 'enquiries',kind: 'form',   title: 'ENQUIRIES',     sub: 'Get in Touch · Looking for Like Minded', bg: '#00C2A8' },
+  { id: 'videoart', kind: 'video',  title: 'VIDEO ART',     sub: 'Moving Image · the B-sides',     bg: '#0B0B0B', titleColor: '#4DB8FF',
+    video: '/videos/diver4.mp4',
+    lines: ['VIDEO', 'ART'] },
 ]
 
 // feTurbulence, tiled — the phone equivalent of the ring's pooled noise frames.
@@ -629,7 +632,7 @@ export default function MobileGrid() {
 
                 {card.kind === 'video' && (
                   <>
-                    <CardVideo src={REEL_CARD_SRC} />
+                    <CardVideo src={card.video || REEL_CARD_SRC} />
                     <div className="mg-videoScrim" />
                   </>
                 )}
